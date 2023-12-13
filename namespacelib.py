@@ -8,7 +8,7 @@ import typing
 __all__ = ('mknamespace', 'rmknamespace')
 
 def _namespace__call__(self: object, fn: typing.Callable):
-    '''Add a function to the method object'''
+    '''Add a function to the object'''
     setattr(self, fn.__name__, fn)
 
 def mknamespace(name: str = 'Namespace', doc: str | None = None, *,
