@@ -1,6 +1,12 @@
 #!/bin/python3
 
-'''Compress Python builtin objects in a simple, semi-human-readable format that is concatable and writable to files'''
+'''
+    Compress Python builtin objects in a simple, semi-human-readable format that is concatable and writable to files
+    Arbitrary objects can be packed, however they will be reduced to dictionaries of their attributes
+    `unpack` returns a tuple of unpacked object, so:
+        `object == unpack(pack(object))[0]`
+        `(object0, object1) == unpack(pack(object0)+pack(object1))`
+'''
 
 #> Imports
 import io
@@ -109,6 +115,7 @@ def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple
             If header is True, then fail if the header is not present
             If header is False, do nothing about any header
         Whilst arbitrary objects can be packed, note that when unpacked they will be reduced to dictionaries
+        Note that `object == unpack(pack(object))[0]`, NOT `object == unpack(pack(object))`
     '''
     if (header is True) and not data.startswith(HEADER):
         raise TypeError('Rejected data as it does not start with HEADER, perhaps use header=\'auto\'?')
