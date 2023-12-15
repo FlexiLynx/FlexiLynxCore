@@ -116,8 +116,8 @@ def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple
 
 # testing method
 def _make_teststructgen():
+    '''Creates a function to generate "testing" structures'''
     import random, string, sys
-    from pympler.asizeof import asizeof
     _test_singlegen = (
         lambda ml, md: ''.join(random.choices(string.printable, k=random.randint(0, ml))), # str
         lambda ml, md: random.randbytes(random.randint(0, ml)), # bytes
