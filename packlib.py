@@ -15,7 +15,7 @@ from ast import literal_eval
 #</Imports
 
 #> Header >/
-__all__ = ('pack', 'unpack', 'iunpack', 'sunpack')
+__all__ = ('pack', 'spack', 'unpack', 'iunpack', 'sunpack')
 
 HEADER = b'\x00Lpak\xFF'
 
@@ -95,6 +95,11 @@ def pack(data: typing.Union[*(t for t in compiledict.keys() if isinstance(t, typ
     if not datas: raise TypeError(f'Cannot pack {data!r} with type {type(data).__qualname__}')
     pfx,cdat = min(datas, key=lambda pd: len(pd[1]))
     return (HEADER if header else b'') + pfx + str(len(cdat)).encode() + bytes(1) + cdat
+def spack(stream: io.BytesIO, *objects: typing.Union[*(t for t in compiledict.keys() if isinstance(t, type))], header: bool = True) -> io.BytesIO:
+    '''Packs objects to a stream, and adds a header to the beginning if header is True'''
+    if header: stream.write(HEADER)
+    for o in objects: stream.write(pack(o))
+    return stream
 def sunpack(stream: io.BytesIO) -> str | bytes | tuple | frozenset | dict | bool | int | float | type(None):
     '''Unpack a single packed sequence from a byte-stream'''
     t = stream.read(1)
@@ -124,6 +129,7 @@ def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple
     if (header is True) and not data.startswith(HEADER):
         raise TypeError('Rejected data as it does not start with HEADER, perhaps use header=\'auto\'?')
     return tuple(iunpack(data.removeprefix(HEADER) if header in {True, 'auto'} else data))
+
 # testing method
 def _make_teststructgen():
     '''Creates a function to generate "testing" structures'''
