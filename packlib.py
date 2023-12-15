@@ -15,6 +15,8 @@ from ast import literal_eval
 #</Imports
 
 #> Header >/
+__all__ = ('pack', 'unpack', 'iunpack', 'sunpack')
+
 HEADER = b'\x00Lpak\xFF'
 
 # compile mapping
