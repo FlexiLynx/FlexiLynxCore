@@ -12,6 +12,13 @@ from ast import literal_eval
 HEADER = b'\x00Lpak\xFF'
 
 # compile mapping
+def _obj_to_dict(obj: object) -> dict:
+    objd = {}
+    if hasattr(obj, '__slots__'):
+        objd |= {a: v for a in obj.__slots__}
+    if hasattr(obj, '__dict__'):
+        objd |= obj.__dict__
+    return objd
 compiledict = {
     # Sequences
     str: (b's', str.encode),
@@ -29,6 +36,7 @@ compiledict = {
     type(None): (b'N', lambda n: b''),
     # Special types
     'literalable': (b'@', lambda L: repr(L).encode()),
+    'object': (b'D', lambda o: compiledict[dict][1](_obj_to_dict(o))),
 }
 # mutable to immutable aliases
 compiledict[list] = compiledict[tuple]
@@ -53,7 +61,11 @@ decompiledict = {
 }
 
 def pack(data: typing.Union[*(t for t in compiledict.keys() if isinstance(t, type))], header: bool = False) -> bytes:
-    '''Pack data into a sequence of concatable bytes (note: packed data cannot be concatted if it contains a header (except for the first sequence))'''
+    '''
+        Pack data into a sequence of concatable bytes
+            Note: packed data cannot be concatted if it contains a header (except for the first sequence)
+            Note: arbitrary objects can be packed from their __dict__ and __slots__ attributes, but upon unpacking they will be reduced to dictionaries
+    '''
     datas = []
     # Normal method
     if type(data) in compiledict:
@@ -67,6 +79,10 @@ def pack(data: typing.Union[*(t for t in compiledict.keys() if isinstance(t, typ
             raise ValueError
     except ValueError: pass
     else: datas.append((pfx, ldat))
+    # Object-to-dict method
+    if not datas: # almost always going to be larger than other methods
+        pfx, fn = compiledict['object']
+        datas.append((pfx, fn(data)))
     # Finish packing and return
     if not datas: raise TypeError(f'Cannot pack {data!r} with type {type(data).__qualname__}')
     pfx,cdat = min(datas, key=lambda pd: len(pd[1]))
@@ -84,6 +100,7 @@ def iunpack(data: bytes) -> typing.Generator[str | bytes | tuple | frozenset | d
             if s == 0: break
             size.append(s)
         size = int(size.decode())
+        print(size)
         yield decompiledict[bytes((t,))](bytes(idat.popleft() for _ in range(size)))
 def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple[str | bytes | tuple | frozenset | dict | bool | int | float | type(None), ...]:
     '''
@@ -91,6 +108,7 @@ def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple
             If header is 'auto', then remove the header if it exists
             If header is True, then fail if the header is not present
             If header is False, do nothing about any header
+        Whilst arbitrary objects can be packed, note that when unpacked they will be reduced to dictionaries
     '''
     if (header is True) and not data.startswith(HEADER):
         raise TypeError('Rejected data as it does not start with HEADER, perhaps use header=\'auto\'?')
