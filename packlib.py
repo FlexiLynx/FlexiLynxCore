@@ -3,8 +3,8 @@
 '''Compress Python builtin objects in a simple, semi-human-readable format that is concatable and writable to files'''
 
 #> Imports
+import io
 import typing
-from collections import deque
 from ast import literal_eval
 #</Imports
 
@@ -89,19 +89,19 @@ def pack(data: typing.Union[*(t for t in compiledict.keys() if isinstance(t, typ
     return (HEADER if header else b'') + pfx + str(len(cdat)).encode() + bytes(1) + cdat
 def iunpack(data: bytes) -> typing.Generator[str | bytes | tuple | frozenset | dict | bool | int | float | type(None), None, None]:
     '''Unpack and yield sequences of packed data'''
-    idat = deque(data)
-    while idat:
-        t = idat.popleft()
-        if bytes((t,)) not in decompiledict:
+    idat = io.BytesIO(data)
+    while True:
+        t = idat.read(1)
+        if t == bytes(): break # end of stream
+        if t not in decompiledict:
             raise ValueError(f'Unknown type {t} (dec: {chr(t)!r}) at {len(data)-len(idat)-1}')
         size = bytearray()
         while True:
-            s = idat.popleft()
-            if s == 0: break
-            size.append(s)
+            s = idat.read(1)
+            if s == bytes(1): break #\x00 end-of-length
+            size.extend(s)
         size = int(size.decode())
-        print(size)
-        yield decompiledict[bytes((t,))](bytes(idat.popleft() for _ in range(size)))
+        yield decompiledict[t](idat.read(size))
 def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple[str | bytes | tuple | frozenset | dict | bool | int | float | type(None), ...]:
     '''
         Unpack an entire sequence of packed sequences of data
