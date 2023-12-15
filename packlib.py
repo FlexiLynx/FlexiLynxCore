@@ -93,21 +93,23 @@ def pack(data: typing.Union[*(t for t in compiledict.keys() if isinstance(t, typ
     if not datas: raise TypeError(f'Cannot pack {data!r} with type {type(data).__qualname__}')
     pfx,cdat = min(datas, key=lambda pd: len(pd[1]))
     return (HEADER if header else b'') + pfx + str(len(cdat)).encode() + bytes(1) + cdat
+def sunpack(stream: io.BytesIO) -> str | bytes | tuple | frozenset | dict | bool | int | float | type(None):
+    '''Unpack a single packed sequence from a byte-stream'''
+    t = stream.read(1)
+    if t not in decompiledict:
+        raise ValueError(f'Unknown type {t} (dec: {chr(t)!r}) at {len(data)-len(idat)-1}')
+    size = bytearray()
+    while True:
+        s = stream.read(1)
+        if s == bytes(1): break #\x00 end-of-length
+        size.extend(s)
+    size = int(size.decode())
+    return decompiledict[t](stream.read(size))
 def iunpack(data: bytes) -> typing.Generator[str | bytes | tuple | frozenset | dict | bool | int | float | type(None), None, None]:
     '''Unpack and yield sequences of packed data'''
     idat = io.BytesIO(data)
-    while True:
-        t = idat.read(1)
-        if t == bytes(): break # end of stream
-        if t not in decompiledict:
-            raise ValueError(f'Unknown type {t} (dec: {chr(t)!r}) at {len(data)-len(idat)-1}')
-        size = bytearray()
-        while True:
-            s = idat.read(1)
-            if s == bytes(1): break #\x00 end-of-length
-            size.extend(s)
-        size = int(size.decode())
-        yield decompiledict[t](idat.read(size))
+    while idat.tell() < len(data):
+        yield sunpack(idat)
 def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple[str | bytes | tuple | frozenset | dict | bool | int | float | type(None), ...]:
     '''
         Unpack an entire sequence of packed sequences of data
@@ -120,7 +122,6 @@ def unpack(data: bytes, header: typing.Literal['auto'] | bool = 'auto') -> tuple
     if (header is True) and not data.startswith(HEADER):
         raise TypeError('Rejected data as it does not start with HEADER, perhaps use header=\'auto\'?')
     return tuple(iunpack(data.removeprefix(HEADER) if header in {True, 'auto'} else data))
-
 # testing method
 def _make_teststructgen():
     '''Creates a function to generate "testing" structures'''
