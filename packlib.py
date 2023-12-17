@@ -9,6 +9,8 @@ from ast import literal_eval
 #</Imports
 
 #> Header >/
+__all__ = ('Packer', 'packer')
+
 class Packer:
     __slots__ = (
         'optimize_do_blanking',
