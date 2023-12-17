@@ -3,6 +3,7 @@
 #> Imports
 import io
 import struct
+import math
 import typing
 from ast import literal_eval
 #</Imports
@@ -12,7 +13,7 @@ class Packer:
     __slots__ = (
         'optimize_do_blanking',
         'try_reduce_objects',
-        '_size_base', '_trans_table',
+        '_size_base',
         '_type_to_pfx', '_pfx_to_type',
         '__dict__', # allow customizing class-vars on instances
     )
@@ -22,59 +23,41 @@ class Packer:
     S_DOUBLE = struct.Struct('!d')
     S_COMPLEX = struct.Struct('!dd')
 
-    PREFIX_DEFS = { #ordered simplest to most complex (sans Other)
+    TYPE_KEYS = ( # ordered simplest to most complex (sans Other)
         # Numerics [lowercase prefixes]
-        False: b'f', True: b't', int: b'i', float: b'd', complex: b'c',
+        False, True, int, float, complex,
         # Sequences [uppercase prefixes]
         ## Simple sequences (encoded as-is)
-        bytes: b'B', str: b'S',
+        bytes, str,
         # sequences
-        tuple: b'T', frozenset: b'F', dict: b'D',
+        tuple, frozenset, dict,
         # Other keys [symbols]
-        None: b'/', repr: b'#',
-    }
-
-    @staticmethod
-    def inbase(n: int, base: int) -> bytes:
-        '''Converts an integer to an arbitrary base, then converts it to bytes, thanks to https://stackoverflow.com/a/28666223'''
-        if not n: return (0,)
-        digits = []
-        while n:
-            digits.append(int(n % base))
-            n //= base
-        return bytes(digits)
-    @staticmethod
-    def frombase(b: bytes, base: int) -> int:
-        '''Converts an integer from bytes in an arbitrary base, reverse-engineered from https://stackoverflow.com/a/28666223'''
-        if not b: return 0
-        n = 0
-        for p,d in enumerate(b): n += d * (base**p)
-        return n
+        None, repr,
+    )
 
     def __init__(self, optimize_do_blanking: bool = True, try_reduce_objects: bool = False, **kwargs):
         self.optimize_do_blanking = optimize_do_blanking
         try_reduce_objects = try_reduce_objects
         for k,v in kwargs.items():
             setattr(self, k, v)
-        self._size_base = 225 - len(self.PREFIX_DEFS) - 1 # we need to reserve len(self.PREFIX_DEFS) + 1 byte-values to encode prefixes and a separator
-        self._type_to_pfx = {t: bytes((self._size_base + n,)) for n,t in enumerate(self.PREFIX_DEFS.keys())}
+        self._size_base = 225 - len(self.TYPE_KEYS) # we need to reserve len(self.TYPE_KEYS) bytes to encode type-keys
+        self._type_to_pfx = {t: bytes((self._size_base + n,)) for n,t in enumerate(self.TYPE_KEYS)}
         self._pfx_to_type = {p: t for t,p in self._type_to_pfx.items()}
-        # Translation table
-        self._trans_table = bytes.maketrans(b''.join(self._type_to_pfx.values()) + b''.join(self.PREFIX_DEFS.values()), b''.join(self.PREFIX_DEFS.values()) + b''.join(self._type_to_pfx.values()))
-    # Encode
-    ## Forward
-    def _encode_to_struct_or_repr(self, p: struct.Struct, t: typing.Literal[*PREFIX_DEFS], o: tuple[object, ...]) -> tuple[struct.Struct | typing.Literal[repr], bytes]:
-        ro = repr(o)
-        if len(ro) < p.size: return (repr, ro)
-        try: so = p.pack(*o)
-        except struct.error: pass
-        else: return (t, so)
-        return (repr, ro)
-    def encode(self, o: object) -> tuple[typing.Literal[*PREFIX_DEFS], bytes]:
+
+    def encode_size(self, s: int) -> bytes:
+        '''Encodes an integer in self._size_base; originally inspired by https://stackoverflow.com/a/28666223'''
+        if not s: return b''
+        return bytes(((s % (self._size_base**p))) // (self._size_base**(p-1)) for p in range(1, math.ceil(1+math.log(s+1, self._size_base))))[::-1]
+    def decode_size(self, bs: bytes) -> int:
         '''
-            The first step in the packing process
-            Encodes an object into bytes and return its packed-type
+            Decodes an integer from self._size_base
+            Not that this not used by the current implementation of siunarchive()
         '''
+        if not bs: return 0
+        return sum(d*(self._size_base**p) for p,d in enumerate(reversed(bs)))
+
+    def encode(self, o: object) -> tuple[typing.Literal[*TYPE_KEYS], bytes]:
+        '''Returns an object's type-key and encoded bytes'''
         match o:
             # Numerics
             case bool():
@@ -96,40 +79,39 @@ class Packer:
                 return (str, o.encode(self.STR_ENCODING))
             ## Recursive
             case tuple() | list():
-                return (tuple, self.archive(self.encodes(o)))
+                return (tuple, self.pack(*(so for so in o)))
             case frozenset() | set():
-                return (frozenset, self.archive(self.encodes(o)))
+                return (frozenset, self.pack(*(so for so in o)))
             case dict():
-                return (dict, b''.join(self.pack(k,v) for k,v in o.items()))
+                return (dict, self.pack(*sum(tuple(o.items()), start=())))
             # Others
             case (None):
                 return (None, b'')
-            case _ if repr(o) == ast.literal_eval(r): # object equals its repr ((sometimes) literal) form
+            case _ if (r := repr(o)) == literal_eval(r): # object equals its repr ((sometimes) literal) form
                 return (repr, r.encode(self.STR_ENCODING))
-    def iencodes(self, os: tuple[object, ...]) -> typing.Generator[[tuple[typing.Literal[*PREFIX_DEFS], bytes]], None, None]:
-        '''Encodes a series of objects into archivable packed-types and bytes'''
-        for o in os:
-            enc = self.encode(o)
-            if enc[0] is repr:
-                yield enc
-                continue
-            if len(ren := (r := repr(o)).encode(self.STR_ENCODING)) < len(enc[1]):
-                try: lit = o == ast.literal_eval(r)
-                except ValueError: lit = False
-                if lit:
-                    yield (repr, ren)
-                    continue
-            yield enc
-    def encodes(self, os: tuple[object, ...]) -> tuple[tuple[typing.Literal[*PREFIX_DEFS], bytes], ...]:
-        '''Encodes a series of objects into an archivable series of packed-types and bytes'''
-        return tuple(self.iencodes(os))
-    ## Reverse
-    def decode(self, p: typing.Literal[*PREFIX_DEFS], e: bytes) -> object:
-        '''
-            The last step in the unpacking process
-            Decodes encoded data given its pack-type
-        '''
-        t = self._pfx_to_type[p]
+        raise TypeError(f'Cannot encode object {o!r} of type {type(o).__qualname__}')
+    def sarchive(self, stream: io.BytesIO, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]):
+        '''Archives sets of encoded data into a stream'''
+        for t,d in data:
+            stream.write(self.encode_size(len(d)))
+            stream.write(self._type_to_pfx[t])
+            stream.write(d)
+    def archive(self, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]) -> bytes:
+        '''Archives sets of encoded data into bytes'''
+        with io.BytesIO() as stream:
+            self.sarchive(stream, data)
+            return stream.getvalue()
+    def spack(self, stream: io.BytesIO, *objects: object) -> bytes:
+        '''Packs a sequence of objects into a stream'''
+        self.sarchive(stream, (self.encode(o) for o in objects))
+    def pack(self, *objects: object) -> bytes:
+        '''Packs a sequence of objects into bytes'''
+        with io.BytesIO() as stream:
+            self.spack(stream, *objects)
+            return stream.getvalue()
+
+    def decode(self, t: typing.Literal[*TYPE_KEYS], e: bytes) -> object:
+        '''Decodes encoded data, given its pack-type'''
         if not e:
             if isinstance(t, type): return t()
             elif t == repr: raise TypeError(f'Cannot decode zero-length repr at {e!r}')
@@ -149,85 +131,47 @@ class Packer:
             return e.decode(self.STR_ENCODING)
         ## Recursive
         if t is tuple:
-            return tuple(self.decode(rp, re) for rp, re in self.unarchive(e))
+            return tuple(self.decode(rp, re) for rp, re in self.iunarchive(e))
         if t is frozenset:
-            return frozenset(self.decode(rp, re) for rp, re in self.unarchive(e))
+            return frozenset(self.decode(rp, re) for rp, re in self.iunarchive(e))
         if t is dict:
-            return tuple(self.decode(rp, re) for rp, re in self.unarchive(e))
+            seq = self.unpack(e)
+            return dict(zip(seq[::2], seq[1::2]))
         # Other
         if t is None: return None
         if t is repr:
             return literal_eval(e.decode(self.STR_ENCODING))
-    # Archive
-    ## Forward
-    def archive_into(self, stream: io.BytesIO, data: tuple[tuple[bytes, bytes], ...]):
+    def sunarchive_one(self, stream: io.BytesIO) -> tuple[typing.Literal[*TYPE_KEYS], bytes] | None:
+        '''Un-archives a single sequence of data from a stream'''
+        p = size = 0
+        while True:
+            b = stream.read(1)
+            if not b: return None
+            if b[0] >= self._size_base: break
+            size += self._size_base**p*b[0]
+            p += 1
+        return (self._pfx_to_type[b], stream.read(size))
+    def siunarchive(self, stream: io.BytesIO) -> typing.Generator[tuple[typing.Literal[*TYPE_KEYS], bytes], None, None]:
+        '''Un-archives and yields sequences of data from a stream'''
+        while (seq := self.sunarchive_one(stream)) is not None: yield seq
+    def iunarchive(self, arch: bytes) -> typing.Generator[tuple[typing.Literal[*TYPE_KEYS], bytes], None, None]:
+        '''Un-archives and yields sequences of data from bytes'''
+        with io.BytesIO(arch) as stream:
+            yield from self.siunarchive(stream)
+    def unarchive(self, arch: bytes) -> tuple[tuple[typing.Literal[*TYPE_KEYS], bytes]]:
+        '''Un-archives sequences of data from bytes'''
+        return tuple(self.iunarchive(arch))
+    def siunpack(self, stream: io.BytesIO) -> typing.Iterator[object]:
+        '''Returns an iterator that unpacks objects from a stream'''
+        return (self.decode(t, a) for t,a in self.siunarchive(stream))
+    def iunpack(self, packed: bytes) -> typing.Generator[object, None, None]:
+        '''Returns an iterator that unpacks objects from bytes'''
+        with io.BytesIO(packed) as stream:
+            yield from self.siunpack(stream)
+    def unpack(self, packed: bytes) -> tuple[object, ...]:
         '''
-            The final step in the packing process
-            Writes a tuple of tuples of packed-types and encoded data in an unpackable form into a stream
+            Unpacks and returns a tuple of objects from bytes
+            Convenience method for `tuple(iunpack(packed))`
         '''
-        for p,v in data:
-            if v or not self.optimize_do_blanking:
-                stream.write(bytes(self.inbase(len(v), self._size_base)))
-            stream.write(p)
-        stream.write(b'\xFF')
-        for _,v in data: stream.write(v)
-    def archive(self, data: tuple[tuple[bytes, bytes], ...]) -> bytes:
-        '''
-            The final step in the packing process
-            Archives a tuple of tuples of packed-types and encoded data into an unpackable form
-        '''
-        with io.BytesIO() as stream:
-            self.archive_into(stream, data)
-            return stream.getvalue()
-    ## Reverse
-    def iunarchive_from(self, stream: io.BytesIO) -> typing.Iterator[tuple[bytes, bytes]]:
-        '''
-            The first step in the unpacking process
-            Reads an iterator of tuples of type-prefixes and encoded data from a stream
-        '''
-        types = []
-        with io.BytesIO() as ssize:
-            while True:
-                n = stream.read(1)
-                print(f'{n=!r} {types=!r} {ssize.getvalue()=!r}')
-                if n == b'\xFF':
-                    print(types)
-                    break
-                if n[0] >= self._size_base:
-                    print(n[0])
-                    print(n)
-                    print(ssize.getvalue())
-                    print('yay')
-                    types.append((n, self.frombase(ssize.getvalue(), self._size_base)))
-                    ssize.truncate(0); ssize.seek(0, io.SEEK_SET)
-                    continue
-                ssize.write(n)
-        return ((pfx, stream.read(size)) for pfx,size in types)
-    def unarchive_from(self, stream: io.BytesIO) -> tuple[tuple[bytes, bytes], ...]:
-        '''
-            The first step in the unpacking process
-            Reads a tuple of tuples of type-prefixes and encoded data from a stream
-            Convenience function for `tuple(iunarchive_from(stream))`
-        '''
-        return tuple(self.iunarchive_from(stream))
-    def unarchive(self, archived: bytes) -> tuple[tuple[bytes, bytes], ...]:
-        '''
-            The first step in the unpacking process
-            Reads a tuple of tuples of type-prefixes and encoded data from bytes
-        '''
-        with io.BytesIO(archived) as stream:
-            return tuple(self.iunarchive_from(stream))
-    # Translate
-    def translate(self, archive: bytes) -> bytes:
-        '''Makes archived bytes slightly more human-readable or computer-readable'''
-        #return archive.translate(self._trans_table)
-        return archive
-    # Pack
-    def pack(self, *os: object) -> bytes:
-        '''Packs a sequence of arbitrary objects into bytes'''
-        return self.translate(self.archive(tuple((self._type_to_pfx[t], v) for t,v in self.encodes(os))))
-    def iunpack_one(self, b: bytes) -> typing.Iterator[object]:
-        '''Unpacks a sequence of packed objects'''
-        return (self.decode(t,v) for t,v in self.unarchive(self.translate(b)))
-    def iunpack(self, b: bytes) -> typing.Iterator
+        return tuple(self.iunpack(packed))
 packer = Packer()
