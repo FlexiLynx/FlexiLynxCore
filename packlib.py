@@ -9,7 +9,7 @@ from ast import literal_eval
 #</Imports
 
 #> Header >/
-__all__ = ('Packer', 'packer')
+__all__ = ('Packer', 'packer', 'pack', 'unpack')
 
 class Packer:
     __slots__ = (
@@ -176,4 +176,20 @@ class Packer:
             Convenience method for `tuple(iunpack(packed))`
         '''
         return tuple(self.iunpack(packed))
+
 packer = Packer()
+
+def pack(*objects: object, **packer_attrs) -> bytes:
+    '''
+        Packs a series of objects into bytes
+        If packer_attrs is supplied, then a new Packer is created with every call
+            if you need to repeatedly use custom Packer attributes, then create your own Packer instance
+    '''
+    return (Packer(**packer_attrs) if packer_attrs else packer).pack(*objects)
+def unpack(packed: bytes, **packer_attrs) -> tuple[object, ...]:
+    '''
+        Unpacks a packed series of objects
+        If packer_attrs is supplied, then a new Packer is created with every call
+            if you need to repeatedly use custom Packer attributes, then create your own Packer instance
+    '''
+    return (Packer(**packer_attrs) if packer_attrs else packer).unpack(packed)
