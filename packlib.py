@@ -191,6 +191,10 @@ class Packer:
         '''
             Unpacks and returns a tuple of objects from bytes
             Convenience method for `tuple(iunpack(packed))`
+            Note that pack() and unpack() are sequence-based, therefore:
+                `object == unpack(pack(object))[0]`
+                and `(object1, object2) == unpack(pack(object1, object2))`
+                (assuming that packing succeeds and that `try_reduce_objects` is disabled)
         '''
         return tuple(self.iunpack(packed))
 
@@ -208,5 +212,9 @@ def unpack(packed: bytes, **packer_attrs) -> tuple[object, ...]:
         Unpacks a packed series of objects
         If packer_attrs is supplied, then a new Packer is created with every call
             if you need to repeatedly use custom Packer attributes, then create your own Packer instance
+        Note that pack() and unpack() are sequence-based, therefore:
+            `object == unpack(pack(object))[0]`
+            and `(object1, object2) == unpack(pack(object1, object2))`
+            (assuming that packing succeeds and that `try_reduce_objects` is disabled)
     '''
     return (Packer(**packer_attrs) if packer_attrs else packer).unpack(packed)
