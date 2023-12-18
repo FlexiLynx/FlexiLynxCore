@@ -4,6 +4,7 @@
 import io
 import struct
 import math
+import weakref
 import typing
 import dataclasses
 from ast import literal_eval
@@ -18,7 +19,9 @@ class Packer:
         'try_reduce_objects',
         '_size_base',
         '_type_to_pfx', '_pfx_to_type',
+        '_is_cached_instance', '_is_initted',
         '__dict__', # allow customizing class-vars on instances
+        '__weakref__', # allow instance caching
     )
 
     STR_ENCODING = 'UTF-8'
@@ -38,7 +41,19 @@ class Packer:
         None, repr,
     )
 
-    def __init__(self, optimize_do_blanking: bool = True, try_reduce_objects: bool = False, **kwargs):
+    _INSTANCE_CACHE = weakref.WeakValueDictionary() # instances have no state, so its safe to cache them
+
+    def __new__(cls, *, do_cache_instance: bool = True, optimize_do_blanking: bool = True, try_reduce_objects: bool = False, **kwargs):
+        if do_cache_instance:
+            h = hash((do_cache_instance, optimize_do_blanking, try_reduce_objects, tuple(kwargs.items())))
+            if (i := cls._INSTANCE_CACHE.get(h, None)) is not None: return i # cache hit
+        self = super().__new__(cls)
+        if do_cache_instance:
+            cls._INSTANCE_CACHE[h] = self # cache miss, save it for next time
+        self._is_cached_instance = do_cache_instance
+        return self
+    def __init__(self, *, optimize_do_blanking: bool = True, try_reduce_objects: bool = False, **kwargs):
+        if getattr(self, '_is_initted', False): return
         self.optimize_do_blanking = optimize_do_blanking
         self.try_reduce_objects = try_reduce_objects
         for k,v in kwargs.items():
@@ -46,6 +61,13 @@ class Packer:
         self._size_base = 225 - len(self.TYPE_KEYS) # we need to reserve len(self.TYPE_KEYS) bytes to encode type-keys
         self._type_to_pfx = {t: bytes((self._size_base + n,)) for n,t in enumerate(self.TYPE_KEYS)}
         self._pfx_to_type = {p: t for t,p in self._type_to_pfx.items()}
+        self._is_initted = True
+    def __setattr__(self, attr: str, val: typing.Any):
+        if getattr(self, '_is_cached_instance', False) and getattr(self, '_is_initted', False):
+            raise TypeError('Cannot set attributes on cached instances.'
+                            'Either create a new instance and set attributes in its kwargs,'
+                            'or disable caching (do_cache_instance=False) if you must modify an existing instance')
+        super().__setattr__(attr, val)
 
     def encode_size(self, s: int) -> bytes:
         '''Encodes an integer in self._size_base; originally inspired by https://stackoverflow.com/a/28666223'''
@@ -204,14 +226,16 @@ def pack(*objects: object, **packer_attrs) -> bytes:
     '''
         Packs a series of objects into bytes
         If packer_attrs is supplied, then a new Packer is created with every call
-            if you need to repeatedly use custom Packer attributes, then create your own Packer instance
+            if you need to repeatedly use custom Packer attributes, then create your own Packer instance*
+                *unless you are willing to rely on weakref instance caching (`do_cache_instance=True`), which is enabled by default
     '''
     return (Packer(**packer_attrs) if packer_attrs else packer).pack(*objects)
 def unpack(packed: bytes, **packer_attrs) -> tuple[object, ...]:
     '''
         Unpacks a packed series of objects
         If packer_attrs is supplied, then a new Packer is created with every call
-            if you need to repeatedly use custom Packer attributes, then create your own Packer instance
+            if you need to repeatedly use custom Packer attributes, then create your own Packer instance*
+                *unless you are willing to rely on weakref instance caching (`do_cache_instance=True`), which is enabled by default
         Note that pack() and unpack() are sequence-based, therefore:
             `object == unpack(pack(object))[0]`
             and `(object1, object2) == unpack(pack(object1, object2))`
