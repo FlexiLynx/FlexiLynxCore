@@ -8,6 +8,7 @@ import weakref
 import typing
 import dataclasses
 from ast import literal_eval
+from collections import namedtuple
 #</Imports
 
 #> Header >/
@@ -17,6 +18,7 @@ class Packer:
     __slots__ = (
         'optimize_do_blanking',
         'try_reduce_objects',
+        'reduce_namedtuple',
         '_size_base',
         '_type_to_pfx', '_pfx_to_type',
         '_is_cached_instance', '_is_initted',
@@ -36,26 +38,29 @@ class Packer:
         ## Simple sequences (encoded as-is)
         bytes, str,
         ## Recursive sequences
-        tuple, frozenset, dict,
+        tuple, frozenset, dict, namedtuple,
         # Other keys
         None, repr,
     )
 
     _INSTANCE_CACHE = weakref.WeakValueDictionary() # instances have no state, so its safe to cache them
 
-    def __new__(cls, *, do_cache_instance: bool = True, optimize_do_blanking: bool = True, try_reduce_objects: bool = False, **kwargs):
+    def __new__(cls, do_cache_instance: bool = True, **kwargs):
         if do_cache_instance:
-            h = hash((do_cache_instance, optimize_do_blanking, try_reduce_objects, tuple(kwargs.items())))
+            h = hash(tuple(kwargs.items()))
             if (i := cls._INSTANCE_CACHE.get(h, None)) is not None: return i # cache hit
         self = super().__new__(cls)
         if do_cache_instance:
             cls._INSTANCE_CACHE[h] = self # cache miss, save it for next time
         self._is_cached_instance = do_cache_instance
         return self
-    def __init__(self, *, optimize_do_blanking: bool = True, try_reduce_objects: bool = False, **kwargs):
-        if getattr(self, '_is_initted', False): return
+    def __init__(self, optimize_do_blanking: bool = True, try_reduce_objects: bool = False,
+                 reduce_namedtuple: typing.Literal[False, dict, tuple, namedtuple] = namedtuple, **kwargs):
         self.optimize_do_blanking = optimize_do_blanking
         self.try_reduce_objects = try_reduce_objects
+        assert reduce_namedtuple in {False, dict, tuple, namedtuple}
+        self.reduce_namedtuple = reduce_namedtuple
+        if getattr(self, '_is_initted', False): return
         for k,v in kwargs.items():
             setattr(self, k, v)
         self._size_base = 225 - len(self.TYPE_KEYS) # we need to reserve len(self.TYPE_KEYS) bytes to encode type-keys
@@ -109,6 +114,15 @@ class Packer:
                 return (str, o.encode(self.STR_ENCODING))
             ## Recursive
             case tuple() | list():
+                if hasattr(o, '_asdict') and (self.reduce_namedtuple is not tuple):
+                    # if it's a namedtuple and we don't treat namedtuples as regular tuples
+                    if self.reduce_namedtuple is False:
+                        raise TypeError('Cannot reduce namedtuples (reduce_namedtuple is False)')
+                    if self.reduce_namedtuple is dict: # render as dict
+                        return self.encode(o._asdict())
+                    if self.reduce_namedtuple is namedtuple:
+                        return (namedtuple, self.pack(o.__class__.__name__, o.__module__, *sum(tuple(o._asdict().items()), start=())))
+                    raise ValueError(f'reduce_namedtuple is an illegal value: {self.reduce_namedtuple!r}')
                 return (tuple, self.pack(*(so for so in o)))
             case frozenset() | set():
                 return (frozenset, self.pack(*(so for so in o)))
@@ -178,6 +192,10 @@ class Packer:
         if t is dict:
             seq = self.unpack(e)
             return dict(zip(seq[::2], seq[1::2]))
+        if t is namedtuple:
+            seq = self.unpack(e)
+            dic = dict(zip(seq[2::2], seq[3::2]))
+            return namedtuple(seq[0], dic.keys(), module=seq[1])(**dic)
         # Other
         if t is None: return None
         if t is repr:
