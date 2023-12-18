@@ -174,7 +174,7 @@ class Packer:
         # Numerics
         if t is True: return True
         if t is False: return False
-        if t is int: return int.from_bytes(e)
+        if t is int: return int.from_bytes(e, signed=True)
         if t is float:
             return self.S_DOUBLE.unpack(e)
         if t is complex:
