@@ -5,6 +5,7 @@ import io
 import struct
 import math
 import typing
+import dataclasses
 from ast import literal_eval
 #</Imports
 
@@ -39,7 +40,7 @@ class Packer:
 
     def __init__(self, optimize_do_blanking: bool = True, try_reduce_objects: bool = False, **kwargs):
         self.optimize_do_blanking = optimize_do_blanking
-        try_reduce_objects = try_reduce_objects
+        self.try_reduce_objects = try_reduce_objects
         for k,v in kwargs.items():
             setattr(self, k, v)
         self._size_base = 225 - len(self.TYPE_KEYS) # we need to reserve len(self.TYPE_KEYS) bytes to encode type-keys
@@ -58,6 +59,11 @@ class Packer:
         if not bs: return 0
         return sum(d*(self._size_base**p) for p,d in enumerate(reversed(bs)))
 
+    def _try_encode_literal(self, l: object) -> str | None:
+        r = repr(l)
+        try: e = literal_eval(r)
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError): return None
+        if l == e: return None
     def encode(self, o: object) -> tuple[typing.Literal[*TYPE_KEYS], bytes]:
         '''Returns an object's type-key and encoded bytes'''
         match o:
@@ -89,8 +95,19 @@ class Packer:
             # Others
             case (None):
                 return (None, b'')
-            case _ if (r := repr(o)) == literal_eval(r): # object equals its repr ((sometimes) literal) form
+            case _ if (r := self._try_encode_literal(o)) is not None: # object equals its repr ((sometimes) literal) form
                 return (repr, r.encode(self.STR_ENCODING))
+        # Try to reduce objects
+        if self.try_reduce_objects:
+            # Reduce dataclasses
+            if dataclasses.is_dataclass(o):
+                return self.encode(dataclasses.asdict(o))
+            # Reduce arbitrary objects __dict__ and __slots__
+            if hasattr(o, '__dict__') or hasattr(o, '__slots__'):
+                return self.encode({a: getattr(o, a) for a in
+                                    (getattr(o, '__dict__', {}).keys() | set(getattr(o, '__slots__', ())))
+                                    if (not a.startswith('_')) and hasattr(o, a)})
+        # Fail
         raise TypeError(f'Cannot encode object {o!r} of type {type(o).__qualname__}')
     def sarchive(self, stream: io.BytesIO, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]):
         '''Archives sets of encoded data into a stream'''
