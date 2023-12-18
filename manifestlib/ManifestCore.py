@@ -40,6 +40,11 @@ class Manifest:
         return ManifestDict({'!': ManifestDict__({a: getattr(self, a) for a in ('id', 'real_version', 'type', 'format_version')})}
                             | {a: None if (v := getattr(self, a)) is None else v._dict_() for a in recurse}
                             | {'contentdata': ManifestDict_contentdata({f: self.crypt._encode_(h) for f,h in self.contentdata.items()})})
+    @classmethod
+    def from_dict(cls, d: ManifestDict) -> typing.Self:
+        return cls(**(d['!'] | {a: None if d[a] is None else globals()[f'Manifest_{a}']._from_dict_(d[a])
+                                for a in ('upstream', 'crypt', 'version', 'metadata', 'relatedepends', 'contentinfo')}
+                      | {'contentdata': {f: Manifest_crypt._decode_(d['crypt']['byte_encoding'], s) for f,s in d['contentdata'].items()}}))
     def pack(self, *, exclude_sig: bool = False) -> bytes:
         '''Compiles this Manifest via packlib'''
         if not exclude_sig: return man_packer.pack(self.as_dict())

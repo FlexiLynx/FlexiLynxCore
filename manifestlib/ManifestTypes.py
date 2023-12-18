@@ -32,6 +32,9 @@ class upstream:
     skip_content_update: bool | None = None
     def _dict_(self) -> 'ManifestDict_upstream':
         return ManifestDict_upstream(dataclasses.asdict(self))
+    @classmethod
+    def _from_dict_(cls, d: 'ManifestDict_upstream') -> typing.Self:
+        return cls(**d)
 # Cryptography
 ManifestDict_crypt = TypedDict("Manifest['crypt']", {
     'signature': str | None,
@@ -49,6 +52,9 @@ class Manifest_crypt:
     key_remap_cascade: dict[bytes, tuple[bytes, bytes]] | None = None
     def _encode_(self, b: bytes) -> str:
         return getattr(base64, f'{self.byte_encoding}encode')(b).decode()
+    @staticmethod
+    def _decode_(m: str, s: str) -> bytes:
+        return getattr(base64, f'{m}decode')(s.encode())
     def _dict_(self) -> ManifestDict_crypt:
         return ManifestDict_crypt({
             'signature': None if self.signature is None else self._encode_(self.signature),
@@ -57,6 +63,16 @@ class Manifest_crypt:
             'key_remap_cascade': None if self.key_remap_cascade is None else {self._encode_(k): (self._encode_(v[0]), self._encode_(v[1]))
                                                                                 for k,v in self.key_remap_cascade.items()},
         })
+    @classmethod
+    def _from_dict_(cls, d: ManifestDict_crypt) -> typing.Self:
+        be = d['byte_encoding']
+        return cls(
+            signature=None if d['signature'] is None else cls._decode_(be, d['signature']),
+            public_key=None if d['public_key'] is None else EdPubK.from_public_bytes(cls._decode_(be, d['public_key'])),
+            hash_algorithm=d['hash_algorithm'], byte_encoding=be,
+            key_remap_cascade=None if d['key_remap_cascade'] is None else {cls._decode_(be, k): (cls._decode_(be, v[0]), cls._decode_(be, v[1]))
+                                                                           for k,v in d['key_remap_cascade'].items()},
+        )
 # Versioning
 @_manifesttype
 class version:
@@ -73,6 +89,9 @@ class version:
             'first_creation_time': self.first_creation_time,
             'first_creation_time_pretty': time.ctime(self.first_creation_time),
         })
+    @classmethod
+    def _from_dict_(cls, d: 'ManifestDict_version') -> typing.Self:
+        return cls(**d)
 # Metadata
 @_manifesttype
 class metadata:
@@ -82,6 +101,9 @@ class metadata:
     contact: str | None = None
     def _dict_(self) -> 'ManifestDict_metadata':
         return ManifestDict_metadata(dataclasses.asdict(self))
+    @classmethod
+    def _from_dict_(cls, d: 'ManifestDict_metadata') -> typing.Self:
+        return cls(**d)
 # Relation/depends
 @_manifesttype
 class relatedepends:
@@ -93,6 +115,9 @@ class relatedepends:
     requires: set[str] | None = None
     def _dict_(self) -> 'ManifestDict_relatedepends':
         return ManifestDict_relatedepends(dataclasses.asdict(self))
+    @classmethod
+    def _from_dict_(cls, d: 'ManifestDict_relatedepends') -> typing.Self:
+        return cls(**d)
 # Contents
 @_manifesttype
 class contentinfo:
@@ -100,6 +125,9 @@ class contentinfo:
     skip_files: set[str] | None = None
     def _dict_(self) -> 'ManifestDict_contentinfo':
         return ManifestDict_contentinfo(dataclasses.asdict(self))
+    @classmethod
+    def _from_dict_(cls, d: 'ManifestDict_contentinfo') -> typing.Self:
+        return cls(**d)
 Manifest_contentdata = dict[str, bytes]
 ManifestDict_contentdata = dict[str, str]
 # Final
