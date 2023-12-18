@@ -26,14 +26,14 @@ class Packer:
     S_COMPLEX = struct.Struct('!dd')
 
     TYPE_KEYS = ( # ordered simplest to most complex (sans Other)
-        # Numerics [lowercase prefixes]
+        # Numerics
         False, True, int, float, complex,
-        # Sequences [uppercase prefixes]
+        # Sequences
         ## Simple sequences (encoded as-is)
         bytes, str,
-        # sequences
+        ## Recursive sequences
         tuple, frozenset, dict,
-        # Other keys [symbols]
+        # Other keys
         None, repr,
     )
 
