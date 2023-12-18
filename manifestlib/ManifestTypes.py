@@ -38,7 +38,7 @@ ManifestDict_crypt = TypedDict("Manifest['crypt']", {
     'public_key': str | None,
     'hash_algorithm': NotRequired[typing.Literal[*hashlib.algorithms_available]],
     'byte_encoding': NotRequired[typing.Literal[*set(e.removesuffix('decode') for e in dir(base64) if e.endswith('decode') and e != 'decode')]],
-    'pkey_remap_cascade': NotRequired[dict[str, str]],
+    'key_remap_cascade': NotRequired[dict[str, tuple[str, str]]],
 })
 @_dataclass
 class Manifest_crypt:
@@ -46,14 +46,16 @@ class Manifest_crypt:
     public_key: EdPubK | None
     hash_algorithm: typing.Literal[*hashlib.algorithms_available] = 'sha1'
     byte_encoding: typing.Literal[*set(e.removesuffix('decode') for e in dir(base64) if e.endswith('decode') and e != 'decode')] = 'b85'
-    pkey_remap_cascade: dict[str, str] | None = None
+    key_remap_cascade: dict[bytes, tuple[bytes, bytes]] | None = None
     def _encode_(self, b: bytes) -> str:
         return getattr(base64, f'{self.byte_encoding}encode')(b).decode()
     def _dict_(self) -> ManifestDict_crypt:
         return ManifestDict_crypt({
             'signature': None if self.signature is None else self._encode_(self.signature),
             'public_key': None if self.public_key is None else self._encode_(self.public_key.public_bytes_raw()),
-            'hash_algorithm': self.hash_algorithm, 'byte_encoding': self.byte_encoding, 'pkey_remap_cascade': self.pkey_remap_cascade,
+            'hash_algorithm': self.hash_algorithm, 'byte_encoding': self.byte_encoding,
+            'key_remap_cascade': None if self.key_remap_cascade is None else {self._encode_(k): (self._encode_(v[0]), self._encode_(v[1]))
+                                                                                for k,v in self.key_remap_cascade.items()},
         })
 # Versioning
 @_manifesttype

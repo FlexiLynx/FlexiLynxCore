@@ -15,7 +15,7 @@ from FlexiLynx.core import packlib
 #</Imports
 
 #> Header >/
-__all__ = ('Manifest',)
+__all__ = ('Manifest', 'chk_key_remap_cascade', 'add_key_remap_cascade')
 
 man_packer = packlib.Packer(try_reduce_objects=True)
 
@@ -60,3 +60,28 @@ class Manifest:
         try: public_key.verify(self.crypt.signature, self.pack(exclude_sig=True))
         except InvalidSignature: return False
         return True
+
+def chk_key_remap_cascade(current_key: EdPubK, target_key: EdPubK, cascade: dict[bytes, tuple[bytes, bytes]]):
+    '''
+        Ensures that the target_key has not been tampered with by walking the cascade with the current_key
+            throws a LookupError if a key wasn't found in the cascade
+            throws a cryptography.exceptions.InvalidSignature exception if an entry failed verification
+            throws a RecursionError if a circular cascade was detected
+    '''
+    seen = set()
+    while (ckb := current_key.public_bytes_raw()) not in seen:
+        seen.add(ckb)
+        if current_key == target_key: return
+        if ckb not in cascade:
+            raise LookupError('cascade rejected - a key was not found in the cascade')
+        newkey, newsig = cascade[ckb]
+        newkey = EdPubK.from_public_bytes(newkey)
+        current_key.verify(newsig, newkey.public_bytes_raw())
+        current_key = newkey
+    raise RecursionError('cascade rejected - a key was seen twice (assuming to be circular)')
+def add_key_remap_cascade(new_key: EdPubK, prev_key: EdPrivK, cascade: dict[bytes, tuple[bytes, bytes]] = {}) -> dict[bytes, tuple[bytes, bytes]]:
+    '''
+        Adds a new public key to the remap cascade (or creates a new cascade if one isn't supplied)
+            Requires the previos private key to sign the new public key
+    '''
+    return cascade | {prev_key.public_key().public_bytes_raw(): (new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
