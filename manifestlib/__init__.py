@@ -1,11 +1,12 @@
 #!/bin/python3
 
 #> Package >/
-__all__ = ('ManifestCore', 'ManifestExecutor', 'ManifestGenerator')
-from . import ManifestCore, ManifestExecutor, ManifestGenerator
+from . import ManifestCore
 
-__all__ = ManifestCore.__all__ + ManifestExecutor.__all__ + ManifestGenerator.__all__
+__all__ = ('executor', 'generator', 'parser', 'types')+ManifestCore.__all__
 
-from ManifestCore import *
-from ManifestExecutor import *
-from ManifestGenerator import *
+from .ManifestCore import *
+from . import ManifestExecutor as executor
+from . import ManifestGenerator as generator
+from . import ManifestParser as parser
+from . import ManifestTypes as types
