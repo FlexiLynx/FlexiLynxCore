@@ -8,6 +8,12 @@ from pathlib import Path
 from dataclasses import dataclass
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
+## Rendering & Loading
+import io
+import re
+import json
+from ast import literal_eval
+from configparser import ConfigParser
 
 from .ManifestTypes import *
 
@@ -15,7 +21,9 @@ from FlexiLynx.core import packlib
 #</Imports
 
 #> Header >/
-__all__ = ('Manifest', 'chk_key_remap_cascade', 'add_key_remap_cascade')
+__all__ = ('Manifest', 'render_pack',
+           'load_packed', 'render_json', 'load_json', 'render_ini', 'load_ini',
+           'chk_key_remap_cascade', 'add_key_remap_cascade')
 
 man_packer = packlib.Packer(try_reduce_objects=True)
 
@@ -65,7 +73,35 @@ class Manifest:
         try: public_key.verify(self.crypt.signature, self.pack(exclude_sig=True))
         except InvalidSignature: return False
         return True
-
+# Rendering & loading
+## packlib
+def render_pack(m: Manifest) -> bytes:
+    return m.pack()
+def load_packed(p: bytes) -> Manifest:
+    return Manifest.from_dict(man_packer.unpack(packed))
+## JSON
+JSON_ARRAY_CLEANER_A = re.compile(r'^(\s*"[^"]*":\s*)(\[[^\]]*\])(,?\s*)$', re.MULTILINE)
+JSON_ARRAY_CLEANER_B = staticmethod(lambda m: m.group(1)+(re.sub(r'\s+', '', m.group(2)).replace(',', ', '))+m.group(3))
+def render_json(m: Manifest, *, compact: bool = False) -> bytes:
+    return self.JSON_ARRAY_CLEANER_A.sub(self.JSON_ARRAY_CLEANER_B,
+                                         json.dumps(m.as_dict(), sort_keys=False) if compact else json.dumps(m.as_dict(), sort_keys=False, indent=4))
+def load_json(j: bytes) -> Manifest:
+    return Manifest.from_dict(json.loads(j.decode()))
+## INI
+def render_ini(m: Manifest) -> bytes:
+    p = ConfigParser(interpolation=None); p.optionxform = lambda o: o
+    for ok,ov in m.as_dict().items():
+        if ov is None: continue
+        p[ok] = {ik: repr(iv) for ik,iv in ov.items()}
+    with io.StringIO() as stream:
+        p.write(stream)
+        return stream.getvalue().encode()
+def load_ini(i: bytes) -> Manifest:
+    p = ConfigParser(interpolation=None); p.optionxform = lambda o: o
+    with io.StringIO(i.decode()) as stream:
+        p.read_string(stream.getvalue())
+    return Manifest.from_dict({k: {ik: literal_eval(iv) for ik,iv in v.items()} for k,v in p.items() if k != 'DEFAULT'})
+# Key remap cascades
 def chk_key_remap_cascade(current_key: EdPubK, target_key: EdPubK, cascade: dict[bytes, tuple[bytes, bytes]]):
     '''
         Ensures that the target_key has not been tampered with by walking the cascade with the current_key
