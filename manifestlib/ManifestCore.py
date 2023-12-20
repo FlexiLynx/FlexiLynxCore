@@ -134,6 +134,6 @@ def chk_key_remap_cascade(current_key: EdPubK, target_key: EdPubK, cascade: dict
 def add_key_remap_cascade(new_key: EdPubK, prev_key: EdPrivK, cascade: dict[bytes, tuple[bytes, bytes]] = {}) -> dict[bytes, tuple[bytes, bytes]]:
     '''
         Adds a new public key to the remap cascade (or creates a new cascade if one isn't supplied)
-            Requires the previos private key to sign the new public key
+            Requires the previous private key to sign the new public key
     '''
     return cascade | {prev_key.public_key().public_bytes_raw(): (new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
