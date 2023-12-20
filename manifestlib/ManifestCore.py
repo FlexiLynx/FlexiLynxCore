@@ -29,6 +29,11 @@ man_packer = packlib.Packer(try_reduce_objects=True)
 
 @dataclass(slots=True, kw_only=True)
 class Manifest:
+    '''
+        Holds data that can bootstrap, install, or update a program
+            along with signing and verification methods
+    '''
+
     id: str
     real_version: int
     type: typing.Literal['module', 'plugin', 'other']
@@ -76,19 +81,24 @@ class Manifest:
 # Rendering & loading
 ## packlib
 def render_pack(m: Manifest) -> bytes:
+    '''Renders a Manifest to bytes via packlib'''
     return m.pack()
 def load_packed(p: bytes) -> Manifest:
+    '''Loads a Manifest from bytes via packlib'''
     return Manifest.from_dict(man_packer.unpack(packed))
 ## JSON
 JSON_ARRAY_CLEANER_A = re.compile(r'^(\s*"[^"]*":\s*)(\[[^\]]*\])(,?\s*)$', re.MULTILINE)
 JSON_ARRAY_CLEANER_B = staticmethod(lambda m: m.group(1)+(re.sub(r'\s+', '', m.group(2)).replace(',', ', '))+m.group(3))
 def render_json(m: Manifest, *, compact: bool = False) -> bytes:
+    '''Renders a Manifest to JSON'''
     return self.JSON_ARRAY_CLEANER_A.sub(self.JSON_ARRAY_CLEANER_B,
                                          json.dumps(m.as_dict(), sort_keys=False) if compact else json.dumps(m.as_dict(), sort_keys=False, indent=4))
 def load_json(j: bytes) -> Manifest:
+    '''Loads a Manifest from JSON'''
     return Manifest.from_dict(json.loads(j.decode()))
 ## INI
 def render_ini(m: Manifest) -> bytes:
+    '''Renders a Manifest to INI format via configparser'''
     p = ConfigParser(interpolation=None); p.optionxform = lambda o: o
     for ok,ov in m.as_dict().items():
         if ov is None: continue
@@ -97,6 +107,7 @@ def render_ini(m: Manifest) -> bytes:
         p.write(stream)
         return stream.getvalue().encode()
 def load_ini(i: bytes) -> Manifest:
+    '''Loads a Manifest from INI format via configparser'''
     p = ConfigParser(interpolation=None); p.optionxform = lambda o: o
     with io.StringIO(i.decode()) as stream:
         p.read_string(stream.getvalue())
