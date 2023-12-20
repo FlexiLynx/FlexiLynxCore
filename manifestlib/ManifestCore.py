@@ -21,8 +21,8 @@ from FlexiLynx.core import packlib
 #</Imports
 
 #> Header >/
-__all__ = ('Manifest', 'render_pack',
-           'load_packed', 'render_json', 'load_json', 'render_ini', 'load_ini',
+__all__ = ('Manifest',
+           'render_pack', 'load_packed', 'render_json', 'load_json', 'render_ini', 'load_ini',
            'chk_key_remap_cascade', 'add_key_remap_cascade')
 
 man_packer = packlib.Packer(try_reduce_objects=True)
