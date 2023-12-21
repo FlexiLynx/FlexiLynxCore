@@ -12,7 +12,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey a
 #> Header >/
 _dataclass = dataclasses.dataclass(slots=True, kw_only=True)
 def _manifesttype(cls: type):
-    cls.__name__
     if cls.__name__ == '_main_':
         dataname = 'Manifest'
         dictname = ('ManifestDict', 'ManifestDict')
@@ -23,6 +22,7 @@ def _manifesttype(cls: type):
     globals()[dictname[0]] = TypedDict(dictname[1], {a: (NotRequired[typing.get_args(t)[0]]
             if (typing.get_origin(t) in {typing.Union, types.UnionType}) and (typing.get_args(t)[1] in {None, type(None)}) else NotRequired[t])
                 if hasattr(cls, a) else t for a,t in cls.__annotations__.items()})
+    return cls
 # Upstream
 @_manifesttype
 class upstream:
