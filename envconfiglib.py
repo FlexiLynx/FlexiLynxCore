@@ -10,6 +10,8 @@ from collections import UserDict
 #</Imports
 
 #> Header >/
+__all__ = ('EnvConfig',)
+
 class EnvConfig:
     'A read-only, case-insensitive namespace/dictionary that is populated by an environment variable or .flynx.env file'
     __slots__ = ('__dict__', '_envvar', '_type', '_rawenv', '__is_frozen')
