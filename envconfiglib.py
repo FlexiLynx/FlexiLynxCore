@@ -12,9 +12,9 @@ from collections import UserDict
 #> Header >/
 __all__ = ('EnvConfig',)
 
-class EnvConfig:
+class EnvConfig(UserDict):
     'A read-only, case-insensitive namespace/dictionary that is populated by an environment variable or .flynx.env file'
-    __slots__ = ('__dict__', '_envvar', '_type', '_rawenv', '__is_frozen')
+    __slots__ = ('_envvar', '_type', '_rawenv', '__is_frozen')
     def __init__(self, var: str, type_: type | typing.Callable[[str], typing.Any] = literal_eval, freeze: bool = True):
         self.__is_frozen = False
         self._envvar = var
@@ -25,6 +25,7 @@ class EnvConfig:
         self.__dict__ = {k.lower(): self._type(v) for k,v in (kv.split('=', 1)
                                                   for kv in shlex.split(self._rawenv))}
         if freeze: self.__is_frozen = True
+        self.data = self.__dict__
 
     def __setitem__(self, item: str, value: typing.Any):
         if getattr(self, '__is_frozen', False):
