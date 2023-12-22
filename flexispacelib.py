@@ -17,7 +17,7 @@ class FlexiSpaceLoader(Loader):
     def __init__(self, flexispace: 'TFlexiSpace'):
         self.flexispace = flexispace
     def create_module(self, spec: ModuleSpec) -> ModuleType:
-        return self.flexispace
+        return self.flexispace@spec.name.split('.')[1:]
     def exec_module(self, m: ModuleType): pass
 class FlexiSpaceFinder(MetaPathFinder):
     __slots__ = ('flexispace', 'loader')
@@ -55,13 +55,13 @@ class TFlexiSpace(ModuleType):
             sys.modules[f'{self.__name__}.{attr}'] = val
         super().__setattr__(attr, val)
 
-    def _get_tree(self, key: str | tuple[str]) -> typing.Self:
+    def _get_tree(self, key: str | tuple[str, ...]) -> typing.Self:
         '''Gets (or creates, if missing) a sub-FlexiSpace, creating all parents that are missing'''
         branch = self
         for n in (key.split('.') if isinstance(key, str) else key):
             if not hasattr(branch, n): setattr(branch, n, self.__class__(n, _parent=branch))
             branch = getattr(branch, n)
-            assert isinstance(branch, self.__class__)
+            assert isinstance(branch, self.__class__ | ModuleType)
         return branch
     __matmul__ = _get_tree # use @ operator as a shortcut
     def _get_branch(self, key: str) -> typing.Self:
