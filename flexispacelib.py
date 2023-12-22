@@ -32,6 +32,8 @@ class TFlexiSpace(ModuleType):
     '''Provides a way to recursively define and use namespaces as importable modules'''
     __slots__ = ('_FS_metafinder_', '_FS_parents_', '_FS_key_')
 
+    __FS_sys_is_finalizing = sys.is_finalizing # keep reference even if `sys` name is collected
+
     def __init__(self, name: str, doc: str | None = None, *, _parent: typing.Self | None = None):
         if _parent is None:
             self._FS_parents_ = ()
@@ -45,7 +47,7 @@ class TFlexiSpace(ModuleType):
             self.__package__ = '.'.join(self._FS_key_[:-1])
         super().__init__('.'.join(self._FS_key_), doc)
     def __del__(self):
-        if self._FS_metafinder_ is None: return
+        if self.__FS_sys_is_finalizing() or (self._FS_metafinder_ is None): return
         sys.meta_path.remove(self._FS_metafinder_)
     def __setattr__(self, attr: str, val: typing.Any):
         if isinstance(val, ModuleType):
