@@ -14,6 +14,7 @@ __all__ = ('TFlexiSpace',)
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
+
     def __init__(self, flexispace: 'TFlexiSpace'):
         self.flexispace = flexispace
     def create_module(self, spec: ModuleSpec) -> ModuleType:
@@ -30,30 +31,45 @@ class FlexiSpaceFinder(MetaPathFinder):
 
 class TFlexiSpace(ModuleType):
     '''Provides a way to recursively define and use namespaces as importable modules'''
-    __slots__ = ('_FS_metafinder_', '_FS_parents_', '_FS_key_')
+    __slots__ = ('_FS_initialized_', '_FS_do_assimilate_', '_FS_metafinder_', '_FS_parents_', '_FS_key_')
 
     __FS_sys_is_finalizing = sys.is_finalizing # keep reference even if `sys` name is collected
 
-    def __init__(self, name: str, doc: str | None = None, *, _parent: typing.Self | None = None):
+    def __init__(self, name: str, doc: str | None = None, *, assimilate: bool = False, _parent: typing.Self | None = None):
         if _parent is None:
             self._FS_parents_ = ()
             self._FS_key_ = (name,)
             self._FS_metafinder_ = FlexiSpaceFinder(self)
             sys.meta_path.append(self._FS_metafinder_)
+            self._FS_do_assimilate_ = assimilate
             self.__package__ = None
         else:
             self._FS_parents_ = _parent._FS_parents_+(_parent,)
             self._FS_key_ = _parent._FS_key_+(name,)
             self._FS_metafinder_ = None
+            if assimilate: raise TypeError('Cannot set attribute "assimilate" on a non-root FlexiSpace')
             self.__package__ = '.'.join(self._FS_key_[:-1])
+        self._FS_initialized_ = True
         super().__init__('.'.join(self._FS_key_), doc)
     def __del__(self):
         if self.__FS_sys_is_finalizing() or (self._FS_metafinder_ is None): return
         sys.meta_path.remove(self._FS_metafinder_)
     def __setattr__(self, attr: str, val: typing.Any):
-        if isinstance(val, ModuleType):
+        if isinstance(val, ModuleType) and getattr(self, '_FS_initialized_', False):
+            if (~self)._FS_do_assimilate_ and (not isinstance(val, self.__class__)):
+                val = self._assimilate(val, attr)
             sys.modules[f'{self.__name__}.{attr}'] = val
         super().__setattr__(attr, val)
+
+    def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self:
+        '''Converts a `ModuleType` into a `TFlexiSpace`'''
+        amod = self.__class__(as_, getattr(mod, '__doc__', None), _parent=self)
+        amod.__dict__.update({a: amod._assimilate(v, a)
+                              if (a in getattr(mod, '__all__', ())
+                                  and isinstance(v, ModuleType)
+                                  and not isinstance(v, self.__class__)
+                              ) else v for a,v in mod.__dict__.items() if a not in {'__name__', '__package__'}})
+        return amod
 
     def _get_tree(self, key: str | tuple[str, ...]) -> typing.Self:
         '''Gets (or creates, if missing) a sub-FlexiSpace, creating all parents that are missing'''
@@ -73,9 +89,14 @@ class TFlexiSpace(ModuleType):
         else: assert isinstance(branch, self.__class__)
         return branch
     __truediv__ = _get_branch # use / operator for path-like shortcut
-    def __invert__(self) -> typing.Self: # use ~ operator for parent shortcut
+    def __pos__(self) -> typing.Self: # use + operator for parent shortcut
         '''Returns this FlexiSpace's parent'''
         return self._FS_parents_[-1]
+    def _root(self) -> typing.Self:
+        '''Returns this FlexiSpace's root'''
+        if p := self._FS_parents_: return p[0]
+        return self
+    __invert__ = _root # use ~ operator for root shortcut
     def __xor__(self, n: int) -> typing.Self: # use ^ operator for n-parent shortcut (kinda like git)
         '''Returns the n-th parent, where -1 < n <= len(self._FS_parents_), n=0 is self, n=1 is self._FS_parents_[-1] and n=2 is self._FS_parents_[-2]'''
         if n == 0: return self
