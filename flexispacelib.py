@@ -40,6 +40,7 @@ class TFlexiSpace(ModuleType):
             self._FS_key_ = (name,)
             self._FS_metafinder_ = FlexiSpaceFinder(self)
             sys.meta_path.append(self._FS_metafinder_)
+            self.__package__ = None
         else:
             self._FS_parents_ = _parent._FS_parents_+(_parent,)
             self._FS_key_ = _parent._FS_key_+(name,)
@@ -64,7 +65,7 @@ class TFlexiSpace(ModuleType):
         return branch
     __matmul__ = _get_tree # use @ operator as a shortcut
     def _get_branch(self, key: str) -> typing.Self:
-        '''Gets a sub-FlexiSpace, creating it if it doesn\'t exist, otherwise asserting that it is an instance of self.__class__'''
+        '''Gets a sub-FlexiSpace, creating it if it doesn't exist, otherwise asserting that it is an instance of self.__class__'''
         branch = getattr(self, key, None)
         if branch is None:
             branch = self.__class__(key, _parent=self)
