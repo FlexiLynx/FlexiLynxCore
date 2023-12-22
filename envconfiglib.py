@@ -26,7 +26,7 @@ class EnvConfig:
                                                   for kv in shlex.split(self._rawenv))}
         if freeze: self.__is_frozen = True
 
-    def __setitem__(self, item: typing.Never, value: typing.Never):
+    def __setitem__(self, item: str, value: typing.Any):
         if getattr(self, '__is_frozen', False):
             raise TypeError(f'{self.__class__.__qualname__} is frozen')
         super().__setattr__(item, value)
