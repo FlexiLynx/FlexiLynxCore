@@ -11,6 +11,7 @@ import typing
 from pathlib import Path
 from hashlib import algorithms_guaranteed
 from importlib import util as iutil
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
 #</Imports
 
 # Get entrypoint
@@ -120,6 +121,17 @@ def modify(): pass
 # Cascade
 @cli.command()
 def cascade(): pass
+
+# Genkey
+@cli.command()
+@click.argument('output', type=click.File('wb'), default='key.pyk')
+def genkey(*, output: io.BytesIO):
+    '''
+        Generates an Ed25519 key suitible for signing manifests
+
+        OUTPUT is the file to write output to, defaulting to "key.pyk" (use "-" to write to STDOUT)
+    '''
+    output.write(EdPrivK.generate().private_bytes_raw())
 
 
 cli()
