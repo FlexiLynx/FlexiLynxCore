@@ -92,7 +92,7 @@ JSON_ARRAY_CLEANER_B = staticmethod(lambda m: m.group(1)+(re.sub(r'\s+', '', m.g
 def render_json(m: Manifest, *, compact: bool = False) -> bytes:
     '''Renders a Manifest to JSON'''
     return JSON_ARRAY_CLEANER_A.sub(JSON_ARRAY_CLEANER_B,
-                                    json.dumps(m.as_dict(), sort_keys=False) if compact else json.dumps(m.as_dict(), sort_keys=False, indent=4))
+                                    json.dumps(m.as_dict(), sort_keys=False) if compact else json.dumps(m.as_dict(), sort_keys=False, indent=4)).encode()
 def load_json(j: bytes) -> Manifest:
     '''Loads a Manifest from JSON'''
     return Manifest.from_dict(json.loads(j.decode()))
