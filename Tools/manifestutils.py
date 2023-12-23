@@ -3,7 +3,6 @@
 #> Imports
 import os
 import sys
-import io
 import click
 import importlib
 import base64
@@ -87,7 +86,7 @@ def create(*, id: str, name: str, by: str,
            meta_version: str | None, min_python_version: tuple[int, int, int] | None, no_minimum_version: bool,
            default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path], ...],
            before: tuple[str, ...], after: tuple[str, ...], requires: tuple[str, ...],
-           output: io.BytesIO, format: typing.Literal[*OUTPUT_FORMATS.keys()]):
+           output: typing.BytesIO, format: typing.Literal[*OUTPUT_FORMATS.keys()]):
     '''
         Creates a new Manifest
 
@@ -125,7 +124,7 @@ def cascade(): pass
 # Genkey
 @cli.command()
 @click.argument('output', type=click.File('wb'), default='key.pyk')
-def genkey(*, output: io.BytesIO):
+def genkey(*, output: typing.BytesIO):
     '''
         Generates an Ed25519 key suitible for signing manifests
 
