@@ -148,7 +148,6 @@ class Packer:
     def sarchive(self, stream: io.BytesIO, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]):
         '''Archives sets of encoded data into a stream'''
         data = tuple(data)
-        print(data)
         for t,d in data:
             stream.write(self.encode_size(len(d)))
             stream.write(self._type_to_pfx[t])
