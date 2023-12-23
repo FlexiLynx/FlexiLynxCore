@@ -96,7 +96,7 @@ class Packer:
         match o:
             # Numerics
             case bool():
-                return (bool(o), b''),
+                return (bool(o), b'')
             case int():
                 return (int, o.to_bytes(((o.bit_length() + 1) + 7) // 8, signed=True) \
                         if (o or not self.optimize_do_blanking) else b'')
@@ -147,6 +147,8 @@ class Packer:
         raise TypeError(f'Cannot encode object {o!r} of type {type(o).__qualname__}')
     def sarchive(self, stream: io.BytesIO, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]):
         '''Archives sets of encoded data into a stream'''
+        data = tuple(data)
+        print(data)
         for t,d in data:
             stream.write(self.encode_size(len(d)))
             stream.write(self._type_to_pfx[t])
