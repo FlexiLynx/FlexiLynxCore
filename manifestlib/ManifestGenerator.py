@@ -37,16 +37,16 @@ def hash_tree(tree: tuple[Path], algorithm: typing.Literal[*hashlib.algorithms_a
 class FilePack:
     '''Holds data necessary to find "packs" of files for passing to `autogen_manifest()`'''
     root: Path
-    include_glob: tuple[str, ...] = ('**/*',)
+    include_glob: tuple[str, ...] = ('*', '**/*',)
     exclude_glob: tuple[str, ...] = ('__pycache__/**', 'MANIFEST.*')
     include_func: typing.Callable[[Path], bool] = lambda p: p.is_file()
     sort_func: typing.Callable[[Path], typing.Any] = lambda p: p.parts
     def render(self, packname: str | None = None, hash_algorithm: typing.Literal[*hashlib.algorithms_available] = 'sha1') -> Manifest_contentdata:
-        hash_tree(find_tree(self.root, self.sort_func, self.include_glob, self.exclude_glob, self.include_func),
-                  algorithm=hash_algorithm, pack=packname)
+        return hash_tree(find_tree(self.root, self.sort_func, self.include_glob, self.exclude_glob, self.include_func),
+                         algorithm=hash_algorithm, pack=packname)
 def autogen_manifest(*, id: str, type_: typing.Literal['module', 'plugin', 'other'],
                      name: str, by: str, desc: str | None = None, contact: str | None = None,
-                     key: EdPrivK | Path,
+                     key: EdPrivK | Path | None, do_sign: bool = True,
                      files: FilePack, packs: tuple[FilePack, ...] | None = None,
                      manifest_upstream: str, file_upstream: str,
                      hash_algorithm: typing.Literal[*hashlib.algorithms_available] = 'sha1',
@@ -55,11 +55,12 @@ def autogen_manifest(*, id: str, type_: typing.Literal['module', 'plugin', 'othe
                      min_python_version: tuple[int, int, int] | None = sys.version_info[:3],
                      before: set[str] | None = None, after: set[str] | None = None, requires: set[str] | None = None) -> Manifest:
     '''Automatically generates and signs a Manifest with the given parameters'''
-    key = EdPrivK.from_private_bytes(key.read_bytes()) if isinstance(key, Path) else key
+    if do_sign:
+        key = EdPrivK.from_private_bytes(key.read_bytes()) if isinstance(key, Path) else key
     crtime = round(time.time()); pcrtime = time.ctime(crtime)
     m = Manifest(id=id, real_version=0, type=type_, format_version=0,
                  upstream=Manifest_upstream(manifest=manifest_upstream, files=file_upstream),
-                 crypt=Manifest_crypt(signature=None, public_key=key.public_key()),
+                 crypt=Manifest_crypt(signature=None, public_key=key.public_key() if do_sign else None),
                  version=Manifest_version(meta_version=meta_version, last_update_time=crtime, last_update_time_pretty=pcrtime,
                                           first_creation_time=crtime, first_creation_time_pretty=pcrtime),
                  metadata=Manifest_metadata(name=name, desc=desc, by=by, contact=contact),
@@ -67,5 +68,5 @@ def autogen_manifest(*, id: str, type_: typing.Literal['module', 'plugin', 'othe
                                                       before=before, after=after, requires=requires),
                  contentinfo=Manifest_contentinfo(use_packs=(packs is None), skip_files=None),
                  contentdata=Manifest_contentdata(files.render(None, hash_algorithm) | reduce(dict.__or__, (pk.render(pn) for pn,pk in packs.items())) if packs else {}))
-    m.sign(key)
+    if do_sign: m.sign(key)
     return m
