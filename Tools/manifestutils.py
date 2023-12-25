@@ -2,6 +2,7 @@
 
 #> Imports
 import os
+import io
 import sys
 import click
 import importlib
@@ -36,6 +37,12 @@ def _autofmt(n: str) -> str:
     elif n.endswith('.json'): return 'json'
     elif n.rsplit('.')[-1] in {'pak', 'pack', 'pakd', 'packed'}: return 'packed'
     else: raise ValueError(f'Cannot automatically determine format of {n!r}')
+INPUT_FORMATS = {
+    'auto': None,
+    'ini': manifestlib.load_ini,
+    'json': manifestlib.load_json,
+    'packed': manifestlib.load_packed,
+}
 OUTPUT_FORMATS = {
     'auto': None,
     'ini': manifestlib.render_ini,
@@ -99,6 +106,8 @@ def create(*, id: str, name: str, by: str,
         ID is the unique ID of this manifest-package\n
         NAME is the name of the manifest-package, independent from the ID\n
         BY is the name of the creator
+
+        When choosing output formats, note that INI, JSON, and packed are actually usable as manifests, whereas dict and repr are not
     '''
     if format == 'auto': format = _autofmt(output.name)
     man = manifestlib.generator.autogen_manifest(
@@ -126,7 +135,66 @@ def modify(): pass
 
 # Cascade
 @cli.command()
-def cascade(): pass
+@click.argument('manifest', type=click.File('rb+'))
+@click.argument('old_key', type=click.File('rb'))
+@click.argument('new_key', type=click.File('rb'))
+@click.option('--output', type=click.File('wb'), help='Destination for the new manifest (default is to overwrite MANIFEST, use "-" to write to stdout)', default=None)
+@click.option('--format', type=click.Choice(INPUT_FORMATS.keys()), help='The format to write as (defaults to auto, or INI on readng/writing from/to STDIN/OUT)', default='auto')
+@click.option('--check/--no-check', 'check', help='Whether or not to run the cascade against the given keys to verify', default=True)
+@click.option('--check-full/--no-check-full', 'check_full', help='Whether or not to run the cascade against the manifest\'s current key and both given keys', default=True)
+@click.option('--dry-run', help='Don\'t actually write any output or add cascades to the manifest (useful for checking already existing cascades)', is_flag=True, default=False)
+def cascade(manifest: typing.BinaryIO,
+            old_key: typing.BinaryIO, new_key: typing.BinaryIO,
+            output: typing.BinaryIO | None, format: typing.Literal['auto', *OUTPUT_FORMATS.keys()],
+            check: bool, check_full: bool,
+            dry_run: bool):
+    '''
+        Add a key-pair to the key remap cascade of a manifest. Manifest key remap cascades allow manifests to swap to trusted keys when updated
+
+        MANIFEST is the original manifest to read from, and to overwrite if --output is not supplied\n
+        OLD_KEY and NEW_KEY are the past and future keys, respectively, to add to the cascade (OLD_KEY signs NEW_KEY)
+
+        Note that this results in a dirty manifest, use "sign" to re-sign it\n
+        Note that each old_key can only "vouch" for one new_key
+    '''
+    # Handle formatting
+    if format == 'auto':
+        format_in = _autofmt(manifest.name)
+        format_out = _autofmt(manifest.name if output is None else output.name)
+    else: format_in = format_out = format
+    # Read manifest and keys
+    man = INPUT_FORMATS[format_in](manifest.read())
+    okey = EdPrivK.from_private_bytes(old_key.read())
+    opkey = okey.public_key()
+    nkey = EdPrivK.from_private_bytes(new_key.read()).public_key()
+    # Add cascade
+    if not dry_run:
+        man.crypt.key_remap_cascade = manifestlib.add_key_remap_cascade(nkey, okey, man.crypt.key_remap_cascade or {})
+    # Checks
+    def _deb(type: str, values: tuple[bytes, ...]):
+        print({
+            'check': '{} -?-> {}',
+            'saw': 'Saw key: {}',
+            'match': 'Matched target key: {}',
+            'found': 'Found new key {}',
+            'verify': 'Verified new key {2} using old key {0}',
+        }[type].format(*(base64.b85encode(v).decode() for v in values)), file=sys.stderr)
+    if check:
+        print('Running standard check between old key and new key', file=sys.stderr)
+        manifestlib.chk_key_remap_cascade(opkey, nkey, man.crypt.key_remap_cascade or {}, debug_callback=_deb)
+    if check_full:
+        print('Running full check between manifest\'s key and old key', file=sys.stderr)
+        manifestlib.chk_key_remap_cascade(man.crypt.public_key, opkey, man.crypt.key_remap_cascade or {}, debug_callback=_deb)
+        print('Running full check between manifest\'s key and new key', file=sys.stderr)
+        manifestlib.chk_key_remap_cascade(man.crypt.public_key, nkey, man.crypt.key_remap_cascade or {}, debug_callback=_deb)
+    # Write manifest
+    if dry_run:
+        print('Is a dry run, exiting', file=sys.stderr)
+        return
+    if output is None:
+        manifest.seek(0, io.SEEK_SET)
+        output = manifest
+    output.write(OUTPUT_FORMATS[format_in](man))
 
 # Genkey
 @cli.command()
