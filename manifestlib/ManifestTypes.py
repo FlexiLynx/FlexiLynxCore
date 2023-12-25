@@ -7,6 +7,8 @@ import base64, hashlib
 import typing, types
 from typing import TypedDict, NotRequired
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
+
+from FlexiLynx.core import packlib
 #</Imports
 
 #> Header >/
@@ -41,7 +43,7 @@ ManifestDict_crypt = TypedDict("Manifest['crypt']", {
     'public_key': str | None,
     'hash_algorithm': NotRequired[typing.Literal[*hashlib.algorithms_available]],
     'byte_encoding': NotRequired[typing.Literal[*set(e.removesuffix('decode') for e in dir(base64) if e.endswith('decode') and e != 'decode')]],
-    'key_remap_cascade': NotRequired[dict[str, tuple[str, str]]],
+    'key_remap_cascade': NotRequired[dict[str, tuple[str, str]] | str],
 })
 @_dataclass
 class Manifest_crypt:
@@ -55,13 +57,14 @@ class Manifest_crypt:
     @staticmethod
     def _decode_(m: str, s: str) -> bytes:
         return getattr(base64, f'{m}decode')(s.encode())
-    def _dict_(self) -> ManifestDict_crypt:
+    def _dict_(self, pack_cascade: bool = False) -> ManifestDict_crypt:
         return ManifestDict_crypt({
             'signature': None if self.signature is None else self._encode_(self.signature),
             'public_key': None if self.public_key is None else self._encode_(self.public_key.public_bytes_raw()),
             'hash_algorithm': self.hash_algorithm, 'byte_encoding': self.byte_encoding,
-            'key_remap_cascade': None if self.key_remap_cascade is None else {self._encode_(k): (self._encode_(v[0]), self._encode_(v[1]))
-                                                                                for k,v in self.key_remap_cascade.items()},
+            'key_remap_cascade': None if self.key_remap_cascade is None \
+                else self._encode_(packlib.pack(self.key_remap_cascade)) if pack_cascade \
+                else {self._encode_(k): (self._encode_(v[0]), self._encode_(v[1])) for k,v in self.key_remap_cascade.items()},
         })
     @classmethod
     def _from_dict_(cls, d: ManifestDict_crypt) -> typing.Self:
@@ -70,8 +73,9 @@ class Manifest_crypt:
             signature=None if d['signature'] is None else cls._decode_(be, d['signature']),
             public_key=None if d['public_key'] is None else EdPubK.from_public_bytes(cls._decode_(be, d['public_key'])),
             hash_algorithm=d['hash_algorithm'], byte_encoding=be,
-            key_remap_cascade=None if d['key_remap_cascade'] is None else {cls._decode_(be, k): (cls._decode_(be, v[0]), cls._decode_(be, v[1]))
-                                                                           for k,v in d['key_remap_cascade'].items()},
+            key_remap_cascade=None if (krc := d['key_remap_cascade']) is None
+                else packlib.unpack(cls._decode_(krc, d['public_key'])) if isinstance(krc, str)
+                else {cls._decode_(be, k): (cls._decode_(be, v[0]), cls._decode_(be, v[1])) for k,v in krc.items()},
         )
 # Versioning
 @_manifesttype
