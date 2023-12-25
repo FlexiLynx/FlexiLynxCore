@@ -67,6 +67,6 @@ def autogen_manifest(*, id: str, type_: typing.Literal['module', 'plugin', 'othe
                  relatedepends=Manifest_relatedepends(min_python_version=min_python_version, python_implementation=sys.implementation.name, platform=sys.platform,
                                                       before=before, after=after, requires=requires),
                  contentinfo=Manifest_contentinfo(use_packs=(packs is None), skip_files=None),
-                 contentdata=Manifest_contentdata(files.render(None, hash_algorithm) | reduce(dict.__or__, (pk.render(pn) for pn,pk in packs.items())) if packs else {}))
+                 contentdata=Manifest_contentdata(files.render(None, hash_algorithm) | (reduce(dict.__or__, (pk.render(pn) for pn,pk in packs.items())) if packs else {})))
     if do_sign: m.sign(key)
     return m
