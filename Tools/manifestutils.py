@@ -30,8 +30,14 @@ _spec.loader.exec_module(__entrypoint__)
 __entrypoint__.__init__()
 from FlexiLynx.core import manifestlib
 
-# Repeated constants
+# Output formats
+def _autofmt(n: str) -> str:
+    if (n in {'<stdout>', '<stdin>'}) or n.endswith('.ini'): return 'ini'
+    elif n.endswith('.json'): return 'json'
+    elif n.rsplit('.')[-1] in {'pak', 'pack', 'pakd', 'packed'}: return 'packed'
+    else: raise ValueError(f'Cannot automatically determine format of {n!r}')
 OUTPUT_FORMATS = {
+    'auto': None,
     'ini': manifestlib.render_ini,
     'json': manifestlib.render_json,
     'packed': manifestlib.render_pack,
@@ -76,7 +82,7 @@ cli = click.Group()
 @click.option('-R', '--requires', help='A manifest ID that needs to exist, otherwise this manifest will not load', multiple=True)
 ## Output
 @click.option('--output', type=click.File('wb'), help='The file to write to (defaults to stdout)', default='-')
-@click.option('--format', type=click.Choice(OUTPUT_FORMATS.keys()), help='The format to write as', default='ini')
+@click.option('--format', type=click.Choice(OUTPUT_FORMATS.keys()), help='The format to write as (defaults to auto, or INI on writing to STDOUT)', default='auto')
 
 def create(*, id: str, name: str, by: str,
            desc: str, contact: str | None,
@@ -86,14 +92,15 @@ def create(*, id: str, name: str, by: str,
            meta_version: str | None, min_python_version: tuple[int, int, int] | None, no_minimum_version: bool,
            default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path], ...],
            before: tuple[str, ...], after: tuple[str, ...], requires: tuple[str, ...],
-           output: typing.BinaryIO, format: typing.Literal[*OUTPUT_FORMATS.keys()]):
+           output: typing.BinaryIO, format: typing.Literal['auto', *OUTPUT_FORMATS.keys()]):
     '''
         Creates a new Manifest
 
         ID is the unique ID of this manifest-package\n
-        NAME is the name of the manifest-package, independent from the ID
+        NAME is the name of the manifest-package, independent from the ID\n
         BY is the name of the creator
     '''
+    if format == 'auto': format = _autofmt(output.name)
     man = manifestlib.generator.autogen_manifest(
         id=id, type_=type_,
         name=name, by=by, desc=desc, contact=contact,
