@@ -56,6 +56,7 @@ OUTPUT_FORMATS = {
 
 cli = click.Group()
 
+# General commands #
 # Create
 @cli.command()
 ## Arguments
@@ -133,6 +134,59 @@ def update(): pass
 @cli.command()
 def modify(): pass
 
+# Key commands #
+# Genkey
+@cli.command()
+@click.argument('output', type=click.File('wb'), default='key.pyk')
+def genkey(*, output: typing.BinaryIO):
+    '''
+        Generates an Ed25519 key suitible for signing manifests
+
+        OUTPUT is the file to write output to, defaulting to "key.pyk" (use "-" to write to STDOUT)
+    '''
+    output.write(EdPrivK.generate().private_bytes_raw())
+
+# Sign
+@cli.command()
+@click.argument('manifest', type=click.File('rb+'))
+@click.argument('key', type=click.Path(exists=True, dir_okay=False, path_type=Path), default=(p if (p := Path('key.pyk')).exists() else None), required=False)
+@click.option('--output', type=click.File('wb'), help='Destination for the new manifest (default is to overwrite MANIFEST, use "-" to write to stdout)', default=None)
+@click.option('--format', type=click.Choice(INPUT_FORMATS.keys()), help='The format to write as (defaults to auto, or INI on reading/writing from/to STDIN/OUT)', default='auto')
+@click.option('--verify', help='Verify the manifest instead of signing it', is_flag=True, default=False)
+def sign(*, manifest: typing.BinaryIO, key: Path | None,
+         output: typing.BinaryIO | None, format: typing.Literal[*INPUT_FORMATS.keys()],
+         verify: bool):
+    '''
+        Signs (or verifies with --verify) a manifest, using KEY as the key (KEY defaults to ./key.pyk if it exists)
+
+        MANIFEST is the original manifest to read from, and to overwrite if --output is not supplied
+    '''
+    # Handle formatting
+    if format == 'auto':
+        format_in = _autofmt(manifest.name)
+        format_out = _autofmt(manifest.name if output is None else output.name)
+    else: format_in = format_out = format
+    # Read manifest
+    man = INPUT_FORMATS[format_in](manifest.read())
+    # Verify if set
+    if verify:
+        if man.verify():
+            print('Verified')
+            return
+        raise RuntimeError('Verification failed')
+    # Handle key defaults
+    if key is None:
+        if Path('./key.pyk').exists():
+            key = Path('./key.pyk')
+        else:
+            raise ValueError('KEY argument was not supplied, and default (./key.pyk) does not exist!')
+    # Sign manifest and output
+    man.sign(EdPrivK.from_private_bytes(key.read_bytes()))
+    if output is None:
+        manifest.seek(0, io.SEEK_CUR)
+        output = manifest
+    output.write(OUTPUT_FORMATS[format_out](man))
+        
 # Cascade
 @cli.command()
 @click.argument('manifest', type=click.File('rb+'))
@@ -145,7 +199,7 @@ def modify(): pass
 @click.option('--dry-run', help='Don\'t actually write any output or add cascades to the manifest (useful for checking already existing cascades)', is_flag=True, default=False)
 def cascade(manifest: typing.BinaryIO,
             old_key: typing.BinaryIO, new_key: typing.BinaryIO,
-            output: typing.BinaryIO | None, format: typing.Literal['auto', *OUTPUT_FORMATS.keys()],
+            output: typing.BinaryIO | None, format: typing.Literal[*OUTPUT_FORMATS.keys()],
             check: bool, check_full: bool,
             dry_run: bool):
     '''
@@ -195,17 +249,6 @@ def cascade(manifest: typing.BinaryIO,
         manifest.seek(0, io.SEEK_SET)
         output = manifest
     output.write(OUTPUT_FORMATS[format_in](man))
-
-# Genkey
-@cli.command()
-@click.argument('output', type=click.File('wb'), default='key.pyk')
-def genkey(*, output: typing.BinaryIO):
-    '''
-        Generates an Ed25519 key suitible for signing manifests
-
-        OUTPUT is the file to write output to, defaulting to "key.pyk" (use "-" to write to STDOUT)
-    '''
-    output.write(EdPrivK.generate().private_bytes_raw())
 
 
 cli()
