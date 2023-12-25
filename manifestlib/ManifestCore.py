@@ -99,19 +99,29 @@ def load_json(j: bytes) -> Manifest:
 ## INI
 def render_ini(m: Manifest) -> bytes:
     '''Renders a Manifest to INI format via configparser'''
-    p = ConfigParser(interpolation=None); p.optionxform = lambda o: o
+    p = ConfigParser(interpolation=None, delimiters=(' = ',)); p.optionxform = lambda o: o
     for ok,ov in m.as_dict().items():
         if ov is None: continue
-        p[ok] = {ik: repr(iv) for ik,iv in ov.items()}
+        p[ok] = {}
+        for ik,iv in ov.items():
+            if isinstance(iv, dict):
+                p[f'{ok}.{ik}'] = {iik: repr(iiv) for iik,iiv in iv.items()}
+                continue
+            p[ok][ik] = repr(iv)
     with io.StringIO() as stream:
-        p.write(stream)
+        p.write(stream, space_around_delimiters=False)
         return stream.getvalue().encode()
 def load_ini(i: bytes) -> Manifest:
     '''Loads a Manifest from INI format via configparser'''
-    p = ConfigParser(interpolation=None); p.optionxform = lambda o: o
-    with io.StringIO(i.decode()) as stream:
-        p.read_string(stream.getvalue())
-    return Manifest.from_dict({k: {ik: literal_eval(iv) for ik,iv in v.items()} for k,v in p.items() if k != 'DEFAULT'})
+    p = ConfigParser(interpolation=None, delimiters=(' = ',)); p.optionxform = lambda o: o
+    p.read_string(i.decode())
+    return Manifest.from_dict(
+        {k: # outer items
+         {ik: literal_eval(iv) for ik,iv in v.items()} # generic inner items (k[ik] items)
+         | {sk.split('.', 1)[1]: # nested inner items (k.sk keys)
+            {sik: literal_eval(siv) for sik,siv in p[sk].items()} # nested inner items (k.sk[sik] items)
+            for sk in filter(lambda sk: sk.startswith(f'{k}.'), p.keys())} # nested inner items look & predicate
+         for k,v in p.items() if (k != 'DEFAULT') and ('.' not in k)}) # outer items loop & predicate
 # Key remap cascades
 def chk_key_remap_cascade(current_key: EdPubK, target_key: EdPubK, cascade: dict[bytes, tuple[bytes, bytes]], debug_callback: typing.Callable[[str, tuple[bytes, ...]], None] = lambda t,v: None):
     '''
