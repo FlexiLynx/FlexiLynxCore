@@ -23,9 +23,9 @@ def find_tree(root: Path, sort_func: typing.Callable[[Path], typing.Any] = lambd
               include_glob: tuple[str, ...] = ('**/*',),
               exclude_glob: tuple[str, ...] = ('__pycache__/**', 'MANIFEST.*'),
               include_func: typing.Callable[[Path], bool] = lambda p: p.is_file()) -> tuple[Path]:
+    excl = set.union(*(set(root.glob(eg)) for eg in exclude_glob))
     return sorted(
-        sum((tuple(p.relative_to(root) for p in root.glob(ig)
-                   if (not any(p.match(eg) for eg in exclude_glob)) and include_func(p))
+        sum((tuple(p.relative_to(root) for p in root.glob(ig) if (p not in excl) and include_func(p))
              for ig in include_glob), start=()),
         key=sort_func,
     )
