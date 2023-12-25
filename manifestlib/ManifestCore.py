@@ -113,23 +113,28 @@ def load_ini(i: bytes) -> Manifest:
         p.read_string(stream.getvalue())
     return Manifest.from_dict({k: {ik: literal_eval(iv) for ik,iv in v.items()} for k,v in p.items() if k != 'DEFAULT'})
 # Key remap cascades
-def chk_key_remap_cascade(current_key: EdPubK, target_key: EdPubK, cascade: dict[bytes, tuple[bytes, bytes]]):
+def chk_key_remap_cascade(current_key: EdPubK, target_key: EdPubK, cascade: dict[bytes, tuple[bytes, bytes]], debug_callback: typing.Callable[[str, tuple[bytes, ...]], None] = lambda t,v: None):
     '''
         Ensures that the target_key has not been tampered with by walking the cascade with the current_key
             throws a LookupError if a key wasn't found in the cascade
             throws a cryptography.exceptions.InvalidSignature exception if an entry failed verification
             throws a RecursionError if a circular cascade was detected
     '''
+    debug_callback('check', (current_key.public_bytes_raw(), target_key.public_bytes_raw()))
     seen = set()
     while (ckb := current_key.public_bytes_raw()) not in seen:
         seen.add(ckb)
-        if current_key == target_key: return
+        debug_callback('saw', (ckb,))
+        if current_key == target_key:
+            debug_callback('match', (ckb, target_key.public_bytes_raw()))
+            return
         if ckb not in cascade:
             raise LookupError('cascade rejected - a key was not found in the cascade')
         newkey, newsig = cascade[ckb]
-        newkey = EdPubK.from_public_bytes(newkey)
-        current_key.verify(newsig, newkey.public_bytes_raw())
-        current_key = newkey
+        debug_callback('found', (newkey, newsig))
+        current_key.verify(newsig, newkey)
+        debug_callback('verify', (ckb, newsig, newkey))
+        current_key = EdPubK.from_public_bytes(newkey)
     raise RecursionError('cascade rejected - a key was seen twice (assuming to be circular)')
 def add_key_remap_cascade(new_key: EdPubK, prev_key: EdPrivK, cascade: dict[bytes, tuple[bytes, bytes]] = {}) -> dict[bytes, tuple[bytes, bytes]]:
     '''
