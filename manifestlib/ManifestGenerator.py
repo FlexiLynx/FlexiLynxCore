@@ -29,9 +29,9 @@ def find_tree(root: Path, sort_func: typing.Callable[[Path], typing.Any] = lambd
              for ig in include_glob), start=()),
         key=sort_func,
     )
-def hash_tree(tree: tuple[Path], algorithm: typing.Literal[*hashlib.algorithms_available], pack: str | None = None) -> Manifest_contentdata:
+def hash_tree(root: Path, tree: tuple[Path], algorithm: typing.Literal[*hashlib.algorithms_available], pack: str | None = None) -> Manifest_contentdata:
     return Manifest_contentdata({f.as_posix() if pack is None else f'{pack}@{f.as_posix()}':
-                                 hashlib.new(algorithm, f.read_bytes()).digest() for f in tree})
+                                 hashlib.new(algorithm, (root/f).read_bytes()).digest() for f in tree})
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class FilePack:
@@ -42,7 +42,7 @@ class FilePack:
     include_func: typing.Callable[[Path], bool] = lambda p: p.is_file()
     sort_func: typing.Callable[[Path], typing.Any] = lambda p: p.parts
     def render(self, packname: str | None = None, hash_algorithm: typing.Literal[*hashlib.algorithms_available] = 'sha1') -> Manifest_contentdata:
-        return hash_tree(find_tree(self.root, self.sort_func, self.include_glob, self.exclude_glob, self.include_func),
+        return hash_tree(self.root, find_tree(self.root, self.sort_func, self.include_glob, self.exclude_glob, self.include_func),
                          algorithm=hash_algorithm, pack=packname)
 def autogen_manifest(*, id: str, type_: typing.Literal['module', 'plugin', 'other'],
                      name: str, by: str, desc: str | None = None, contact: str | None = None,
