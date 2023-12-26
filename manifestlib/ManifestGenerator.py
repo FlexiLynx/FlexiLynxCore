@@ -17,7 +17,7 @@ from .ManifestTypes import *
 #</Imports
 
 #> Header >/
-__all__ = ('find_tree', 'hash_tree', 'FilePack', 'autogen_manifest')
+__all__ = ('find_tree', 'hash_tree', 'FilePack', 'autogen_manifest', 'autoupdate_manifest')
 
 def find_tree(root: Path, sort_func: typing.Callable[[Path], typing.Any] = lambda p: p.parts,
               include_glob: tuple[str, ...] = ('**/*',),
@@ -60,13 +60,26 @@ def autogen_manifest(*, id: str, type_: typing.Literal['module', 'plugin', 'othe
     crtime = round(time.time()); pcrtime = time.ctime(crtime)
     m = Manifest(id=id, real_version=0, type=type_, format_version=0,
                  upstream=Manifest_upstream(manifest=manifest_upstream, files=file_upstream),
-                 crypt=Manifest_crypt(signature=None, public_key=key.public_key() if do_sign else None),
+                 crypt=Manifest_crypt(signature=None, public_key=key.public_key() if do_sign else None, hash_algorithm=hash_algorithm, byte_encoding=byte_encoding),
                  version=Manifest_version(meta_version=meta_version, last_update_time=crtime, last_update_time_pretty=pcrtime,
                                           first_creation_time=crtime, first_creation_time_pretty=pcrtime),
                  metadata=Manifest_metadata(name=name, desc=desc, by=by, contact=contact),
                  relatedepends=Manifest_relatedepends(min_python_version=min_python_version, python_implementation=sys.implementation.name, platform=sys.platform,
                                                       before=before, after=after, requires=requires),
-                 contentinfo=Manifest_contentinfo(use_packs=(packs is None), skip_files=None),
-                 contentdata=Manifest_contentdata(files.render(None, hash_algorithm) | (reduce(dict.__or__, (pk.render(pn) for pn,pk in packs.items())) if packs else {})))
+                 contentinfo=Manifest_contentinfo(use_packs=bool(packs), skip_files=None),
+                 contentdata=Manifest_contentdata(files.render(None, hash_algorithm) | (reduce(dict.__or__, (pk.render(pn, hash_algorithm) for pn,pk in packs.items())) if packs else {})))
+    if do_sign: m.sign(key)
+    return m
+def autoupdate_manifest(m: Manifest, *, meta_version: str | None = None, key: EdPrivK | Path | None, do_sign: bool = False,
+                        files: FilePack, packs: tuple[FilePack, ...] | None = None) -> Manifest:
+    '''Automatically updates and signs the Manifest (in-place!) with the given parameters'''
+    if do_sign:
+        key = EdPrivK.from_private_bytes(key.read_bytes()) if isinstance(key, Path) else key
+    m.real_version += 1
+    m.version.meta_version = meta_version
+    m.version.last_update_time = round(time.time())
+    m.version.last_update_time_pretty = time.ctime()
+    m.contentinfo.use_packs = bool(packs)
+    m.contentdata = files.render(None, m.crypt.hash_algorithm) | reduce(dict.__or__, (pk.render(pn, m.crypt.hash_algorithm) for pn,pk in packs))
     if do_sign: m.sign(key)
     return m
