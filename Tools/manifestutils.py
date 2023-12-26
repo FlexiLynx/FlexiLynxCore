@@ -104,6 +104,7 @@ def sanity_check(manifest: Manifest, *, unsupported_version_fail: bool):
 @cli.command()
 @w_input
 def info(manifest: Manifest):
+    '''Prints out information on MANIFEST'''
     click.echo(executor.render_info(manifest, 'verbose'))
 # Transpose
 @cli.command()
