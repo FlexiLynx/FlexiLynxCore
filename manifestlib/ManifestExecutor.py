@@ -62,9 +62,9 @@ def render_info(m: Manifest, level: typing.Literal['terse+', 'terse', 'normal', 
     if level == 'normal': return i_normal
     time_fmt = '%Y-%m-%dT%H:%M:%S'
     return f'{i_terse}{"" if m.metadata.contact is None else f" ({m.metadata.contact})"}' \
-           f'{f"v{m.real_version}" if m.version.meta_version is None else f" [{m.version.meta_version}]"}' \
+           f'{f" v{m.real_version}" if m.version.meta_version is None else f" [{m.version.meta_version}]"}' \
            f' (as of {time.strftime(time_fmt, time.localtime(m.version.last_update_time))} (first created at {time.strftime(time_fmt, time.localtime(m.version.first_creation_time))}))' \
            f'{"" if m.metadata.desc is None else f"\n {m.metadata.desc}"}' \
            f' for {m.relatedepends.python_implementation}' \
-           f'{"" if m.relatedepends.min_python_version is None else f""" {".".join(m.relatedepends.min_python_version)}"""} on {m.relatedepends.platform}' \
-           f'{"" if m.relatedepends.requires is None else f"""\ndepends on: {",".join(m.relatedepends.requires)}"""}'
+           f'{"" if m.relatedepends.min_python_version is None else f""" {".".join(map(str, m.relatedepends.min_python_version))}"""} on {m.relatedepends.platform}' \
+           f'{f"""\ndepends on: {",".join(m.relatedepends.requires)}""" if m.relatedepends.requires else ""}'
