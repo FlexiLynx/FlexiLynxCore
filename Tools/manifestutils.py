@@ -2,229 +2,231 @@
 
 #> Imports
 import os
-import io
 import sys
 import click
 import importlib
 import base64
 import typing
+from io import SEEK_SET
 from pathlib import Path
+from functools import partial, wraps
 from hashlib import algorithms_guaranteed
-from importlib import util as iutil
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 #</Imports
 
 # Get entrypoint
-sys.path.pop(0); sys.path.insert(0, '.')
 if ep := os.getenv('FLEXILYNX_ENTRYPOINT', None):
     _spec = iutil.spec_from_file_location('__entrypoint__', ep)
 else:
     if not Path('__entrypoint__.py').exists():
-        if Path('../__entrypoint__.py').exists(): os.chdir('..')
+        if Path('../__entrypoint__.py').exists():
+            sys.path.append(Path('..').absolute().as_posix())
         else:
             raise FileNotFoundError('Could not find __entrypoint__.py or ../__entrypoint__.py')
-    _spec = iutil.spec_from_file_location('__entrypoint__', './__entrypoint__.py')
-__entrypoint__ = iutil.module_from_spec(_spec)
-_spec.loader.exec_module(__entrypoint__)
+import __entrypoint__
 
-#> Header >/
+#> Header
 __entrypoint__.__init__()
-from FlexiLynx.core import manifestlib
+from FlexiLynx.core.manifestlib import *
 
-# Output formats
-def _autofmt(n: str) -> str:
-    if (n in {'<stdout>', '<stdin>'}) or n.endswith('.ini'): return 'ini'
-    elif n.endswith('.json'): return 'json'
-    elif n.rsplit('.')[-1] in {'pak', 'pack', 'pakd', 'packed'}: return 'packed'
-    else: raise ValueError(f'Cannot automatically determine format of {n!r}')
-INPUT_FORMATS = {
-    'auto': None,
-    'ini': manifestlib.load_ini,
-    'json': manifestlib.load_json,
-    'packed': manifestlib.load_packed,
-}
-OUTPUT_FORMATS = {
-    'auto': None,
-    'ini': manifestlib.render_ini,
-    'json': manifestlib.render_json,
-    'packed': manifestlib.render_pack,
-    'dict': lambda m: repr(m.as_dict()).encode(),
-    'repr': lambda m: repr(m).encode(),
-}
+# Define input/output formats
+def auto_format(f: typing.BinaryIO) -> str:
+    if (f.fileno() in {sys.stdout.buffer.fileno(), sys.stdin.buffer.fileno()}
+        or ('.' not in f.name)): return 'ini'
+    suff = f.name.rsplit('.', 1)[1].lower()
+    if suff in {'ini', 'json', 'pack'}: return suff
+    if suff == 'pakd': return 'pack'
+    raise ValueError(f'Cannot automatically determine format of {f.name} (suff: {suff!r})')
+def h_output(out: typing.BinaryIO, man: Manifest, fmt: typing.Literal['auto', 'ini', 'json', 'pack']):
+    if not man.verify():
+        click.echo('The manifest is dirty, signing it is recommended')
+    click.echo(f'\nWrote {out.write({"ini": render_ini, "json": render_json, "pack": render_pack}[auto_format(out) if fmt == "auto" else fmt](man))} byte(s) to {out.name}', file=sys.stderr)
+def h_input(inp: typing.BinaryIO, fmt: typing.Literal['auto', 'ini', 'json', 'pack']) -> Manifest:
+    d = inp.read()
+    click.echo(f'Read {len(d)} byte(s) from {inp.name}', file=sys.stderr)
+    return {'ini': load_ini, 'json': load_json, 'pack': load_packed}[auto_format(inp) if fmt == 'auto' else fmt](d)
 
+cw_format = click.option('--format', type=click.Choice(('auto', 'ini', 'json', 'pack')),
+                         help='The format to use (defaults to auto)', default='auto')
+def w_output(c):
+    @click.option('--output', type=click.File('wb'), help=f'The file to write to (defaults to stdout)', default='-', show_default=False)
+    @cw_format
+    @wraps(c, assigned=('__name__', '__doc__', '__click_params__'))
+    def c_w_output(*, output: typing.BinaryIO, format: typing.Literal['auto', 'ini', 'json', 'pack'], **kwargs):
+        h_output(output, c(**kwargs), format)
+    return c_w_output
+def w_input(c):
+    @click.argument('manifest', type=click.File('rb'))
+    @cw_format
+    @wraps(c, assigned=('__name__', '__doc__', '__click_params__'))
+    def c_w_input(*, manifest: typing.BinaryIO, format: typing.Literal['auto', 'ini', 'json', 'pack'], **kwargs):
+        c(manifest=h_input(manifest, format), **kwargs)
+    return c_w_input
+def w_io(c):
+    @click.argument('manifest', type=click.File('r+b'))
+    @click.option('--output', type=click.File('wb'), help=f'File to write to (defaults to overwriting MANIFEST; "-" for stdout)', default=None)
+    @cw_format
+    @wraps(c, assigned=('__name__', '__doc__', '__click_params__'))
+    def c_w_io(*, manifest: typing.BinaryIO, output: typing.BinaryIO | None, format: typing.Literal['auto', 'ini', 'json', 'pack'], **kwargs):
+        if (format == 'auto') and (output is None): format = auto_format(manifest) # force output format to match input format if output is stdout
+        man = c(manifest=h_input(manifest, format), **kwargs)
+        if output is None:
+            if manifest.fileno() == sys.stdin.buffer.fileno():
+                output = sys.stdin.buffer
+            else:
+                manifest.truncate(0)
+                manifest.seek(0, SEEK_SET)
+                output = manifest
+        h_output(output, man, format)
+    return c_w_io
 
+# Misc. helpers
+def w_carguments(*names: str) -> typing.Callable[[click.Command], click.Command]:
+    def w_w_carguments(c: click.Command) -> click.Command:
+        if not hasattr(c, '__click_params__'): c.__click_params__ = []
+        c.__click_params__.extend(click.Argument((n,)) for n in reversed(names))
+        return c
+    return w_w_carguments
+#</Header
 
-cli = click.Group()
+#> Main >/
+cli = click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160})
 
-# General commands #
-# Create
+# Misc commands #
+# Sanity check
 @cli.command()
-## Arguments
-@click.argument('id')
-@click.argument('name')
-@click.argument('by')
-## Creator info
-@click.option('-d', '--desc', help='Optional description of the manifest\'s contents/purpose', default=None)
-@click.option('-c', '--contact', help='Optional contact information for the creator', default=None)
-## Type
-@click.option('-t', '--type', 'type_', type=click.Choice(('other', 'plugin', 'module')), help='The type of the manifest ("other" by default)', default='other')
-## Cryptography
-@click.option('-k', '--key', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='The key to sign the manifest with', default=(p if (p := Path('key.pyk')).exists() else None), required=not p.exists())
-@click.option('-h', '--hash-algorithm', type=click.Choice(algorithms_guaranteed), help='The hashing algorithm to use', default='sha1')
-@click.option('--byte-encoding', type=click.Choice(set(e.removesuffix('decode') for e in dir(base64) if e.endswith('decode') and e != 'decode')), help='The encoding for bytes', default='b85')
-## Upstreams
-@click.option('-mup', '--manifest-upstream', help='The URL to fetch manifest updates from', required=True)
-@click.option('-fup', '--file-upstream', help='The URL to fetch content updates from', required=True)
-## Versioning
-@click.option('--meta-version', help='The optional "meta-version" (meaningless to the parser) to embed in the manifest', default=None)
-@click.option('--min-python-version', type=int, nargs=3, help='The minumum version of Python to allow (defaults to the current version)', default=sys.version_info[:3])
-@click.option('--no-minimum-version', help='Enforce no minimum Python version', is_flag=True, default=False)
-## Content
-@click.option('-r', '--default-root', type=click.Path(exists=True, file_okay=False, path_type=Path), help='The root for the default (non-pack) content list', required=True)
-@click.option('--include', help='A glob to include (defaults to "*/**")', default=('**/*',), multiple=True)
-@click.option('--exclude', help='A glob to exclude (defaults to "__pycache__/**" and "MANIFEST*")', default=('__pycache__/**', 'MANIFEST*'), multiple=True)
-@click.option('--pack', type=(str, Path), help='A pack and root to add. Adding this once enables packs. Given in "name" "root-path" form) form', multiple=True)
-## Relation
-@click.option('-B', '--before', help='A manifest ID that should be loaded (if it exists) after this one', multiple=True)
-@click.option('-A', '--after', help='A manifest ID that should be loaded (if it exists) before this one', multiple=True)
-@click.option('-R', '--requires', help='A manifest ID that needs to exist, otherwise this manifest will not load', multiple=True)
-## Output
-@click.option('--output', type=click.File('wb'), help='The file to write to (defaults to stdout)', default='-')
-@click.option('--format', type=click.Choice(OUTPUT_FORMATS.keys()), help='The format to write as (defaults to auto, or INI on writing to STDOUT)', default='auto')
+@w_input
+@click.option('--unsupported-version-fail', help='Fail when using an unsupported version of Python', is_flag=True, default=False)
+def sanity_check(manifest: Manifest, *, unsupported_version_fail: bool):
+    '''Checks a manifest for several defects / inconsistencies'''
+    executor.is_insane(manifest, unsupported_version_fail)
+# Inspect/info
+@cli.command()
+@w_input
+def info(manifest: Manifest):
+    click.echo(executor.render_info(manifest, 'verbose'))
+# Transpose
+@cli.command()
+@click.argument('manifest', type=click.File('rb'))
+@click.argument('new_format', type=click.Choice(('auto', 'ini', 'json', 'pack')))
+@click.option('--output', type=click.File('wb'), help=f'The file to write to (defaults to stdout)', default='-', show_default=False)
+@click.option('--input-format', type=click.Choice(('auto', 'ini', 'json', 'pack')),
+              help='The format to use when reading MANIFEST (defaults to auto)', default='auto')
+def transpose(*, manifest: typing.BinaryIO, input_format: str, new_format: str, output: typing.BinaryIO):
+    '''Transposes MANIFEST to NEW_FORMAT'''
+    return h_output(output, h_input(manifest, input_format), new_format)
 
-def create(*, id: str, name: str, by: str,
-           desc: str, contact: str | None,
-           type_: typing.Literal['other', 'plugin', 'module'],
-           key: Path, hash_algorithm: typing.Literal[*algorithms_guaranteed], byte_encoding: typing.Literal[*set(e.removesuffix('decode') for e in dir(base64) if e.endswith('decode') and e != 'decode')],
-           manifest_upstream: str, file_upstream: str,
-           meta_version: str | None, min_python_version: tuple[int, int, int] | None, no_minimum_version: bool,
-           default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path], ...],
-           before: tuple[str, ...], after: tuple[str, ...], requires: tuple[str, ...],
-           output: typing.BinaryIO, format: typing.Literal['auto', *OUTPUT_FORMATS.keys()]):
+# Generate #
+generate_cli = click.Group('generate', help='Generate manifests and keys')
+cli.add_command(generate_cli)
+# Generate manifest
+@generate_cli.command()
+@w_output
+@w_carguments('id', 'name', 'by', 'manifest_upstream', 'file_upstream')
+@click.option('-t', '--type', 'type_', type=click.Choice(('other', 'plugin', 'module')), help='Type of manifest', default='other')
+@click.option('-k', '--sign', type=click.File('rb'), help='Key to sign the manifest with')
+@click.option('-d', '--desc', help='Description')
+@click.option('-c', '--contact', help='Contact information of the creator')
+@click.option('-r', '--default-root', type=click.Path(exists=True, file_okay=False, path_type=Path), help='Root path of content not in any pack', required=True)
+@click.option('-I', '--include', help='Glob to add to includes (note that adding once removes defaults)', default=('**/*',), multiple=True)
+@click.option('-E', '--exclude', help='Glob to add to excludes', default=('**/__pycache__/**/*', '**/MANIFEST*', '**/.git/**/*', '**/.gitignore'), multiple=True)
+@click.option('-P', '--pack', type=(str, click.Path(exists=True, file_okay=False, path_type=Path)), help='Pack-name and root to add (adding this at least once enables packs)', default=None, multiple=True)
+@click.option('--min-version', type=(int, int, int), metavar='<INT INT INT>', help='Enforce a minimum Python version (defaults to the current version)', default=sys.version_info[:3])
+@click.option('--no-minimum-version', help='Do not enforce a minimum Python version', is_flag=True, default=False)
+@click.option('--meta-version', help='Version-string that is meaningless to the parser', default=None)
+@click.option('-B', '--before', help='Manifest ID that should load after this manifest', multiple=True)
+@click.option('-A', '--after', help='Manifest ID that should load before this manifest', multiple=True)
+@click.option('-R', '--requires', help='Manifest ID that must exist in order to load this manifest', multiple=True)
+@click.option('-a', '--hash-algorithm', metavar='<NAME>', type=click.Choice(set.union({'list',}, algorithms_guaranteed)), help='Hashing algorithm for content (use -h list for a list)', default='sha1')
+@click.option('--byte-encoding', type=click.Choice(set(filter(len, (e.removesuffix('decode') for e in getattr(base64, '__all__', dir(base64)) if e.endswith('decode'))))), help='Encoding for bytes as strings', default='b85')
+def manifest(sign: typing.BinaryIO | None,
+             default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path]],
+             no_minimum_version: bool, min_version: tuple[int, int, int],
+             hash_algorithm: typing.Literal['list'] | str, **kwargs) -> Manifest:
     '''
-        Creates a new Manifest
+        Generates a manifest
 
-        ID is the unique ID of this manifest-package\n
-        NAME is the name of the manifest-package, independent from the ID\n
-        BY is the name of the creator
-
-        When choosing output formats, note that INI, JSON, and packed are actually usable as manifests, whereas dict and repr are not
+        ID and NAME correspond to the unique identifier of the manifest, and its display name\n
+        BY is the name (or any identifier) of the manifest's creator\n
+        MANIFEST_UPSTREAM and FILE_UPSTREAM correspond to where manifest updates and content updates are fetched from
     '''
-    if format == 'auto': format = _autofmt(output.name)
-    man = manifestlib.generator.autogen_manifest(
-        id=id, type_=type_,
-        name=name, by=by, desc=desc, contact=contact,
-        key=key,
-        files=manifestlib.generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
-            packs={n: manifestlib.generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for p,r in pack},
-        manifest_upstream=manifest_upstream, file_upstream=file_upstream,
-        hash_algorithm=hash_algorithm,
-        byte_encoding=byte_encoding,
-        meta_version=meta_version,
-        min_python_version=None if no_minimum_version else min_python_version,
-        before=before, after=after, requires=requires,
-    )
-    output.write(OUTPUT_FORMATS[format](man))
-
-# Update
-@cli.command()
-def update(): pass
-
-# Modify
-@cli.command()
-def modify(): pass
-
-# Key commands #
-# Genkey
-@cli.command()
-@click.argument('output', type=click.File('wb'), default='key.pyk')
-def genkey(*, output: typing.BinaryIO):
+    if hash_algorithm == 'list':
+        click.echo('\n'.join(sorted(algorithms_guaranteed)))
+        raise click.exceptions.Exit
+    man = generator.autogen_manifest(**kwargs,
+                                     key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
+                                     files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
+                                     packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack},
+                                     min_python_version=None if no_minimum_version else min_version)
+    return man
+# Generate key
+@generate_cli.command()
+@click.argument('output', type=click.File('wb'), required=True)
+def key(*, output: typing.BinaryIO):
     '''
         Generates an Ed25519 key suitible for signing manifests
 
-        OUTPUT is the file to write output to, defaulting to "key.pyk" (use "-" to write to STDOUT)
+        OUTPUT is the file to write output to, defaulting to "key.pyk" (use "-" to write to stdout)
     '''
-    output.write(EdPrivK.generate().private_bytes_raw())
+    click.echo(f'\nWrote {output.write(EdPrivK.generate().private_bytes_raw())} byte(s) to {output.name}', file=sys.stderr)
 
-# Sign
-@cli.command()
-@click.argument('manifest', type=click.File('rb+'))
-@click.argument('key', type=click.Path(exists=True, dir_okay=False, path_type=Path), default=(p if (p := Path('key.pyk')).exists() else None), required=False)
-@click.option('--output', type=click.File('wb'), help='Destination for the new manifest (default is to overwrite MANIFEST, use "-" to write to stdout)', default=None)
-@click.option('--format', type=click.Choice(INPUT_FORMATS.keys()), help='The format to write as (defaults to auto, or INI on reading/writing from/to STDIN/OUT)', default='auto')
-@click.option('--verify', help='Verify the manifest instead of signing it', is_flag=True, default=False)
-def sign(*, manifest: typing.BinaryIO, key: Path | None,
-         output: typing.BinaryIO | None, format: typing.Literal[*INPUT_FORMATS.keys()],
-         verify: bool):
+# Crypt #
+crypt_cli = click.Group('crypt', help='Sign and verify')
+cli.add_command(crypt_cli)
+# Generate key
+crypt_cli.add_command(key, 'genkey')
+# Sign manifest
+@crypt_cli.command()
+@w_io
+@click.argument('key', type=click.File('rb'))
+def sign(manifest: Manifest, *, key: typing.BinaryIO) -> Manifest:
     '''
-        Signs (or verifies with --verify) a manifest, using KEY as the key (KEY defaults to ./key.pyk if it exists)
+        Signs a manifest with a given key
 
-        MANIFEST is the original manifest to read from, and to overwrite if --output is not supplied
+        KEY is the key to sign the manifest with\n
+        MANIFEST is the manifest to sign, and to overwrite if --output is not given
     '''
-    # Handle formatting
-    if format == 'auto':
-        format_in = _autofmt(manifest.name)
-        format_out = _autofmt(manifest.name if output is None else output.name)
-    else: format_in = format_out = format
-    # Read manifest
-    man = INPUT_FORMATS[format_in](manifest.read())
-    # Verify if set
-    if verify:
-        if man.verify():
-            print('Verified')
-            return
-        raise RuntimeError('Verification failed')
-    # Handle key defaults
-    if key is None:
-        if Path('./key.pyk').exists():
-            key = Path('./key.pyk')
-        else:
-            raise ValueError('KEY argument was not supplied, and default (./key.pyk) does not exist!')
-    # Sign manifest and output
-    man.sign(EdPrivK.from_private_bytes(key.read_bytes()))
-    if output is None:
-        manifest.seek(0, io.SEEK_CUR)
-        output = manifest
-    output.write(OUTPUT_FORMATS[format_out](man))
-        
-# Cascade
-@cli.command()
-@click.argument('manifest', type=click.File('rb+'))
-@click.argument('old_key', type=click.File('rb'))
-@click.argument('new_key', type=click.File('rb'))
-@click.option('--output', type=click.File('wb'), help='Destination for the new manifest (default is to overwrite MANIFEST, use "-" to write to stdout)', default=None)
-@click.option('--format', type=click.Choice(INPUT_FORMATS.keys()), help='The format to write as (defaults to auto, or INI on readng/writing from/to STDIN/OUT)', default='auto')
-@click.option('--check/--no-check', 'check', help='Whether or not to run the cascade against the given keys to verify', default=True)
-@click.option('--check-full/--no-check-full', 'check_full', help='Whether or not to run the cascade against the manifest\'s current key and both given keys', default=True)
-@click.option('--dry-run', help='Don\'t actually write any output or add cascades to the manifest (useful for checking already existing cascades)', is_flag=True, default=False)
-def cascade(manifest: typing.BinaryIO,
-            old_key: typing.BinaryIO, new_key: typing.BinaryIO,
-            output: typing.BinaryIO | None, format: typing.Literal[*OUTPUT_FORMATS.keys()],
-            check: bool, check_full: bool,
-            dry_run: bool):
-    '''
-        Add a key-pair to the key remap cascade of a manifest. Manifest key remap cascades allow manifests to swap to trusted keys when updated
+    manifest.sign(EdPrivK.from_private_bytes(key.read()))
+    return manifest
+# Verify manifest
+@w_input
+@crypt_cli.command()
+def verify(manifest: Manifest):
+    '''Verifies MANIFEST's signature with its public-key'''
+    if not manifest.verify():
+        click.echo('Verification failed', file=sys.stderr)
+        raise click.exceptions.Exit(1)
+    click.echo('Verification succeeded', file=sys.stderr)
 
-        MANIFEST is the original manifest to read from, and to overwrite if --output is not supplied\n
-        OLD_KEY and NEW_KEY are the past and future keys, respectively, to add to the cascade (OLD_KEY signs NEW_KEY)
-
-        Note that this results in a dirty manifest, use "sign" to re-sign it\n
-        Note that each old_key can only "vouch" for one new_key
+# Cascade commands #
+cascade_cli = click.Group('cascade', help='Cascade public keys to add trust')
+cli.add_command(cascade_cli)
+# Add cascade
+@cascade_cli.command()
+@w_io
+@click.argument('old', type=click.File('rb'))
+@click.argument('new', type=click.File('rb'))
+@click.option('--overwrite', help='Forcefully overwrite an existing remap', is_flag=True, default=False)
+@click.option('--new-is-public', help='Treat NEW as a public key instead of as a private key', is_flag=True, default=False)
+def remap(manifest: Manifest, *, old: typing.BinaryIO, new: typing.BinaryIO, overwrite: bool, new_is_public: bool) -> Manifest:
+    manifest.remap(EdPrivK.from_private_bytes(old.read()),
+                   EdPubK.from_public_bytes(new.read()) if new_is_public
+                   else EdPrivK.from_private_bytes(new.read()).public_key(), overwrite)
+    return manifest
+# Check cascade
+@cascade_cli.command()
+@w_input
+@click.argument('target', type=click.File('rb'))
+@click.argument('against', type=click.File('rb'), default=None, required=False)
+@click.option('--target-is-public', help='Treat TARGET as a public key instead of as a private key', is_flag=True, default=False)
+@click.option('--against-is-public', help='Treat AGAINST as a public key instead of as a private key', is_flag=True, default=False)
+@click.option('--exit-codes', help='Exit with error codes (CASC_ in Manifest class) instead of exceptions', is_flag=True, default=False)
+def check(manifest: Manifest, *, target: typing.BinaryIO, against: typing.BinaryIO | None, target_is_public: bool, against_is_public: bool, exit_codes: bool):
     '''
-    # Handle formatting
-    if format == 'auto':
-        format_in = _autofmt(manifest.name)
-        format_out = _autofmt(manifest.name if output is None else output.name)
-    else: format_in = format_out = format
-    # Read manifest and keys
-    man = INPUT_FORMATS[format_in](manifest.read())
-    okey = EdPrivK.from_private_bytes(old_key.read())
-    opkey = okey.public_key()
-    nkey = EdPrivK.from_private_bytes(new_key.read()).public_key()
-    # Add cascade
-    if not dry_run:
-        man.crypt.key_remap_cascade = manifestlib.add_key_remap_cascade(nkey, okey, man.crypt.key_remap_cascade or {})
-    # Checks
+        Checks if the TARGET key is valid through MANIFEST's remap cascade
+
+        AGAINST is a key to check against--when not supplied, the manifest's public key is used
+    '''
     def _deb(type: str, values: tuple[bytes, ...]):
         print({
             'check': '{} -?-> {}',
@@ -233,22 +235,48 @@ def cascade(manifest: typing.BinaryIO,
             'found': 'Found new key {}',
             'verify': 'Verified new key {2} using old key {0}',
         }[type].format(*(base64.b85encode(v).decode() for v in values)), file=sys.stderr)
-    if check:
-        print('Running standard check between old key and new key', file=sys.stderr)
-        manifestlib.chk_key_remap_cascade(opkey, nkey, man.crypt.key_remap_cascade or {}, debug_callback=_deb)
-    if check_full:
-        print('Running full check between manifest\'s key and old key', file=sys.stderr)
-        manifestlib.chk_key_remap_cascade(man.crypt.public_key, opkey, man.crypt.key_remap_cascade or {}, debug_callback=_deb)
-        print('Running full check between manifest\'s key and new key', file=sys.stderr)
-        manifestlib.chk_key_remap_cascade(man.crypt.public_key, nkey, man.crypt.key_remap_cascade or {}, debug_callback=_deb)
-    # Write manifest
-    if dry_run:
-        print('Is a dry run, exiting', file=sys.stderr)
-        return
-    if output is None:
-        manifest.seek(0, io.SEEK_SET)
-        output = manifest
-    output.write(OUTPUT_FORMATS[format_in](man))
-
-
+    n = manifest.chk_cascade(
+        EdPubK.from_public_bytes(target.read()) if target_is_public else EdPrivK.from_private_bytes(target.read()).public_key(),
+        None if against is None
+            else (EdPubK.from_public_bytes(against.read()) if against_is_public else EdPrivK.from_private_bytes(against.read()).public_key()),
+        no_fail=exit_codes, debug_callback=_deb)
+    if not exit_codes: return
+    click.echo(f'Encountered exit code {n} = { {v: k for k,v in Manifest.__dict__.items() if k.startswith("CASC_")}[n]}', file=sys.stderr)
+    raise click.exceptions.Exit(n)
+# Map cascade
+@cascade_cli.command('map')
+@w_input
+@click.option('--print-values', help='Print full values instead of indexes', is_flag=True, default=False)
+@click.option('--complexity', type=int, help='How many chain-check iterations to run (defaults to amount of keys)', default=None)
+def map_(manifest: Manifest, *, print_values: bool, complexity: int | None):
+    click.echo('Flattening cascade...', file=sys.stderr)
+    flat_cascade = []
+    for pkey,(nkey,_) in manifest.crypt.key_remap_cascade.items():
+        if pkey not in flat_cascade: flat_cascade.append(pkey)
+        if nkey not in flat_cascade: flat_cascade.append(nkey)
+    click.echo('Building chains...', file=sys.stderr)
+    chains = []
+    for _ in range(len(flat_cascade) if complexity is None else complexity):
+        for pkey,(nkey,_) in manifest.crypt.key_remap_cascade.items():
+            chained = False
+            for chain in chains:
+                if pkey not in chain: continue
+                if nkey not in chain:
+                    assert chain.index(pkey) == len(chain)-1
+                    chain.append(nkey)
+                    chained = True
+            else:
+                if not chained: chains.append([pkey, nkey])
+    click.echo('Deduplicating chains...', file=sys.stderr)
+    chains = {tuple(chain) for chain in filter(len, chains)}
+    click.echo('Merging chains...', file=sys.stderr)
+    schains = sorted(chains, key=lambda c: (c[0], len(c)))
+    seen_chains = set()
+    chains = ((seen_chains.add(c[0]), c)[1] for c in schains if c[0] not in seen_chains)
+    def render(k: bytes) -> str: return manifest.crypt._encode_(k) if print_values else flat_cascade.index(k)
+    click.echo('Keys:')
+    for k in flat_cascade: click.echo(f'- {flat_cascade.index(k)}: {manifest.crypt._encode_(k)}')
+    for nchain,chain in enumerate(chains):
+        click.echo(f'Chain {nchain}:\n / {" ~> ".join(str(render(key)) for key in chain)} /')
+# Main #
 cli()
