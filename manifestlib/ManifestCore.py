@@ -22,8 +22,7 @@ from FlexiLynx.core import packlib
 
 #> Header >/
 __all__ = ('Manifest',
-           'render_pack', 'load_packed', 'render_json', 'load_json', 'render_ini', 'load_ini',
-           'chk_key_remap_cascade', 'add_key_remap_cascade')
+           'render_pack', 'load_packed', 'render_json', 'load_json', 'render_ini', 'load_ini')
 
 man_packer = packlib.Packer(try_reduce_objects=True)
 
@@ -78,6 +77,66 @@ class Manifest:
         try: public_key.verify(self.crypt.signature, self.pack(exclude_sig=True))
         except InvalidSignature: return False
         return True
+
+    def remap(self, prev_key: EdPrivK, new_key: EdPubK, overwrite: bool = False):
+        '''
+            Adds a new public key to the remap cascade (or creates a new cascade if one isn't supplied)
+                Requires the previous private key to sign the new public key
+        '''
+        if self.crypt.key_remap_cascade is None:
+            self.crypt.key_remap_cascade = {}
+        if ((pkpb := prev_key.public_key().public_bytes_raw()) not in self.crypt.key_remap_cascade) or overwrite:
+            self.crypt.key_remap_cascade |= {pkpb: (new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
+        else: raise NameError('prev_key has already vouched for a key, pass overwrite=True to overwrite')
+    CASC_EMPTY = 1
+    CASC_INIT_BROKEN = 2
+    CASC_BROKEN = 3
+    CASC_SIG_REJECTED = 4
+    CASC_CIRCULAR = 5
+    def chk_cascade(self, target_key: EdPubK, current_key: EdPubK | None = None, *, no_fail: bool = True, debug_callback: typing.Callable[[str, tuple[bytes, ...]], None] = lambda t,v: None) -> None | int:
+        '''
+            Ensures that the `target_key` is trusted by walking the cascade
+            If `current_key` is not given, it is set to this manifest's key
+            Example:
+                Let `current_key` be key "A" and `target_key` be key "C", with an extra key "B"
+                1) Key "A" vouches for key "B". `current_key` is now key "B"
+                2) Key "B" vouches for key "C". `current_key` is now key "C"
+                3) `current_key` == `target_key`, so the key is trustworthy
+            This function returns None upon a success
+            Keys can (normally) fail the cascade in the following ways (returning the int if `no_fail`, otherwise raising the exception):
+                CASC_EMPTY/NotImplementedError, if the cascade is "empty" (evaluates as "falsey", normally an empty dict or None)
+                CASC_INIT_BROKEN/LookupError, if the *original* `target_key` isn't in the cascade
+                CASC_BROKEN/EOFError, if the cascade is "broken" (an intermediate/referenced key isn't in the cascade)
+                CASC_SIG_REJECTED/ValueError from cryptography.exceptions.InvalidSignature, if a signature isn't correct
+                CASC_CIRCULAR/RecursionError, if a circular cascade is detected
+                    Note that despite the exception used, the current implementation does not use recursion, but rather keeps track of seen keys manually
+        '''
+        if current_key is None: current_key = self.crypt.public_key
+        if __debug__: debug_callback('check', (current_key.public_bytes_raw(), target_key.public_bytes_raw()))
+        if not self.crypt.key_remap_cascade:
+            if no_fail: return self.CASC_EMPTY
+            raise NotImplementedError('cascade is empty')
+        if current_key.public_bytes_raw() not in self.crypt.key_remap_cascade:
+            if no_fail: return self.CASC_INIT_BROKEN
+            raise LookupError(f'cascade rejected: broken off at initial key {self.crypt._encode_(ckb)}')
+        seen = set()
+        while (ckb := current_key.public_bytes_raw()) not in seen:
+            if current_key == target_key:
+                if __debug__: debug_callback('match', (ckb, target_key.public_bytes_raw()))
+                return None
+            if ckb not in self.crypt.key_remap_cascade:
+                if no_fail: return self.CASC_BROKEN
+                raise EOFError(f'cascade rejected: broken off at {self.crypt._encode_(ckb)}')
+            nkey,sig = self.crypt.key_remap_cascade[ckb]
+            if __debug__: debug_callback('found', (nkey, sig))
+            try: current_key.verify(sig, nkey)
+            except cryptography.exceptions.InvalidSignature:
+                if no_fail: return self.CASC_SIG_REJECTED
+                raise ValueError(f'cascade rejected: {self.crypt._encode_(ckb)} does not really vouch for {self.crypt._encode_(nkey)}')
+            if __debug__: debug_callback('verify', (ckb, sig, nkey))
+            current_key = EdPubK.from_public_bytes(nkey)
+        if no_fail: return self.CASC_CIRCULAR
+        raise RecursionError(f'cascade rejected: circular cascade detected surrounding {self.crypt._encode_(ckb)}')
 # Rendering & loading
 ## packlib
 def render_pack(m: Manifest) -> bytes:
@@ -122,33 +181,3 @@ def load_ini(i: bytes) -> Manifest:
             {sik: literal_eval(siv) for sik,siv in p[sk].items()} # nested inner items (k.sk[sik] items)
             for sk in filter(lambda sk: sk.startswith(f'{k}.'), p.keys())} # nested inner items look & predicate
          for k,v in p.items() if (k != 'DEFAULT') and ('.' not in k)}) # outer items loop & predicate
-# Key remap cascades
-def chk_key_remap_cascade(current_key: EdPubK, target_key: EdPubK, cascade: dict[bytes, tuple[bytes, bytes]], debug_callback: typing.Callable[[str, tuple[bytes, ...]], None] = lambda t,v: None):
-    '''
-        Ensures that the target_key has not been tampered with by walking the cascade with the current_key
-            throws a LookupError if a key wasn't found in the cascade
-            throws a cryptography.exceptions.InvalidSignature exception if an entry failed verification
-            throws a RecursionError if a circular cascade was detected
-    '''
-    if __debug__: debug_callback('check', (current_key.public_bytes_raw(), target_key.public_bytes_raw()))
-    seen = set()
-    while (ckb := current_key.public_bytes_raw()) not in seen:
-        seen.add(ckb)
-        if __debug__: debug_callback('saw', (ckb,))
-        if current_key == target_key:
-            if __debug__: debug_callback('match', (ckb, target_key.public_bytes_raw()))
-            return
-        if ckb not in cascade:
-            raise LookupError('cascade rejected - a key was not found in the cascade')
-        newkey, newsig = cascade[ckb]
-        if __debug__: debug_callback('found', (newkey, newsig))
-        current_key.verify(newsig, newkey)
-        if __debug__: debug_callback('verify', (ckb, newsig, newkey))
-        current_key = EdPubK.from_public_bytes(newkey)
-    raise RecursionError('cascade rejected - a key was seen twice (assuming to be circular)')
-def add_key_remap_cascade(new_key: EdPubK, prev_key: EdPrivK, cascade: dict[bytes, tuple[bytes, bytes]] = {}) -> dict[bytes, tuple[bytes, bytes]]:
-    '''
-        Adds a new public key to the remap cascade (or creates a new cascade if one isn't supplied)
-            Requires the previous private key to sign the new public key
-    '''
-    return cascade | {prev_key.public_key().public_bytes_raw(): (new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
