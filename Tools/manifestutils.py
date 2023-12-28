@@ -6,6 +6,7 @@ import sys
 import click
 import importlib
 import base64
+import shlex
 import typing
 from io import SEEK_SET
 from pathlib import Path
@@ -93,6 +94,32 @@ def w_carguments(*names: str) -> typing.Callable[[click.Command], click.Command]
 cli = click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160})
 
 # Misc commands #
+# Update
+@cli.command()
+@w_io
+@click.option('-m', '--meta-version', help='Version-string that is meaningless to the parser', default=None)
+@click.option('-r', '--default-root', type=click.Path(exists=True, file_okay=False, path_type=Path), help='Root path of content not in any pack', required=True)
+@click.option('-I', '--include', help='Glob to add to includes (note that adding once removes defaults)', default=('**/*',), multiple=True)
+@click.option('-E', '--exclude', help='Glob to add to excludes', default=('**/__pycache__/**/*', '**/MANIFEST*', '**/.git/**/*', '**/.gitignore'), multiple=True)
+@click.option('-P', '--pack', type=(str, click.Path(exists=True, file_okay=False, path_type=Path)), help='Pack-name and root to add (adding this at least once enables packs)', default=None, multiple=True)
+@click.option('-k', '--sign', type=click.File('rb'), help='Key to sign the manifest with')
+@click.option('--store', help='Instead of updating the manifest, create a script that would update the manifest for usage later', is_flag=True, default=False)
+def update(manifest: Manifest, *, meta_version: str | None,
+           default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path]],
+           sign: typing.BinaryIO | None, store: bool) -> Manifest:
+    '''
+        Updates the MANIFEST's content (files)
+
+        All given options for selecting files and packs are the same as "generate manifest"\n
+        It is recommended to use --store to make a helper-script
+    '''
+    if store:
+        click.echo(shlex.join((a for a in sys.argv if a != '--store')))
+        raise click.exceptions.Exit()
+    return generator.autoupdate_manifest(manifest, meta_version=meta_version,
+                                         key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
+                                         files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
+                                         packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack})
 # Sanity check
 @cli.command()
 @w_input
