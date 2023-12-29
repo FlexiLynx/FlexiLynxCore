@@ -185,7 +185,7 @@ class Packer:
         if t is False: return False
         if t is int: return int.from_bytes(e, signed=True)
         if t is float:
-            return self.S_DOUBLE.unpack(e)
+            return self.S_DOUBLE.unpack(e)[0]
         if t is complex:
             return complex(*self.S_COMPLEX.unpack(e))
         # Sequences
