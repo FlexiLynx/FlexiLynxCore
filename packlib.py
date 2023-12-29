@@ -261,3 +261,82 @@ def unpack(packed: bytes, **packer_attrs) -> tuple[object, ...]:
             (assuming that packing succeeds and that `try_reduce_objects` is disabled)
     '''
     return (Packer(**packer_attrs) if packer_attrs else packer).unpack(packed)
+
+# Self-test
+def _stage_selftest():
+    # Imports
+    import random, string, math, itertools
+    # Structure generation
+    global _test_singlegen
+    global _test_nestedgen
+    global _test_struct_size
+    global _test_genstruct
+    global _test_genstruct_s
+    _test_singlegen = (
+        lambda ml, db: ''.join(random.choices(string.printable, k=random.randint(0, ml))), # str
+        lambda ml, db: random.randbytes(random.randint(0, ml)), # bytes
+        lambda ml, db: bool(random.randint(0, 1)), # bool
+        lambda ml, db: random.randint(0, ml), # int
+        lambda ml, db: random.randint(0, ml) / random.randint(1, ml+1), # float
+        lambda ml, db: complex(random.randint(0, ml) / random.randint(1, ml+1), random.randint(0, ml) / random.randint(1, ml+1)), # complex
+        lambda ml, db: None, # None
+    )
+    _test_nestedgen = (
+        lambda ml, db: {random.choice(_test_singlegen)(ml, db-1): _test_genstruct(ml, db-1) for _ in range(random.randint(0, ml))}, # dict
+        lambda ml, db: tuple(_test_genstruct(ml, db-1) for _ in range(random.randint(0, ml))), # tuple
+        lambda ml, db: frozenset(random.choice(_test_singlegen)(ml, db-1) for _ in range(random.randint(0, ml))), # set
+    )
+    _test_struct_size = (10, 0.5)
+    _test_genstruct = lambda maxlen, depthbias: random.choice(_test_singlegen+(_test_nestedgen*depthbias))(maxlen, depthbias)
+    _test_genstruct_s = lambda s: _test_genstruct(math.ceil(_test_struct_size[0]*s), math.ceil(_test_struct_size[1]*s))
+    # Single-testing methods
+    global _test_tests_1
+    global _test_tests_2
+    global _test_TEST_NO_BLANKING
+    _test_TEST_NO_BLANKING = False
+    _test_tests_1 = {
+        'pack(obj) == pack(obj)': lambda s: pack(s) == pack(s),
+        'obj == unpack(pack(obj))[0]': lambda s: s == unpack(pack(s))[0],
+    }
+    _test_tests_2 = {
+        'pack(obj1, obj2) == pack(obj1)+pack(obj2)': lambda s1, s2: pack(s1, s2) == pack(s1)+pack(s2),
+        '(obj1, obj2) == unpack(pack(obj1, obj2))': lambda s1, s2: (s1, s2) == unpack(pack(s1, s2)),
+        '(obj1, obj2) == unpack(pack(obj1)+pack(obj2))': lambda s1, s2: (s1, s2) == unpack(pack(s1)+pack(s2)),
+    }
+    # Big test
+    global _test_testall
+    def _test_testall(poolsize: int, struct_size: int = 4, struct_pool_notify_every_perc: int = 10, do_output: bool = False) -> tuple[dict, dict] | None:
+        ml = math.ceil(_test_struct_size[0]*struct_size)
+        db = math.ceil(_test_struct_size[1]*struct_size)
+        print(f'Generating {poolsize} structures with size of {struct_size} (max length: {ml}; depth bias: {db}')
+        print('This could take a while, depending on the size of the pool and the size of the structures')
+        pool = tuple(_test_genstruct(ml, db) for n in range(poolsize) \
+                     if (((n+1) % ((poolsize//struct_pool_notify_every_perc) or 1)) or print(f'Generating structure {n+1} of {poolsize}'),)) # if True, just prints out every struct_pool_notify_every'th run
+        print(f'Generating 2-combinations for {len(pool)} structures...')
+        combos = tuple(itertools.combinations(pool, 2))
+        print(f'Generated {len(combos)} 2-combinations of {len(pool)} structures')
+        print(f'Running 1-tests; ({len(pool)} tests each...')
+        runs_1 = {}
+        for n,tf in _test_tests_1.items():
+            runs_1[n] = []
+            print(f'Running {n} {len(pool)} times...')
+            for s in pool:
+                runs_1[n].append({
+                    'structure': s,
+                    'passed': tf(s),
+                })
+            print(f'Successful runs: {len(tuple(r for r in runs_1[n] if r["passed"]))} / {len(pool)}')
+        print(f'Running 2-tests; ({len(combos)} tests each...')
+        runs_2 = {}
+        for n,tf in _test_tests_2.items():
+            runs_2[n] = []
+            print(f'Running {n} {len(combos)} times...')
+            for s1,s2 in combos:
+                runs_2[n].append({
+                    'structure1': s1,
+                    'structure2': s2,
+                    'passed': tf(s1, s2),
+                })
+            print(f'Successful runs: {len(tuple(r for r in runs_2[n] if r["passed"]))} / {len(combos)}')
+        if do_output: return runs_1, runs_2
+        return None # interactive test results take up a lot of space that takes a long time to print in IDLE
