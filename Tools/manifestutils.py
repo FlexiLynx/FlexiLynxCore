@@ -10,21 +10,21 @@ import shlex
 import typing
 from io import SEEK_SET
 from pathlib import Path
+from importlib import util as iutil
 from functools import partial, wraps
 from hashlib import algorithms_guaranteed
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 #</Imports
 
 # Get entrypoint
-if ep := os.getenv('FLEXILYNX_ENTRYPOINT', None):
-    _spec = iutil.spec_from_file_location('__entrypoint__', ep)
+if ep := os.getenv('FLEXILYNX_ENTRYPOINT', None): p = Path(ep)
+elif (p := Path('__entrypoint__.py')).exists(): pass
+elif (p := Path('../__entrypoint__.py')).exists(): pass
 else:
-    if not Path('__entrypoint__.py').exists():
-        if Path('../__entrypoint__.py').exists():
-            sys.path.append(Path('..').absolute().as_posix())
-        else:
-            raise FileNotFoundError('Could not find __entrypoint__.py or ../__entrypoint__.py')
-import __entrypoint__
+    raise FileNotFoundError('Could not find __entrypoint__.py or ../__entrypoint__.py, maybe set FLEXILYNX_ENTRYPOINT in env?')
+sys.path.append(p.parent.as_posix())
+__entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
+                     .loader.load_module()
 
 #> Header
 __entrypoint__.__init__()
