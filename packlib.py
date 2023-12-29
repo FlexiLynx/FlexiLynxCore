@@ -112,7 +112,7 @@ class Packer:
                 r = repr(o).encode(self.STR_ENCODING)
                 if len(r) < self.S_COMPLEX.size: return (repr, r)
                 try:
-                    return (float, self.S_COMPLEX.pack(o.real, o.imag))
+                    return (complex, self.S_COMPLEX.pack(o.real, o.imag))
                 except struct.error: return (repr, r)
             # Sequences
             ## Simple
