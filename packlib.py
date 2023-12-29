@@ -315,21 +315,30 @@ def _stage_selftest():
     # Big test
     global _test_testall
     def _test_testall(poolsize: int, struct_size: int = 4, struct_pool_notify_every_perc: int = 10, do_output: bool = False) -> tuple[dict, dict] | None:
+        # Calculate sizings
         ml = math.ceil(_test_struct_size[0]*struct_size)
         db = math.ceil(_test_struct_size[1]*struct_size)
+        # Generate structures
         print(f'Generating {poolsize} structures with size of {struct_size} (max length: {ml}; depth bias: {db}')
         print('This could take a while, depending on the size of the pool and the size of the structures')
         pool = tuple(_test_genstruct(ml, db) for n in range(poolsize) \
                      if (((n+1) % ((poolsize//struct_pool_notify_every_perc) or 1)) or print(f'Generating structure {n+1} of {poolsize}'),)) # if True, just prints out every struct_pool_notify_every'th run
+        # Generate combinations
         print(f'Generating 2-combinations for {len(pool)} structures...')
         combos = tuple(itertools.combinations(pool, 2))
         print(f'Generated {len(combos)} 2-combinations of {len(pool)} structures')
+        # Expose debugging globals
+        global _test_last_test
+        global _test_last_vals
+        # Run single-tests
         print(f'Running 1-tests; ({len(pool)} tests each...')
         runs_1 = {}
         for n,tf in _test_tests_1.items():
             runs_1[n] = []
             print(f'Running {n} {len(pool)} times...')
             for s in pool:
+                _test_last_test = n
+                _test_last_vals = (s,)
                 runs_1[n].append({
                     'structure': s,
                     'passed': tf(s),
@@ -341,6 +350,8 @@ def _stage_selftest():
             runs_2[n] = []
             print(f'Running {n} {len(combos)} times...')
             for s1,s2 in combos:
+                _test_last_test = n
+                _test_last_vals = (s1, s2)
                 runs_2[n].append({
                     'structure1': s1,
                     'structure2': s2,
