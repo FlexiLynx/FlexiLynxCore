@@ -91,15 +91,6 @@ class Packer:
         try: e = literal_eval(r)
         except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError): return None
         if l == e: return None
-    def _encode_to_struct_or_repr(self, struct: struct.Struct, type_: type, o: tuple[object, ...]):
-        r = self._try_encode_literal(o)
-        if (r is not None) and (len(r) < struct.calcsize()):
-            return (repr, r)
-        try: p = struct.pack(*o)
-        except struct.error:
-            if r is None:
-                raise ValueError(f'Could not convert {type_.__name__} {o!r} to literal or to structure')
-        return (type_, p)
     def encode(self, o: object) -> tuple[typing.Literal[*TYPE_KEYS], bytes]:
         '''Returns an object's type-key and encoded bytes'''
         match o:
@@ -111,10 +102,18 @@ class Packer:
                         if (o or not self.optimize_do_blanking) else b'')
             case float():
                 if self.optimize_do_blanking and not o: return (float, b'')
-                return self._encode_to_struct_or_repr(self.S_DOUBLE, float, (o,))
+                r = repr(o).encode(self.STR_ENCODING)
+                if len(r) < self.S_DOUBLE.size: return (repr, r)
+                try:
+                    return (float, self.S_DOUBLE.pack(o))
+                except struct.error: return (repr, r)
             case complex():
                 if self.optimize_do_blanking and not o: return (complex, b'')
-                return self._encode_to_struct_or_repr(self.S_COMPLEX, complex, (o.real, o.imag))
+                r = repr(o).encode(self.STR_ENCODING)
+                if len(r) < self.S_COMPLEX.size: return (repr, r)
+                try:
+                    return (float, self.S_COMPLEX.pack(o.real, o.imag))
+                except struct.error: return (repr, r)
             # Sequences
             ## Simple
             case bytes() | bytearray():
