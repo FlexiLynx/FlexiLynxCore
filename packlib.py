@@ -77,14 +77,14 @@ class Packer:
     def encode_size(self, s: int) -> bytes:
         '''Encodes an integer in self._size_base; originally inspired by https://stackoverflow.com/a/28666223'''
         if not s: return b''
-        return bytes(((s % (self._size_base**p))) // (self._size_base**(p-1)) for p in range(1, math.ceil(1+math.log(s+1, self._size_base))))[::-1]
+        return bytes(((s % (self._size_base**p))) // (self._size_base**(p-1)) for p in range(1, math.ceil(1+math.log(s+1, self._size_base))))
     def decode_size(self, bs: bytes) -> int:
         '''
             Decodes an integer from self._size_base
             Not that this not used by the current implementation of siunarchive()
         '''
         if not bs: return 0
-        return sum(d*(self._size_base**p) for p,d in enumerate(reversed(bs)))
+        return sum(d*(self._size_base**p) for p,d in enumerate(bs))
 
     def _try_encode_literal(self, l: object) -> str | None:
         r = repr(l)
@@ -214,7 +214,7 @@ class Packer:
         p = size = 0
         while True:
             b = stream.read(1)
-            if not b: return None
+            if not len(b): return None
             if b[0] >= self._size_base: break
             size += self._size_base**p*b[0]
             p += 1
