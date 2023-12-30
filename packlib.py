@@ -299,7 +299,9 @@ def _stage_selftest():
     _test_genstruct_s = lambda s: _test_genstruct(math.ceil(_test_struct_size[0]*s), math.ceil(_test_struct_size[1]*s))
     # Single-testing methods
     global _test_tests_1
+    global _test_test_s1
     global _test_tests_2
+    global _test_test_s2
     global _test_TEST_NO_BLANKING
     _test_TEST_NO_BLANKING = False
     _test_tests_1 = {
@@ -311,9 +313,12 @@ def _stage_selftest():
         '(obj1, obj2) == unpack(pack(obj1, obj2))': lambda s1, s2: (s1, s2) == unpack(pack(s1, s2)),
         '(obj1, obj2) == unpack(pack(obj1)+pack(obj2))': lambda s1, s2: (s1, s2) == unpack(pack(s1)+pack(s2)),
     }
+    _test_test_s1 = 'obj == unpack(pack(obj))[0]'
+    _test_test_s2 = '(obj1, obj2) == unpack(pack(obj1, obj2))'
     # Big test
     global _test_testall
-    def _test_testall(poolsize: int, struct_size: int = 4, struct_pool_notify_every_perc: int = 10, do_output: bool = False) -> tuple[dict, dict] | None:
+    def _test_testall(poolsize: int, struct_size: int = 4, struct_pool_notify_every_perc: int = 10, do_output: bool = False,
+                      skip_some: bool = False, skip_1: bool = False, skip_2: bool = False) -> tuple[dict, dict] | None:
         # Calculate sizings
         ml = math.ceil(_test_struct_size[0]*struct_size)
         db = math.ceil(_test_struct_size[1]*struct_size)
@@ -324,7 +329,10 @@ def _stage_selftest():
                      if (((n+1) % ((poolsize//struct_pool_notify_every_perc) or 1)) or print(f'Generating structure {n+1} of {poolsize}'),)) # if True, just prints out every struct_pool_notify_every'th run
         # Generate combinations
         print(f'Generating 2-combinations for {len(pool)} structures...')
-        combos = tuple(itertools.combinations(pool, 2))
+        if skip_2:
+            print('Not generating combinations (skip_2=True)')
+            combos = ()
+        else: combos = tuple(itertools.combinations(pool, 2))
         print(f'Generated {len(combos)} 2-combinations of {len(pool)} structures')
         # Expose debugging globals
         global _test_last_test
@@ -332,30 +340,37 @@ def _stage_selftest():
         # Run single-tests
         print(f'Running 1-tests; ({len(pool)} tests each...')
         runs_1 = {}
-        for n,tf in _test_tests_1.items():
-            runs_1[n] = []
-            print(f'Running {n} {len(pool)} times...')
-            for s in pool:
-                _test_last_test = n
-                _test_last_vals = (s,)
-                runs_1[n].append({
-                    'structure': s,
-                    'passed': tf(s),
-                })
-            print(f'Successful runs: {len(tuple(r for r in runs_1[n] if r["passed"]))} / {len(pool)}')
+        if skip_1:
+            print('Skipping 1-tests (skip_1=True)')
+        else:
+            for n,tf in ((_test_test_s1, _test_tests_1[_test_test_s1]),) if skip_some else _test_tests_1.items():
+                runs_1[n] = []
+                print(f'Running {n} {len(pool)} times...')
+                for s in pool:
+                    _test_last_test = n
+                    _test_last_vals = (s,)
+                    runs_1[n].append({
+                        'structure': s,
+                        'passed': tf(s),
+                    })
+                print(f'Successful runs: {len(tuple(r for r in runs_1[n] if r["passed"]))} / {len(pool)}')
+        # Run double-tests
         print(f'Running 2-tests; ({len(combos)} tests each...')
         runs_2 = {}
-        for n,tf in _test_tests_2.items():
-            runs_2[n] = []
-            print(f'Running {n} {len(combos)} times...')
-            for s1,s2 in combos:
-                _test_last_test = n
-                _test_last_vals = (s1, s2)
-                runs_2[n].append({
-                    'structure1': s1,
-                    'structure2': s2,
-                    'passed': tf(s1, s2),
-                })
-            print(f'Successful runs: {len(tuple(r for r in runs_2[n] if r["passed"]))} / {len(combos)}')
+        if skip_2:
+            print('Skipping 2-tests (skip_2=True)')
+        else:
+            for n,tf in ((_test_test_s2, _test_tests_2[_test_test_s2]),) if skip_some else _test_tests_1.items():
+                runs_2[n] = []
+                print(f'Running {n} {len(combos)} times...')
+                for s1,s2 in combos:
+                    _test_last_test = n
+                    _test_last_vals = (s1, s2)
+                    runs_2[n].append({
+                        'structure1': s1,
+                        'structure2': s2,
+                        'passed': tf(s1, s2),
+                    })
+                print(f'Successful runs: {len(tuple(r for r in runs_2[n] if r["passed"]))} / {len(combos)}')
         if do_output: return runs_1, runs_2
         return None # interactive test results take up a lot of space that takes a long time to print in IDLE
