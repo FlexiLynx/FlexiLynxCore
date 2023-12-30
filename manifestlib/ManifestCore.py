@@ -144,7 +144,7 @@ def render_pack(m: Manifest) -> bytes:
     return m.pack()
 def load_packed(p: bytes) -> Manifest:
     '''Loads a Manifest from bytes via packlib'''
-    return Manifest.from_dict(man_packer.unpack(packed))
+    return Manifest.from_dict(man_packer.unpack(p)[0])
 ## JSON
 JSON_ARRAY_CLEANER_A = re.compile(r'^(\s*"[^"]*":\s*)(\[[^\]]*\])(,?\s*)$', re.MULTILINE)
 JSON_ARRAY_CLEANER_B = staticmethod(lambda m: m.group(1)+(re.sub(r'\s+', '', m.group(2)).replace(',', ', '))+m.group(3))
