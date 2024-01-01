@@ -27,6 +27,17 @@ class EnvConfig(UserDict):
         self.data = self.__dict__
         if freeze: self._is_frozen = True
 
+    @staticmethod
+    def _bool(v: str) -> bool:
+        '''Converts a string into a boolean in a shell-like way ("" and "0" = False)'''
+        return bool(v) and v != '0'
+    def get_bool(self, k: str, default: str | bool = False) -> bool:
+        '''Converts an key's item into a boolean in a shell-like way'''
+        v = self.get(k, default)
+        if isinstance(v, bool): return v
+        if isinstance(v, str): return self._bool(v)
+        return bool(v) # let other types resolve normally
+
     def __setitem__(self, item: str, value: typing.Any):
         if getattr(self, '_is_frozen', False):
             raise TypeError(f'{self.__class__.__qualname__} is frozen')
