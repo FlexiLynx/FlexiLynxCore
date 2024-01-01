@@ -45,4 +45,4 @@ class EnvConfig(UserDict):
     __setattr__ = __setitem__
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__qualname__}({self._envvar!r})'
+        return f'{self.__class__.__qualname__}({self._envvar!r}, type_={self._type!r}, freeze={getattr(self, "_is_frozen", False)!r})'
