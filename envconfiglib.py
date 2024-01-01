@@ -22,7 +22,8 @@ class EnvConfig(UserDict):
         if (p := Path(f'./{self._envvar}.flynx.env')).is_file():
             self._rawenv += f' {p.readtext()}'
         self.__dict__ = {k.lower(): self._type(v) for k,v in (kv.split('=', 1)
-                                                  for kv in shlex.split(self._rawenv))}
+                                                  for kv in shlex.split(self._rawenv))
+                         if not (k.startswith('_') or hasattr(self.__class__, k))}
         self.data = self.__dict__
         if freeze: self._is_frozen = True
 
