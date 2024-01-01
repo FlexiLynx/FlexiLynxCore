@@ -5,7 +5,6 @@ import os
 import shlex
 import typing
 from pathlib import Path
-from ast import literal_eval
 from collections import UserDict
 #</Imports
 
@@ -16,7 +15,7 @@ class EnvConfig(UserDict):
     'A read-only, case-insensitive namespace/dictionary that is populated by an environment variable or .flynx.env file'
     __slots__ = ('_envvar', '_type', '_rawenv', '_is_frozen')
 
-    def __init__(self, var: str, type_: type | typing.Callable[[str], typing.Any] = literal_eval, freeze: bool = True):
+    def __init__(self, var: str, type_: type | typing.Callable[[str], typing.Any] = str, freeze: bool = True):
         self._envvar = var
         self._type = type_
         self._rawenv = os.getenv(self._envvar, '')
