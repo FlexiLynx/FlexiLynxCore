@@ -10,6 +10,8 @@
       - `colorfmt_from_str()`
       - `class ColoredFormatter`
       - `mklogger()`
+      - `VERBOSITY_LEVELS`
+      - `VERBOSITY_OFFSET`
 '''
 
 #> Imports
@@ -84,7 +86,7 @@ class ColoredFormatter(logging.Formatter):
 def setup(no_color: bool):
     # Create new levels
     logging.VERBOSE = (logging.DEBUG + logging.INFO) // 2
-    logging.IRRECOVERABLE = logging.FATAL * 2
+    logging.IRRECOVERABLE = logging.CRITICAL * 2
     ## Add logging methods
     lc = logging.getLoggerClass()
     lc.verbose = partialmethod(lc.log, logging.VERBOSE)
@@ -108,10 +110,26 @@ def setup(no_color: bool):
             return
         colorama_init()
 # Handler makers
-def mk_stream_h(verbosity: int, fmt: logging.Formatter) -> logging.StreamHandler:
+VERBOSITY_LEVELS = (
+    'IRRC', # -4
+    'CRIT', # -3
+    'ERRO', # -2
+    'WARN', # -1
+    'INFO', #  0
+    'VERB', #  1
+    'DEBG', #  2
+    '????', #  3
+)
+VERBOSITY_OFFSET = 4
+def mk_stream_h(verbosity: int | str, fmt: logging.Formatter) -> logging.StreamHandler:
+    # Setup handler and formatting
     stream_h = logging.StreamHandler()
     stream_h.setFormatter(fmt)
-    stream_h.setLevel((logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.VERBOSE, logging.DEBUG)[verbosity+3])
+    # Set verbosity
+    if isinstance(verbosity, int):
+        assert -4 <= verbosity <= 3, 'Verbosity index out of range (must be >= -4, <= 3)'
+        verbosity = VERBOSITY_LEVELS[verbosity+VERBOSITY_OFFSET]
+    stream_h.setLevel(logging.getLevelNamesMapping()[verbosity])
     return stream_h
 def mk_mainfile_h(path: Path, fmt: logging.Formatter) -> logging.handlers.RotatingFileHandler:
     path.mkdir(exist_ok=True, parents=True)
@@ -139,13 +157,12 @@ def mk_debugfile_h(path: Path, fmt: logging.Formatter) -> logging.handlers.Rotat
 # Logger maker
 def mklogger() -> logging.Logger:
     no_color = LoggerConfig.get_bool('no_color')
-    verbosity = int(LoggerConfig.get('verbosity', '0'))
-    if verbosity > 2:
-        raise ValueError('Verbosity must be less than or equal to "2"')
-    elif verbosity < -3:
-        raise ValueError('Verbosity must be more than or equal to "-3"')
     # Setup logging and colors
     setup(no_color or LoggerConfig.get_bool('no_colorama'))
+    # Get verbosity
+    if (verbosity := LoggerConfig.get('verbosity', '0')) \
+            not in logging.getLevelNamesMapping():
+        verbosity = int(verbosity)
     # Create logger
     logger = logging.getLogger('FL')
     logger.setLevel(logging.DEBUG)
