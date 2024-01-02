@@ -72,6 +72,7 @@ def w_2input(c):
                   help='The format to use for MANIFEST_A (defaults to auto)', default='auto')
     @click.option('--format-b', type=fmt_type,
                   help='The format to use for MANIFEST_B (defaults to auto)', default='auto')
+    @wraps(c, assigned=('__name__', '__doc__', '__click_params__'))
     def c_w_2input(*, manifest_a: typing.BinaryIO, manifest_b: typing.BinaryIO,
                    format_a: typing.Literal['auto', 'ini', 'json', 'pack'], format_b: typing.Literal['auto', 'ini', 'json', 'pack'], **kwargs):
         c(manifest_a=h_input(manifest_a, format_a), manifest_b=h_input(manifest_b, format_b), **kwargs)
