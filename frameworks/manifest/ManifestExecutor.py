@@ -183,7 +183,6 @@ class ManifestDiff:
     @classmethod
     def dict_diff(cls, a: dict, b: dict) -> typing.Generator[str, None, None]:
         '''Yields a string diff of two dicts'''
-        print(a, b)
         for add in (b.keys() - a.keys()): yield f' + {cls.render_item(add)}'
         for rem in (a.keys() - b.keys()): yield f' - {cls.render_item(rem)}'
         for chg in (k for k,v in b.items() if (k in b) and (b[k] != v)):
