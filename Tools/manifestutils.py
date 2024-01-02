@@ -117,7 +117,7 @@ click.option('--store', type=click.File('w'), help='Instead of executing the com
 # Multi-place commands #
 @click.command('diff')
 @w_2input
-def m_diff(*, manifest_a: Manifest, manifest_b: Manifest):
+def m_diff(manifest_a: Manifest, manifest_b: Manifest):
     '''Prints a diff of MANIFEST_A and MANIFEST_B'''
     click.echo(executor.ManifestDiff(manifest_a, manifest_b))
 @click.command()
