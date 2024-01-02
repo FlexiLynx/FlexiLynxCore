@@ -121,6 +121,16 @@ def update(manifest: Manifest, *, meta_version: str | None,
                                          key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
                                          files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
                                          packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack})
+# Uninstall
+@cli.command()
+@w_input
+@click.option('--root', type=Path, help='The root where this manifest was installed', default=Path('.'))
+@click.option('--pack', type=str, help='Select a specific pack to uninstall, instead of uninstalling root conetnt', default=None)
+@click.option('--dry-run', help='Don\'t actually unlink anything', is_flag=True, default=False)
+@click.option('--no-interactive', help='Don\'t prompt before removal', is_flag=True, default=False)
+@click.option('--no-ensure-installed', help='Don\'t fail if a file was not installed to begin with', is_flag=True, default=False)
+def uninstall(manifest: Manifest, *, root: Path, pack: str | None, dry_run: bool, no_interactive: bool, no_ensure_installed: bool):
+    executor.uninstall(manifest, root, pack=pack, dry_run=dry_run, interactive=not no_interactive, ensure_all_installed=not no_ensure_installed)
 # Sanity check
 @cli.command()
 @w_input
