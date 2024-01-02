@@ -145,7 +145,36 @@ def verify_upstream(local: Manifest, upstream: Manifest):
         mlogger.info('Cascade accepted: new public key %s is trusted', local.crypt._encode_(upstream.crypt.public_key.public_bytes_raw()))
 
 # Manifest diffs
-class ManifestDiff:
+class _DiffBase:
+    __slots__ = ()
+    @classmethod
+    def dict_diff(cls, a: dict, b: dict) -> typing.Generator[str, None, None]:
+        '''Yields a string diff of two dicts'''
+        for add in (b.keys() - a.keys()): yield f' + {cls.render_item(add)}'
+        for rem in (a.keys() - b.keys()): yield f' - {cls.render_item(rem)}'
+        for chg in (k for k,v in b.items() if (k in b) and (b[k] != v)):
+            yield f'   {cls.render_item(chg)}: {cls.render_item(a[chg])} -> {cls.render_item(b[chg])}'
+    @classmethod
+    def set_diff(cls, a: set, b: set) -> typing.Generator[str, None, None]:
+        '''Yields a string diff of two sets'''
+        for add in (b - a): yield f' + {cls.render_item(add)}'
+        for rem in (a - b): yield f' - {cls.render_item(rem)}'
+
+    @classmethod
+    def render_item(cls, o: typing.Any) -> str:
+        '''Renders an object (that would normally be in a Manifest) as a string'''
+        match o:
+            case set() | frozenset():
+                if not o: return 'set()'
+                return f'{{{", ".join(cls.render_item(i) for i in o)},}}'
+            case tuple() | list():
+                if not o: return '()'
+                return f'({{", ".join(cls.render_item(i) for i in o)}},)'
+            case EdPubK(): return cls.render_item(o.public_bytes_raw())
+            case bytes(): return base64.b85encode(o)
+            case (None): return '<not specified>'
+        return repr(o)
+class ManifestDiff(_DiffBase):
     __slots__ = ('local', 'upstream')
 
     def __init__(self, local: Manifest, upstream: Manifest):
@@ -200,41 +229,16 @@ class ManifestDiff:
                 sio.write(s)
         else:
             sio.write(f' {self.render_item(a)} -> {self.render_item(b)}\n')
-
-    @classmethod
-    def dict_diff(cls, a: dict, b: dict) -> typing.Generator[str, None, None]:
-        '''Yields a string diff of two dicts'''
-        for add in (b.keys() - a.keys()): yield f' + {cls.render_item(add)}'
-        for rem in (a.keys() - b.keys()): yield f' - {cls.render_item(rem)}'
-        for chg in (k for k,v in b.items() if (k in b) and (b[k] != v)):
-            yield f'   {cls.render_item(chg)}: {cls.render_item(a[chg])} -> {cls.render_item(b[chg])}'
-    @classmethod
-    def set_diff(cls, a: set, b: set) -> typing.Generator[str, None, None]:
-        '''Yields a string diff of two sets'''
-        for add in (b - a): yield f' + {cls.render_item(add)}'
-        for rem in (a - b): yield f' - {cls.render_item(rem)}'
-
-    @classmethod
-    def render_item(cls, o: typing.Any) -> str:
-        '''Renders an object (that would normally be in a Manifest) as a string'''
-        match o:
-            case set() | frozenset():
-                if not o: return 'set()'
-                return f'{{{", ".join(cls.render_item(i) for i in o)},}}'
-            case tuple() | list():
-                if not o: return '()'
-                return f'({{", ".join(cls.render_item(i) for i in o)}},)'
-            case EdPubK(): return cls.render_item(o.public_bytes_raw())
-            case bytes(): return base64.b85encode(o)
-            case (None): return '<not specified>'
-        return repr(o)
-class ContentDiff:
+class ContentDiff(_DiffBase):
     __slots__ = ('man',)
 
     def __init__(self, man: Manifest):
         self.man = man
 
-    def diff(): pass
+    def diff(self, root: Path = Path('.'), pack: str | None = None) -> str:
+        c = dict(get_content(self.man, root, pack))
+        return '\n'.join(self.dict_diff(self.hash_files(self.man.crypt.hash_algorithm, c.keys()), c))
+    __str__ = diff
 
     @staticmethod
     def _hash_file(algorithm: typing.Literal[*hashlib.algorithms_available], file: Path) -> (Path, bytes):
