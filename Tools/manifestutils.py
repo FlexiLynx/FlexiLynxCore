@@ -133,13 +133,14 @@ cli.add_command(execute_cli)
 @click.option('--no-interactive', help='Don\'t prompt before removal', is_flag=True, default=False)
 @click.option('--no-ensure-installed', help='Don\'t fail if a file was not installed to begin with', is_flag=True, default=False)
 def uninstall(manifest: Manifest, *, root: Path, pack: str | None, dry_run: bool, no_interactive: bool, no_ensure_installed: bool):
+    '''Remove all of the contents installed by MANIFEST'''
     executor.uninstall(manifest, root, pack=pack, dry_run=dry_run, interactive=not no_interactive, ensure_all_installed=not no_ensure_installed)
 # Sanity check
 @execute_cli.command()
 @w_input
 @click.option('--unsupported-version-fail', help='Fail when using an unsupported version of Python', is_flag=True, default=False)
 def sanity_check(manifest: Manifest, *, unsupported_version_fail: bool):
-    '''Checks a manifest for several defects / inconsistencies'''
+    '''Checks MANIFEST for several defects / inconsistencies'''
     executor.is_insane(manifest, unsupported_version_fail)
 # Inspect/info
 @execute_cli.command()
@@ -251,6 +252,7 @@ cli.add_command(cascade_cli)
 @click.option('--overwrite', help='Forcefully overwrite an existing remap', is_flag=True, default=False)
 @click.option('--new-is-public', help='Treat NEW as a public key instead of as a private key', is_flag=True, default=False)
 def remap(manifest: Manifest, *, old: typing.BinaryIO, new: typing.BinaryIO, overwrite: bool, new_is_public: bool) -> Manifest:
+    '''Add cascade where OLD's private key vouches for NEW's public key to MANIFEST'''
     manifest.remap(EdPrivK.from_private_bytes(old.read()),
                    EdPubK.from_public_bytes(new.read()) if new_is_public
                    else EdPrivK.from_private_bytes(new.read()).public_key(), overwrite)
@@ -291,6 +293,7 @@ def check(manifest: Manifest, *, target: typing.BinaryIO, against: typing.Binary
 @click.option('--print-values', help='Print full values instead of indexes', is_flag=True, default=False)
 @click.option('--complexity', type=int, help='How many chain-check iterations to run (defaults to amount of keys)', default=None)
 def map_(manifest: Manifest, *, print_values: bool, complexity: int | None):
+    '''Prints out a "map" of MANIFEST's cascade in a (hopefully) human-readable format'''
     click.echo('Flattening cascade...', file=sys.stderr)
     flat_cascade = []
     for pkey,(nkey,_) in manifest.crypt.key_remap_cascade.items():
