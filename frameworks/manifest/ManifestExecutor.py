@@ -19,7 +19,7 @@ from FlexiLynx import logger
 #</Imports
 
 #> Header >/
-__all__ = ('is_insane', 'render_info', 'try_load_manifest', 'fetch_upstream')
+__all__ = ('is_insane', 'render_info', 'try_load_manifest', 'fetch_upstream', 'uninstall')
 
 mlogger = logger.getChild('core.fw.manifests')
 
@@ -104,3 +104,38 @@ def fetch_upstream(local: Manifest) -> Manifest:
     mlogger.info('Attempting to decode %d byte(s)', len(data))
     mlogger.verbose(' using methods:\n - %s\n - %s\n - %s', *(m.__name__ for m in order))
     return try_load_manifest(data, order)[1]
+
+# Actual manifest execution
+def uninstall(man: Manifest, root: Path = Path.cwd(), *,
+              pack: str | None = None, interactive: bool = True, ensure_all_installed: bool = True,
+              dry_run: bool = False):
+    '''
+        Uninstalls a given Manifest
+
+        Note that if `pack` is given, the "root" (not part of a pack) content is not uninstalled
+    '''
+    use_pack = pack is not None
+    assert (not use_pack) or man.contentinfo.use_packs, 'Cannot specify a pack when packs are not used by this manifest'
+    def rm(p: Path):
+        if interactive and input(f'Unlink {p} ? (Y/n) >').lower().startswith('n'): return
+        mlogger.warning(f'Unlinking {p}')
+        if dry_run: print(f'<dry_run> unlink {p}')
+        else: p.unlink()
+    # Get a list of files to remove
+    # note: the following line makes some use of the property of booleans as integers, where False resolves to 0 and True resolves to 1
+    # `k.split('@', 1)[1]` if use_pack else `k.split('@', 0)[0]` (resolves to `k`)
+    to_rm = sorted({root / p.split('@', use_pack)[use_pack]
+                    for p,h in man.contentdata.items() if (
+                        (('@' in p) and (p.split('@', 1)[0] == pack)) if use_pack
+                        else ('@' not in p))})
+    # Ensure that all files to remove are already installed (if needed)
+    if ensure_all_installed:
+        if not_found := tuple(f for f in to_rm if not f.is_file()):
+            raise FileNotFoundError(tuple(f.as_posix() for f in not_found))
+    # Remove files
+    for f in to_rm:
+        if f.is_file(): rm(f)
+        else: (print if interactive else mlogger.warning)(f'Skipping {f} (it doesn\'t exist or is not a file)')
+    # Check for empty dirs
+    for p in {f.parent for f in to_rm if f.parent.is_dir()}:
+        if not tuple(p.iterdir()): rm(p)
