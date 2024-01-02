@@ -221,7 +221,7 @@ def mklogger() -> logging.Logger:
     # Setup logging and colors
     setup(no_color or LoggerConfig.get_bool('no_colorama'))
     # Get verbosity
-    if (verbosity := LoggerConfig.get('verbosity', '0')) \
+    if (verbosity := LoggerConfig.get('verbosity', '0').upper()) \
             not in logging.getLevelNamesMapping():
         verbosity = int(verbosity)
     # Create logger
