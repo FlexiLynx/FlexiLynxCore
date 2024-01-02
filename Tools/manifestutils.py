@@ -141,6 +141,7 @@ def cross_verify(manifest_a: Manifest, manifest_b: Manifest):
 # crypt genkey
 cryptcli.add_command(m_genkey, 'genkey')
 # crypt sign
+@cryptcli.command()
 @w_io
 @click.argument('key', type=click.File('rb'))
 def sign(manifest: Manifest, *, key: typing.BinaryIO) -> Manifest:
@@ -154,6 +155,7 @@ def sign(manifest: Manifest, *, key: typing.BinaryIO) -> Manifest:
     return manifest
 # crypt verify
 @cryptcli.command()
+@w_input
 def verify(manifest: Manifest):
     '''Verifies MANIFEST's signature with its public-key'''
     if not manifest.verify():
