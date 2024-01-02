@@ -398,16 +398,13 @@ cli.add_command(pullcli)
 @w_io
 @click.option('--raw', help='Write the upstream manifest\'s contents to --output instead of parsing and writing them', is_flag=True, default=False)
 @click.option('--no-auth', help='Don\'t authenticate the manifest (has no effect if `--raw` is set)', default=False)
-def manifest(manifest: Manifest, *, raw: bool, no_auth: bool) -> Manifest | bytes:
+@click.option('--show-diff', help='Print a diff between the old and new manifests to stdout', default=False)
+def manifest(manifest: Manifest, *, raw: bool, no_auth: bool, show_diff: bool) -> Manifest | bytes:
     '''Pulls the MANIFEST's upstream, parses it, and writes it to --output'''
     if raw:
         with request.urlopen(manifest.upstream.manifest) as r:
             return r.read()
-    upstream = executor.fetch_upstream(manifest)
-    if not no_auth:
-        executor.verify_upstream(manifest, upstream)
-        click.echo('Manifest authenticated', file=sys.stderr)
-    return upstream
+    return executor.self_update(manifest, print_diff=show_diff, auth=not no_auth)
 
 # Main #
 cli()
