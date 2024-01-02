@@ -19,7 +19,9 @@ from FlexiLynx import logger
 #</Imports
 
 #> Header >/
-__all__ = ('is_insane', 'render_info', 'try_load_manifest', 'fetch_upstream', 'update', 'install', 'uninstall')
+__all__ = ('is_insane', 'render_info',
+           'try_load_manifest', 'fetch_upstream', 'verify_upstream',
+           'update', 'install', 'uninstall')
 
 mlogger = logger.getChild('core.fw.manifests')
 
@@ -104,6 +106,21 @@ def fetch_upstream(local: Manifest) -> Manifest:
     mlogger.info('Attempting to decode %d byte(s)', len(data))
     mlogger.verbose(' using methods:\n - %s\n - %s\n - %s', *(m.__name__ for m in order))
     return try_load_manifest(data, order)[1]
+def verify_upstream(local: Manifest, upstream: Manifest):
+    # Check upstream signature
+    mlogger.warning('Checking upstream manifest against its own signature')
+    if not upstream.verify():
+        raise InvalidSignature('Upstream manifest failed verification')
+    # Handle cascades
+    if local.crypt.public_key != upstream.crypt.public_key:
+        mlogger.warning('Upstream crypt.public_key differs from local, entering cascade')
+        upstream.chk_cascade(upstream.crypt.public_key, local.crypt.public_key, debug_callback=lambda type_, vals: mlogger.info({
+            'check': 'Entering cascade with %s, looking for {}',
+            'match': 'Key {} is trustworthy through cascade',
+            'found': 'Checking next key in cascade: {}',
+            'verify': '{0} cascades to {2}',
+        }[type_].format(*(local.crypt._encode_(v.public_bytes_raw() if isinstance(v, EdPubK) else v) for v in vals))))
+        mlogger.info('Cascade accepted: new public key %s is trusted', local.crypt._encode_(upstream.crypt.public_key.public_bytes_raw()))
 
 # Actual manifest execution
 ## Manifest update
