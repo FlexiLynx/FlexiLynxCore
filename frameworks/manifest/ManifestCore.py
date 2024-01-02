@@ -22,7 +22,8 @@ from FlexiLynx.core import packlib
 
 #> Header >/
 __all__ = ('Manifest',
-           'render_pack', 'load_packed', 'render_json', 'load_json', 'render_ini', 'load_ini')
+           'render_pack', 'load_packed', 'render_json', 'load_json', 'render_ini', 'load_ini',
+           'render_to_load', 'load_to_render')
 
 man_packer = packlib.Packer(try_reduce_objects=True)
 
@@ -181,3 +182,8 @@ def load_ini(i: bytes) -> Manifest:
             {sik: literal_eval(siv) for sik,siv in p[sk].items()} # nested inner items (k.sk[sik] items)
             for sk in filter(lambda sk: sk.startswith(f'{k}.'), p.keys())} # nested inner items look & predicate
          for k,v in p.items() if (k != 'DEFAULT') and ('.' not in k)}) # outer items loop & predicate
+## Pairs
+render_to_load = {render_ini: load_ini,
+                  render_json: load_json,
+                  render_pack: load_packed}
+load_to_render = {k: v for v,k in render_to_load.items()}
