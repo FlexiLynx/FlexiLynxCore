@@ -23,7 +23,7 @@ from FlexiLynx import logger
 __all__ = ('is_insane', 'render_info',
            'try_load_manifest', 'fetch_upstream', 'verify_upstream',
            'ManifestDiff',
-           'update', 'install', 'uninstall')
+           'self_update', 'install', 'uninstall')
 
 mlogger = logger.getChild('core.fw.manifests')
 
@@ -210,10 +210,14 @@ class ManifestDiff:
 
 # Actual manifest execution
 ## Manifest update
-def update(local: Manifest, upstream: Manifest | None = None) -> Manifest:
+def self_update(local: Manifest, upstream: Manifest | None = None, *, print_diff: bool = True, auth: bool = True) -> Manifest:
     '''Updates a manifest'''
     if upstream is None: upstream = fetch_upstream(local)
-    print(ManifestDiff(local, upstream))
+    if print_diff: print(ManifestDiff(local, upstream))
+    if auth:
+        mlogger.warning('Authenticating upstream manifest')
+        verify_upstream(local, upstream)
+    return upstream
 ## [un]Installation
 def install(man: Manifest, root: Path = Path.cwd(), *, pack: str | None = None, dry_run: bool = False):
     ...
