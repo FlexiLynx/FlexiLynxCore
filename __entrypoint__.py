@@ -26,17 +26,17 @@ def __init__():
     FlexiLynx = flexispacelib.TFlexiSpace('FlexiLynx', 'The shared library across FlexiLynx', assimilate=True)
     ## Core namespace
     _core = FlexiLynx/'core'
+    ### Add flexispacelib
+    _core.flexispacelib = flexispacelib
     ### Add env-config
     _core.envconfiglib = _resolve_import('envconfiglib')
-    _core.EConf = _core.envconfiglib.EnvConfig('LYNXCONFIG', type_=str)
     ### Add packlib
     _core.packlib = _resolve_import('packlib')
-    ### Add flexispacelib
-    _core.TFlexiSpace = flexispacelib.TFlexiSpace
     ### Add manifestlib
     _core.manifestlib = _resolve_import('manifestlib')
     # Setup logger
-    FlexiLynx.logger = _resolve_import('fllogger').mklogger()
+    FlexiLynx.core.loglib = _resolve_import('fllogger')
+    FlexiLynx.logger = FlexiLynx.core.loglib.mklogger()
 def __setup__():
     ...
 #</Header
@@ -57,3 +57,13 @@ man = _core.manifestlib.Manifest(
     contentinfo=None,
     contentdata=_core.manifestlib.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
 )
+
+def test_logger():
+    FlexiLynx.logger.debug('test 0')
+    FlexiLynx.logger.verbose('test 1')
+    FlexiLynx.logger.info('test 2')
+    FlexiLynx.logger.warning('test 3')
+    FlexiLynx.logger.error('test 4')
+    FlexiLynx.logger.critical('test 5')
+    FlexiLynx.logger.irrec('test 6')
+test_logger()
