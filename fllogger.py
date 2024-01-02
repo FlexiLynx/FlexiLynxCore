@@ -238,10 +238,10 @@ def mklogger() -> logging.Logger:
     ## File handlers
     p = Path(LoggerConfig.get('file.path', './FlexiLynx_logs/'))
     ### Main file handler
-    if LoggerConfig.get('file.log', '1'):
+    if LoggerConfig.get_bool('file.log', '1'):
         logger.addHandler(mk_mainfile_h(p, file_fmt))
     ### Debug file handler
-    if LoggerConfig.get('file.debug', '1'):
+    if LoggerConfig.get_bool('file.debug', '1'):
         logger.addHandler(mk_debugfile_h(p, file_fmt))
     ## STDERR stream handler
     logger.addHandler(mk_stream_h(verbosity, stream_fmt))
