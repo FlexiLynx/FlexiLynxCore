@@ -41,6 +41,7 @@ def is_insane(m: Manifest, fail_on_unsupported_version: bool = True):
             `ValueError` if the manifest is of "other" type but specifies relatedepends fields "before", "after", and/or "requires"
             `NotImplementedError` if the byte encoding or hashing algorithm are not supported
             `RuntimeError` if the manifest does not support the current version (UserWarning if fail_on_unsupported_version is False)
+            `TimeoutError` if the manifest's last update time is before its first creation time
             `UserWarning` if the manifest does not support the current Python implementation or system platform
     '''
     # Verify
@@ -62,6 +63,9 @@ def is_insane(m: Manifest, fail_on_unsupported_version: bool = True):
         msg = f'Manifest demands a Python version of {".".join(mv)}, but you are running {".".join(cv)}'
         if fail_on_unsupported_version: raise RuntimeError(msg)
         else: warnings.warn(UserWarning(msg))
+    # Check time
+    if (delta := (m.version.first_creation_time - m.version.last_update_time)) > 1: # allow a buffer of 1 sec
+        raise TimeoutError(f'Manifest was apparently last updated {delta} seconds before its original creation')
     # Check implementation and platform
     if (ci := sys.implementation.name) != (ti := m.relatedepends.python_implementation):
         warnings.warn(UserWarning(f'Manifest is designed for Python "{ti}", but you are using "{ci}". Things may not work as intended!'))
