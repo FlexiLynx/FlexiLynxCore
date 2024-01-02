@@ -80,6 +80,26 @@ def colorfmt_from_str(color: str) -> str:
     return s
 # Colored formatter
 class ColoredFormatter(logging.Formatter):
+    '''
+        A logging formatter to add colors to each logging level, using the syntax of `colorfmt_from_str()`
+
+        These colors are configured using the `FLLOGCFG` environment variable or `FLLOGCFG.flynx.env` file as such:
+          - To set INFO log-level to have a black foreground and IRRC (irrecoverable) to have a red background:
+            `FLLOGCFG="color.info='fg:black' color.irrc='bg:red'"`
+          - To set VERB (verbose) log-level to have a "brightened" green foreground and a black background:
+            `FLLOGCFG="color.verb='fgb:green+bg:black'"`
+        Note that log levels are not case-sensitive
+        Each of the log levels' keys are as they appear in the outputted header, namely:
+          - `????` for "not set" or "unknown" levels
+          - `DEBG` for debug messages
+          - `VERB` for verbose messages
+          - `INFO` for info ("base-level") messages
+          - `WARN` for warnings
+          - `ERRO` for errors
+          - `CRIT` for critical errors
+          - `IRRC` for irrecoverable failures
+    '''
+
     __slots__ = ('_level_to_color',)
     _default_colors = {
         '????': 'FG:WHITE',
@@ -94,7 +114,7 @@ class ColoredFormatter(logging.Formatter):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._level_to_color = {k: colorfmt_from_str(LoggerConfig.get(f'logging.color.{k.lower()}', v)) for k,v in self._default_colors.items()}
+        self._level_to_color = {k: colorfmt_from_str(LoggerConfig.get(f'color.{k.lower()}', v)) for k,v in self._default_colors.items()}
     def format(self, record: logging.LogRecord) -> str:
         record.msg = self._level_to_color[record.levelname].format(record.msg)
         return super().format(record)
