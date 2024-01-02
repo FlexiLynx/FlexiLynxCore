@@ -19,7 +19,7 @@ from FlexiLynx import logger
 #</Imports
 
 #> Header >/
-__all__ = ('is_insane', 'render_info', 'try_load_manifest', 'fetch_upstream', 'uninstall')
+__all__ = ('is_insane', 'render_info', 'try_load_manifest', 'fetch_upstream', 'update', 'install', 'uninstall')
 
 mlogger = logger.getChild('core.fw.manifests')
 
@@ -106,6 +106,12 @@ def fetch_upstream(local: Manifest) -> Manifest:
     return try_load_manifest(data, order)[1]
 
 # Actual manifest execution
+## Manifest update
+def update(man: Manifest) -> Manifest:
+    ...
+## [un]Installation
+def install(man: Manifest, root: Path = Path.cwd(), *, pack: str | None = None, dry_run: bool = False):
+    ...
 def uninstall(man: Manifest, root: Path = Path.cwd(), *,
               pack: str | None = None, interactive: bool = True, ensure_all_installed: bool = True,
               dry_run: bool = False):
