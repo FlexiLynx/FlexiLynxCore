@@ -3,19 +3,27 @@
 #> Imports
 import sys
 import time
+import traceback
 import warnings
 import base64, hashlib
 import typing
+from pathlib import Path
+from urllib import request
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
 from . import ManifestTypes as mtypes
-from .ManifestCore import Manifest
+from .ManifestCore import Manifest, load_packed, load_json, load_ini, load_to_render
+
+from FlexiLynx import logger
 #</Imports
 
 #> Header >/
-__all__ = ('is_insane', 'render_info')
+__all__ = ('is_insane', 'render_info', 'try_load_manifest', 'fetch_upstream')
 
+mlogger = logger.getChild('core.fw.manifests')
+
+# Helper functions
 def is_insane(m: Manifest, fail_on_unsupported_version: bool = True):
     '''
         Checks a manifest for any defects or inconsistencies
@@ -68,3 +76,31 @@ def render_info(m: Manifest, level: typing.Literal['terse+', 'terse', 'normal', 
            f' for {m.relatedepends.python_implementation}' \
            f'{"" if m.relatedepends.min_python_version is None else f""" {".".join(map(str, m.relatedepends.min_python_version))}"""} on {m.relatedepends.platform}' \
            f'{f"""\ndepends on: {",".join(m.relatedepends.requires)}""" if m.relatedepends.requires else ""}'
+
+# Loading & upstream functions
+def try_load_manifest(data: bytes, methods: tuple[typing.Callable[[bytes], Manifest], ...]) -> tuple[typing.Callable[[bytes], Manifest], Manifest]:
+    for i,m in enumerate(methods):
+        mlogger.verbose('Trying to decode %d byte(s) via %s() (method %d/%d)',
+                        len(data), m.__name__, i+1, len(methods))
+        try:
+            return (m, m(data))
+        except Exception as e:
+            mlogger.info('Could not decode %d byte(s) via %s(); got %s',
+                         len(data), m.__name__, (''.join(traceback.format_exception_only(e))).strip())
+    raise TypeError('All handlers failed to load the manifest')
+def fetch_upstream(local: Manifest) -> Manifest:
+    # Fetch
+    mlogger.info('Fetching upstream of "%s" manifest "%s" from %s',
+                 local.type, local.metadata.name, local.upstream.manifest)
+    with request.urlopen(local.upstream.manifest) as r:
+        data = r.read()
+    mlogger.verbose('Fetched %d byte(s) from %s',
+                    len(data), local.upstream.manifest)
+    # (try to) Guess its type and parse it
+    suff = Path(local.upstream.manifest).suffix.split('.')[-1].lower()
+    order = ((load_json, load_ini, load_packed) if suff == 'json' else
+             (load_packed, load_ini, load_json) if suff in {'pak', 'pakd', 'packd', 'packed'} else
+             (load_ini, load_json, load_packed))
+    mlogger.info('Attempting to decode %d byte(s)', len(data))
+    mlogger.verbose(' using methods:\n - %s\n - %s\n - %s', *(m.__name__ for m in order))
+    return try_load_manifest(data, order)
