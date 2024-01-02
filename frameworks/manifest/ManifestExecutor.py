@@ -135,65 +135,79 @@ class ManifestDiff:
         with io.StringIO() as sio:
             # <top>
             for k in ('id', 'real_version', 'type', 'format_version'):
-                if (l := getattr(self.local, k)) != (u := getattr(self.upstream, k)):
-                    sio.write(f'{k}: {l!r} -> {u!r}\n')
+                self.diffof(sio, k)
             # upstream
-            for k,l in self.local.upstream._dict_().items():
-                if l != (u := getattr(self.upstream.upstream, k)):
-                    sio.write(f'upstream.{k}: {l!r} -> {u!r}\n')
+            for k in self.local.upstream._dict_().keys():
+                self.diffof(sio, f'upstream.{k}')
             # crypt
-            for k in ('hash_algorithm', 'byte_encoding'):
-                if (l := getattr(self.local.crypt, k)) != (u := getattr(self.upstream.crypt, k)):
-                    sio.write(f'crypt.{k}: {l!r} -> {u!r}\n')
-            if (l := self.local.crypt.signature) != (u := self.upstream.crypt.signature):
-                sio.write(f'crypt.signature: {self.local.crypt._encode_(l)} -> {self.upstream.crypt._encode_(u)}\n')
-            if (l := self.local.crypt.public_key) != (u := self.upstream.crypt.public_key):
-                sio.write(f'crypt.public_key: {self.local.crypt._encode_(l.public_bytes_raw())} -> {self.upstream.crypt._encode_(u.public_bytes_raw())}\n')    
-            ## crypt.key_remap_cascade
-            lkrcd = self.local.crypt.key_remap_cascade
-            ukrcd = self.upstream.crypt.key_remap_cascade
-            krcd = self.dict_diff(lkrcd or {}, ukrcd or {})
-            if any(krcd):
-                sio.write('crypt.key_remap_cascade:\n')
-                for a in krcd[0]: sio.write(f' + {a} -> {ukrcd[a]}\n')
-                for r in krcd[1]: sio.write(f' - {r} -> {lkrcd[r]}\n')
-                for c in krcd[2]: sio.write(f'   {c}: {lkrcd[c]} -> {ukrcd[c]}\n')
+            for k in ('signature', 'public_key', 'hash_algorithm', 'byte_encoding', 'key_remap_cascade'):
+                self.diffof(sio, f'crypt.{k}')
             # metadata
-            for k,l in self.local.metadata._dict_().items():
-                if l != (u := getattr(self.upstream.metadata, k)):
-                    sio.write(f'metadata.{k}: {l!r} -> {u!r}\n')
+            for k in self.local.metadata._dict_().keys():
+                self.diffof(sio, f'metadata.{k}')
             # relatedepends
             if (l := self.local.relatedepends.min_python_version) != (u := self.upstream.relatedepends.min_python_version):
                 sio.write(f'relatedepends.min_python_version: {"<not specified>" if l is None else ".".join(l)} -> {"<not specified>" if u is None else ".".join(u)}\n')
-            for k in ('python_implementation', 'platform'):
-                if (l := getattr(self.local.relatedepends, k)) != (u := getattr(self.upstream.relatedepends, k)):
-                    sio.write(f'relatedepends.{k}: {l!r} -> {u!r}\n')
-            for k in ('before', 'after', 'requires'):
-                setd = self.set_diff(set(getattr(self.local.relatedepends, k) or set()), set(getattr(self.upstream.relatedepends, k) or set()))
-                if any(setd): sio.write(f'relatedepends.{k}:\n')
-                for a in setd[0]: sio.write(f' + {a}\n')
-                for r in setd[1]: sio.write(f' - {r}\n')
+            for k in ('python_implementation', 'platform', 'before', 'after', 'requires'):
+                self.diffof(sio, f'relatedepends.{k}')
             # contentinfo
-            if (l := getattr(self.local.relatedepends, 'use_packs', None)) != (u := getattr(self.upstream.relatedepends, 'use_packs', None)):
-                sio.write(f'relatedepends.use_packs: {l!r} -> {u!r}\n')
-            setd = self.set_diff(set(getattr(self.local.relatedepends, 'skip_files', None) or set()), set(getattr(self.upstream.relatedepends, 'skip_files', None) or set()))
-            if any(setd):
-                sio.write('relatedepends.skip_files:\n')
-                for a in setd[0]: sio.write(f' + {a}\n')
-                for r in setd[1]: sio.write(f' - {r}\n')
+            for k in ('use_packs', 'skip_files'):
+                self.diffof(sio, f'contentinfo.{k}')
+            # contentdata
+            self.diffof(sio, 'contentdata')
             # finalize
             return sio.getvalue().rstrip()
 
-    @staticmethod
-    def dict_diff(a: dict, b: dict) -> tuple[tuple[typing.Hashable, ...], tuple[typing.Hashable, ...], tuple[typing.Hashable, ...]]:
-        '''Diffs a and b, result: ((<a - b>), (<b - a>), (<changes from a to b>))'''
-        return (tuple(b.keys() - a.keys()),
-                tuple(a.keys() - b.keys()),
-                tuple(k for k,v in b.items() if (k in b) and (b[k] != v)))
-    @staticmethod
-    def set_diff(a: set, b: set) -> tuple[tuple[typing.Hashable, ...], tuple[typing.Hashable, ...]]:
-        '''Diffs a and b, result: ((<a - b>), (<b - a>))'''
-        return (tuple(b - a), tuple(a - b))
+    def diffof(self, sio: typing.TextIO, attr: str):
+        '''Runs a diff of an `attr` in `self.local` and `self.upstream` and writes it to `sio`'''
+        assert attr.count('.') < 2
+        sp = attr.split('.')
+        a = getattr(self.local, sp[0], None)
+        b = getattr(self.upstream, sp[0], None)
+        if len(sp) == 2:
+            a = getattr(a, sp[1], None)
+            b = getattr(b, sp[1], None)
+        if (a == b) or (bool(a) == bool(b)): return
+        sio.write(f'{attr}:')
+        if isinstance(a, dict) or isinstance(b, dict):
+            for s in self.dict_diff(a or {}, b or {}):
+                sio.write('\n')
+                sio.write(s)
+        elif isinstance(a, dict) or isinstance(b, dict):
+            for s in self.set_diff(a or set(), b or set()):
+                sio.write('\n')
+                sio.write(s)
+        else:
+            sio.write(f' {self.render_item(a)} -> {self.render_item(b)}\n')
+
+    @classmethod
+    def dict_diff(cls, a: dict, b: dict) -> typing.Generator[str, None, None]:
+        '''Yields a string diff of two dicts'''
+        print(a, b)
+        for add in (b.keys() - a.keys()): yield f' + {cls.render_item(add)}'
+        for rem in (a.keys() - b.keys()): yield f' - {cls.render_item(rem)}'
+        for chg in (k for k,v in b.items() if (k in b) and (b[k] != v)):
+            yield f'   {cls.render_item(chg)}: {cls.render_item(a[chg])} -> {cls.render_item(b[chg])}'
+    @classmethod
+    def set_diff(cls, a: set, b: set) -> typing.Generator[str, None, None]:
+        '''Yields a string diff of two sets'''
+        for add in (b - a): yield f' + {cls.render_item(add)}'
+        for rem in (a - b): yield f' - {cls.render_item(rem)}'
+
+    @classmethod
+    def render_item(cls, o: typing.Any) -> str:
+        '''Renders an object (that would normally be in a Manifest) as a string'''
+        match o:
+            case set() | frozenset():
+                if not o: return 'set()'
+                return f'{{{", ".join(cls.render_item(i) for i in o)},}}'
+            case tuple() | list():
+                if not o: return '()'
+                return f'({{", ".join(cls.render_item(i) for i in o)}},)'
+            case EdPubK(): return cls.render_item(o.public_bytes_raw())
+            case bytes(): return base64.b85encode(o)
+            case (None): return '<not specified>'
+        return repr(o)
 
 # Actual manifest execution
 ## Manifest update
