@@ -9,6 +9,7 @@ import shlex
 import typing
 from io import SEEK_SET
 from pathlib import Path
+from urllib import request
 from importlib import util as iutil
 from functools import partial, wraps
 from hashlib import algorithms_guaranteed
@@ -77,7 +78,8 @@ def w_io(c):
                 manifest.truncate(0)
                 manifest.seek(0, SEEK_SET)
                 output = manifest
-        h_output(output, man, format)
+        if isinstance(man, Manifest): h_output(output, man, format)
+        else: output.write(man)
     return c_w_io
 
 # Misc. helpers
@@ -305,5 +307,20 @@ def map_(manifest: Manifest, *, print_values: bool, complexity: int | None):
     for k in flat_cascade: click.echo(f'- {flat_cascade.index(k)}: {manifest.crypt._encode_(k)}')
     for nchain,chain in enumerate(chains):
         click.echo(f'Chain {nchain}:\n / {" ~> ".join(str(render(key)) for key in chain)} /')
+
+# Pull commands #
+pull_cli = click.Group('pull', help='Pull upstreams of manifests and files')
+cli.add_command(pull_cli)
+# Pull manifest upstream
+@pull_cli.command()
+@w_io
+@click.option('--raw', help='Write the upstream manifest\'s contents to --output instead of parsing and writing them', is_flag=True, default=False)
+def manifest(manifest: Manifest, *, raw: bool) -> Manifest | bytes:
+    '''Pulls the MANIFEST's upstream, parses it, and writes it to OUTPUT'''
+    if raw:
+        with request.urlopen(manifest.upstream.manifest) as r:
+            return r.read()
+    return executor.fetch_upstream(manifest)
+
 # Main #
 cli()
