@@ -65,6 +65,7 @@ def colorfmt_from_str(color: str) -> str:
             `BG:BLACK` - default text on black background
             `` - default text on default background
     '''
+    if not color: return '{}'
     cpmap = {'FG': FGColors, 'FGB': FGBColors,
              'BG': BGColors, 'BGB': BGBColors}
     s = '{}'
@@ -105,7 +106,7 @@ class ColoredFormatter(logging.Formatter):
         '????': 'FG:WHITE',
         'DEBG': 'FG:GREEN',
         'VERB': 'FGB:GREEN',
-        'INFO': 'FGB:WHITE',
+        'INFO': '',
         'WARN': 'FGB:YELLOW',
         'ERRO': 'FGB:RED',
         'CRIT': 'FG:RED',
