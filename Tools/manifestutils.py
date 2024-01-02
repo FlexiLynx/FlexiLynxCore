@@ -158,6 +158,18 @@ def info(manifest: Manifest):
 def transpose(*, manifest: typing.BinaryIO, input_format: str, new_format: str, output: typing.BinaryIO):
     '''Transposes MANIFEST to NEW_FORMAT'''
     return h_output(output, h_input(manifest, input_format), new_format)
+# Diff
+@execute_cli.command()
+@click.argument('manifest_a', type=click.File('rb'))
+@click.argument('manifest_b', type=click.File('rb'))
+@click.option('--format-a', type=click.Choice(('auto', 'ini', 'json', 'pack')),
+              help='The format to use for MANIFEST_A (defaults to auto)', default='auto')
+@click.option('--format-b', type=click.Choice(('auto', 'ini', 'json', 'pack')),
+              help='The format to use for MANIFEST_B (defaults to auto)', default='auto')
+def diff(*, manifest_a: typing.BinaryIO, manifest_b: typing.BinaryIO, format_a: str, format_b: str):
+    '''Prints a diff of MANIFEST_A and MANIFEST_B'''
+    click.echo(executor.ManifestDiff(h_input(manifest_a, format_a),
+                                     h_input(manifest_b, format_b)))
 
 # Generate #
 generate_cli = click.Group('generate', help='Generate manifests and keys')
@@ -212,6 +224,8 @@ def key(*, output: typing.BinaryIO):
         OUTPUT is the file to write output to, defaulting to "key.pyk" (use "-" to write to stdout)
     '''
     click.echo(f'\nWrote {output.write(EdPrivK.generate().private_bytes_raw())} byte(s) to {output.name}', file=sys.stderr)
+# Diff
+generate_cli.add_command(diff)
 
 # Crypt #
 crypt_cli = click.Group('crypt', help='Sign and verify')
