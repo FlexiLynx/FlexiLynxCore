@@ -38,6 +38,7 @@ def is_insane(m: Manifest, fail_on_unsupported_version: bool = True):
             `AttributeError` if fields are missing
             `cryptography.exceptions.InvalidSignature` if verification fails
             `TypeError` if the manifest is of an unknown type
+            `ValueError` if the manifest is of "other" type but specifies relatedepends fields "before", "after", and/or "requires"
             `NotImplementedError` if the byte encoding or hashing algorithm are not supported
             `RuntimeError` if the manifest does not support the current version (UserWarning if fail_on_unsupported_version is False)
             `UserWarning` if the manifest does not support the current Python implementation or system platform
@@ -48,6 +49,9 @@ def is_insane(m: Manifest, fail_on_unsupported_version: bool = True):
     # Check type
     if not m.type in {'module', 'plugin', 'other'}:
         raise TypeError(f'Manifest is of an unknown type "{m.type}"')
+    if m.type == 'other':
+        if fields := tuple(f for f in ('before', 'after', 'requires') if getattr(m.relatedepends, f)):
+            raise ValueError(f'Manifest is of type "other", but illegally specifies "{", ".join(fields)}" in relatedepends')
     # Check support
     if not (he := m.crypt.hash_algorithm) in hashlib.algorithms_available:
         raise NotImplementedError(f'Manifest speaks of an unknown hashing algorithm "{he}"')
