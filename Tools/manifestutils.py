@@ -399,7 +399,7 @@ cli.add_command(pullcli)
 @click.option('--raw', help='Write the upstream manifest\'s contents to --output instead of parsing and writing them', is_flag=True, default=False)
 @click.option('--no-auth', help='Don\'t authenticate the manifest (has no effect if `--raw` is set)', default=False)
 def manifest(manifest: Manifest, *, raw: bool, no_auth: bool) -> Manifest | bytes:
-    '''Pulls the MANIFEST's upstream, parses it, and writes it to OUTPUT'''
+    '''Pulls the MANIFEST's upstream, parses it, and writes it to --output'''
     if raw:
         with request.urlopen(manifest.upstream.manifest) as r:
             return r.read()
