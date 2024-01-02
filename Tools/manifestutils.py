@@ -48,7 +48,8 @@ def h_input(inp: typing.BinaryIO, fmt: typing.Literal['auto', 'ini', 'json', 'pa
     click.echo(f'Read {len(d)} byte(s) from {inp.name}', file=sys.stderr)
     return {'ini': load_ini, 'json': load_json, 'pack': load_packed}[auto_format(inp) if fmt == 'auto' else fmt](d)
 
-cw_format = click.option('--format', type=click.Choice(('auto', 'ini', 'json', 'pack')),
+fmt_type = click.Choice(('auto', 'ini', 'json', 'pack'))
+cw_format = click.option('--format', type=fmt_type,
                          help='The format to use (defaults to auto)', default='auto')
 def w_output(c):
     @click.option('--output', type=click.File('wb'), help=f'The file to write to (defaults to stdout)', default='-', show_default=False)
@@ -64,6 +65,17 @@ def w_input(c):
     def c_w_input(*, manifest: typing.BinaryIO, format: typing.Literal['auto', 'ini', 'json', 'pack'], **kwargs):
         c(manifest=h_input(manifest, format), **kwargs)
     return c_w_input
+def w_2input(c):
+    @click.argument('manifest_a', type=click.File('rb'))
+    @click.argument('manifest_b', type=click.File('rb'))
+    @click.option('--format-a', type=fmt_type,
+                  help='The format to use for MANIFEST_A (defaults to auto)', default='auto')
+    @click.option('--format-b', type=fmt_type,
+                  help='The format to use for MANIFEST_B (defaults to auto)', default='auto')
+    def c_w_2input(*, manifest_a: typing.BinaryIO, manifest_b: typing.BinaryIO,
+                   format_a: typing.Literal['auto', 'ini', 'json', 'pack'], format_b: typing.Literal['auto', 'ini', 'json', 'pack'], **kwargs):
+        c(manifest_a=h_input(manifest_a, format_a), manifest_b=h_input(manifest_b, format_b), **kwargs)
+    return c_w_2input
 def w_io(c):
     @click.argument('manifest', type=click.File('r+b'))
     @click.option('--output', type=click.File('wb'), help=f'File to write to (defaults to overwriting MANIFEST; "-" for stdout)', default=None)
@@ -103,16 +115,10 @@ click.option('--store', type=click.File('w'), help='Instead of executing the com
 
 # Multi-place commands #
 @click.command('diff')
-@click.argument('manifest_a', type=click.File('rb'))
-@click.argument('manifest_b', type=click.File('rb'))
-@click.option('--format-a', type=click.Choice(('auto', 'ini', 'json', 'pack')),
-              help='The format to use for MANIFEST_A (defaults to auto)', default='auto')
-@click.option('--format-b', type=click.Choice(('auto', 'ini', 'json', 'pack')),
-              help='The format to use for MANIFEST_B (defaults to auto)', default='auto')
-def m_diff(*, manifest_a: typing.BinaryIO, manifest_b: typing.BinaryIO, format_a: str, format_b: str):
+@w_2input
+def m_diff(*, manifest_a: Manifest, manifest_b: Manifest):
     '''Prints a diff of MANIFEST_A and MANIFEST_B'''
-    click.echo(executor.ManifestDiff(h_input(manifest_a, format_a),
-                                     h_input(manifest_b, format_b)))
+    click.echo(executor.ManifestDiff(manifest_a, manifest_b))
 @click.command()
 @click.argument('output', type=click.File('wb'), required=True)
 def m_genkey(*, output: typing.BinaryIO):
@@ -126,6 +132,12 @@ def m_genkey(*, output: typing.BinaryIO):
 # Crypt commands #
 cryptcli = click.Group('crypt', help='Handle keys, signatures, and cascades')
 cli.add_command(cryptcli)
+# crypt cross-verify
+@cryptcli.command('cross-verify')
+@w_2input
+def cross_verify(manifest_a: Manifest, manifest_b: Manifest):
+    '''Verify that MANIFEST_B is a valid update for MANIFEST_A'''
+    executor.verify_upstream(manifest_a, manifest_b)
 # crypt genkey
 cryptcli.add_command(m_genkey, 'genkey')
 # crypt sign
