@@ -6,13 +6,13 @@ import sys
 import click
 import base64
 import shlex
+import hashlib
 import typing
 from io import SEEK_SET
 from pathlib import Path
 from urllib import request
 from importlib import util as iutil
 from functools import partial, wraps
-from hashlib import algorithms_guaranteed
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 #</Imports
 
@@ -28,6 +28,7 @@ __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
 
 #> Header
 __entrypoint__.__init__()
+from FlexiLynx.core.loglib import FGBColors
 from FlexiLynx.core.frameworks.manifest import *
 
 # Define input/output formats
@@ -92,7 +93,13 @@ def w_carguments(*names: str) -> typing.Callable[[click.Command], click.Command]
 #</Header
 
 #> Main >/
-cli = click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160})
+def store_args(ctx: click.Context, param: click.Parameter, value: typing.TextIO | None):
+    if not value or ctx.resilient_parsing: return
+    click.echo(shlex.join(sys.argv[:sys.argv.index('--store')] + sys.argv[sys.argv.index('--store')+2:]), file=value)
+    ctx.exit()
+cli = click.option('--store', type=click.File('w'), help='Instead of executing the command, store it to a shell script (or stdout with "-") instead',
+                   callback=store_args, expose_value=False, is_eager=True)(
+                       click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160}))
 
 # Multi-place commands #
 @click.command('diff')
@@ -270,6 +277,29 @@ gencli.add_command(m_diff)
 # gen key
 gencli.add_command(m_genkey, 'key')
 # gen manifest
+HASH_ALGORITHMS = sorted(hashlib.algorithms_available | hashlib.algorithms_guaranteed)
+def list_hash_algorithms(ctx: click.Context, param: click.Parameter, value: bool):
+    if not value or ctx.resilient_parsing: return
+    test = bytes(range(64))
+    click.echo(f'Test data: {test!r}\nHashes are encoded in Base85 format')
+    just = len(max(HASH_ALGORITHMS, key=len))+2
+    click.echo(f'{FGBColors.GREEN.render("GREEN IS GUARANTEED")} | {FGBColors.RED.render("RED IS NOT GUARANTEED")}')
+    for a in HASH_ALGORITHMS:
+        click.echo((FGBColors.GREEN if (a in hashlib.algorithms_guaranteed) else FGBColors.RED).render(f'{a}:'.ljust(just)), nl=False)
+        try:
+            click.echo(base64.b85encode(hashlib.new(a).digest()).decode())
+        except Exception as e:
+            click.echo(FGBColors.RED.render(repr(e)))
+    ctx.exit()
+BYTE_ENCODINGS = sorted(set(filter(len, (e.removesuffix('decode') for e in getattr(base64, '__all__', dir(base64)) if e.endswith('decode')))))
+def list_byte_encodings(ctx: click.Context, param: click.Parameter, value: bool):
+    if not value or ctx.resilient_parsing: return
+    test = bytes(range(16))
+    click.echo(f'Test data: {test!r}')
+    just = len(max(BYTE_ENCODINGS, key=len))+1
+    for e in BYTE_ENCODINGS:
+        click.echo(f'{f"{e}:".ljust(just)} {getattr(base64, f"{e}encode")(test).decode()}')
+    ctx.exit()
 @gencli.command()
 @w_output
 @w_carguments('id', 'name', 'by', 'manifest_upstream', 'file_upstream')
@@ -287,8 +317,10 @@ gencli.add_command(m_genkey, 'key')
 @click.option('-B', '--before', help='Manifest ID that should load after this manifest', multiple=True)
 @click.option('-A', '--after', help='Manifest ID that should load before this manifest', multiple=True)
 @click.option('-R', '--requires', help='Manifest ID that must exist in order to load this manifest', multiple=True)
-@click.option('-a', '--hash-algorithm', metavar='<NAME>', type=click.Choice(set.union({'list',}, algorithms_guaranteed)), help='Hashing algorithm for content (use -h list for a list)', default='sha1')
-@click.option('--byte-encoding', type=click.Choice(set(filter(len, (e.removesuffix('decode') for e in getattr(base64, '__all__', dir(base64)) if e.endswith('decode'))))), help='Encoding for bytes as strings', default='b85')
+@click.option('-a', '--hash-algorithm', metavar='<NAME>', type=click.Choice(HASH_ALGORITHMS), help='Hashing algorithm for content (see --list-hash-algorithms for a list)', default='sha1')
+@click.option('--list-hash-algorithms', help='Print a list of available hashing algorithms', is_flag=True, callback=list_hash_algorithms, expose_value=False, is_eager=True)
+@click.option('--byte-encoding', metavar='<NAME>', type=click.Choice(BYTE_ENCODINGS), help='Encoding for bytes as strings (see --list-byte-encodings for a list)', default='b85')
+@click.option('--list-byte-encodings', help='Print a list of available byte encoding methods', is_flag=True, callback=list_byte_encodings, expose_value=False, is_eager=True)
 def manifest(sign: typing.BinaryIO | None,
              default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path]],
              no_minimum_version: bool, min_version: tuple[int, int, int],
@@ -300,9 +332,6 @@ def manifest(sign: typing.BinaryIO | None,
         BY is the name (or any identifier) of the manifest's creator\n
         MANIFEST_UPSTREAM and FILE_UPSTREAM correspond to where manifest updates and content updates are fetched from
     '''
-    if hash_algorithm == 'list':
-        click.echo('\n'.join(sorted(algorithms_guaranteed)))
-        raise click.exceptions.Exit
     man = generator.autogen_manifest(**kwargs,
                                      key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
                                      files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
@@ -332,19 +361,15 @@ def transpose(*, manifest: typing.BinaryIO, input_format: str, new_format: str, 
 @click.option('-E', '--exclude', help='Glob to add to excludes', default=('**/__pycache__/**/*', '**/MANIFEST*', '**/.git/**/*', '**/.gitignore'), multiple=True)
 @click.option('-P', '--pack', type=(str, click.Path(exists=True, file_okay=False, path_type=Path)), help='Pack-name and root to add (adding this at least once enables packs)', default=None, multiple=True)
 @click.option('-k', '--sign', type=click.File('rb'), help='Key to sign the manifest with')
-@click.option('--store', help='Instead of updating the manifest, create a script that would update the manifest for usage later', is_flag=True, default=False)
 def update(manifest: Manifest, *, meta_version: str | None,
            default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path]],
-           sign: typing.BinaryIO | None, store: bool) -> Manifest:
+           sign: typing.BinaryIO | None) -> Manifest:
     '''
         Updates the MANIFEST's content (files)
 
         All given options for selecting files and packs are the same as `gen manifest`\n
         It is recommended to use --store to make a helper-script
     '''
-    if store:
-        click.echo(shlex.join((a for a in sys.argv if a != '--store')))
-        raise click.exceptions.Exit()
     return generator.autoupdate_manifest(manifest, meta_version=meta_version,
                                          key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
                                          files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
