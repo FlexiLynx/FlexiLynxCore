@@ -91,15 +91,15 @@ def get_content(m: Manifest, root: Path = Path('.'), pack: str | None = None) ->
         Returns an iterator of (path, hash)
     '''
     use_pack = pack is not None
-    if not man.contentinfo.use_packs:
+    if not m.contentinfo.use_packs:
         if use_pack:
             raise ValueError('Cannot specify a pack when packs are not used by this manifest')
-        return ((root/f, h) for f,h in man.contentdata.items())
+        return ((root/f, h) for f,h in m.contentdata.items())
     # note: in `f.split('@', use_pack)[use_pack]`, use_pack is used as an integer
     return ((root / f, h) for f,h in (
-        (f.split('@', use_pack)[use_pack], h) for f,h in man.contentdata.items()
+        (f.split('@', use_pack)[use_pack], h) for f,h in m.contentdata.items()
         if ((use_pack and (f.split('@', 1)[0] == pack)) if ('@' in f) else not use_pack)
-    ) if f not in man.contentdata.skip_files)
+    ) if f not in m.contentdata.skip_files)
 
 # Loading & upstream functions
 def try_load_manifest(data: bytes, methods: tuple[typing.Callable[[bytes], Manifest], ...]) -> tuple[typing.Callable[[bytes], Manifest], Manifest]:
