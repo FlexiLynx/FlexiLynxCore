@@ -1,6 +1,7 @@
 #!/bin/python3
 
 #> Imports
+import io
 import sys
 import time
 import traceback
@@ -21,6 +22,7 @@ from FlexiLynx import logger
 #> Header >/
 __all__ = ('is_insane', 'render_info',
            'try_load_manifest', 'fetch_upstream', 'verify_upstream',
+           'ManifestDiff',
            'update', 'install', 'uninstall')
 
 mlogger = logger.getChild('core.fw.manifests')
@@ -122,10 +124,83 @@ def verify_upstream(local: Manifest, upstream: Manifest):
         }[type_].format(*(local.crypt._encode_(v.public_bytes_raw() if isinstance(v, EdPubK) else v) for v in vals))))
         mlogger.info('Cascade accepted: new public key %s is trusted', local.crypt._encode_(upstream.crypt.public_key.public_bytes_raw()))
 
+# Manifest diffs
+class ManifestDiff:
+    __slots__ = ('local', 'upstream')
+
+    def __init__(self, local: Manifest, upstream: Manifest):
+        self.local = local
+        self.upstream = upstream
+    def __str__(self) -> str:
+        with io.StringIO() as sio:
+            # <top>
+            for k in ('id', 'real_version', 'type', 'format_version'):
+                if (l := getattr(self.local, k)) != (u := getattr(self.upstream, k)):
+                    sio.write(f'{k}: {l!r} -> {u!r}\n')
+            # upstream
+            for k,l in self.local.upstream._dict_().items():
+                if l != (u := getattr(self.upstream.upstream, k)):
+                    sio.write(f'upstream.{k}: {l!r} -> {u!r}\n')
+            # crypt
+            for k in ('hash_algorithm', 'byte_encoding'):
+                if (l := getattr(self.local.crypt, k)) != (u := getattr(self.upstream.crypt, k)):
+                    sio.write(f'crypt.{k}: {l!r} -> {u!r}\n')
+            if (l := self.local.crypt.signature) != (u := self.upstream.crypt.signature):
+                sio.write(f'crypt.signature: {self.local.crypt._encode_(l)} -> {self.upstream.crypt._encode_(u)}\n')
+            if (l := self.local.crypt.public_key) != (u := self.upstream.crypt.public_key):
+                sio.write(f'crypt.public_key: {self.local.crypt._encode_(l.public_bytes_raw())} -> {self.upstream.crypt._encode_(u.public_bytes_raw())}\n')    
+            ## crypt.key_remap_cascade
+            lkrcd = self.local.crypt.key_remap_cascade
+            ukrcd = self.upstream.crypt.key_remap_cascade
+            krcd = self.dict_diff(lkrcd or {}, ukrcd or {})
+            if any(krcd):
+                sio.write('crypt.key_remap_cascade:\n')
+                for a in krcd[0]: sio.write(f' + {a} -> {ukrcd[a]}\n')
+                for r in krcd[1]: sio.write(f' - {r} -> {lkrcd[r]}\n')
+                for c in krcd[2]: sio.write(f'   {c}: {lkrcd[c]} -> {ukrcd[c]}\n')
+            # metadata
+            for k,l in self.local.metadata._dict_().items():
+                if l != (u := getattr(self.upstream.metadata, k)):
+                    sio.write(f'metadata.{k}: {l!r} -> {u!r}\n')
+            # relatedepends
+            if (l := self.local.relatedepends.min_python_version) != (u := self.upstream.relatedepends.min_python_version):
+                sio.write(f'relatedepends.min_python_version: {"<not specified>" if l is None else ".".join(l)} -> {"<not specified>" if u is None else ".".join(u)}\n')
+            for k in ('python_implementation', 'platform'):
+                if (l := getattr(self.local.relatedepends, k)) != (u := getattr(self.upstream.relatedepends, k)):
+                    sio.write(f'relatedepends.{k}: {l!r} -> {u!r}\n')
+            for k in ('before', 'after', 'requires'):
+                setd = self.set_diff(set(getattr(self.local.relatedepends, k) or set()), set(getattr(self.upstream.relatedepends, k) or set()))
+                if any(setd): sio.write(f'relatedepends.{k}:\n')
+                for a in setd[0]: sio.write(f' + {a}\n')
+                for r in setd[1]: sio.write(f' - {r}\n')
+            # contentinfo
+            if (l := getattr(self.local.relatedepends, 'use_packs', None)) != (u := getattr(self.upstream.relatedepends, 'use_packs', None)):
+                sio.write(f'relatedepends.use_packs: {l!r} -> {u!r}\n')
+            setd = self.set_diff(set(getattr(self.local.relatedepends, 'skip_files', None) or set()), set(getattr(self.upstream.relatedepends, 'skip_files', None) or set()))
+            if any(setd):
+                sio.write('relatedepends.skip_files:\n')
+                for a in setd[0]: sio.write(f' + {a}\n')
+                for r in setd[1]: sio.write(f' - {r}\n')
+            # finalize
+            return sio.getvalue().rstrip()
+
+    @staticmethod
+    def dict_diff(a: dict, b: dict) -> tuple[tuple[typing.Hashable, ...], tuple[typing.Hashable, ...], tuple[typing.Hashable, ...]]:
+        '''Diffs a and b, result: ((<a - b>), (<b - a>), (<changes from a to b>))'''
+        return (tuple(b.keys() - a.keys()),
+                tuple(a.keys() - b.keys()),
+                tuple(k for k,v in b.items() if (k in b) and (b[k] != v)))
+    @staticmethod
+    def set_diff(a: set, b: set) -> tuple[tuple[typing.Hashable, ...], tuple[typing.Hashable, ...]]:
+        '''Diffs a and b, result: ((<a - b>), (<b - a>))'''
+        return (tuple(b - a), tuple(a - b))
+
 # Actual manifest execution
 ## Manifest update
-def update(man: Manifest) -> Manifest:
-    ...
+def update(local: Manifest, upstream: Manifest | None = None) -> Manifest:
+    '''Updates a manifest'''
+    if upstream is None: upstream = fetch_upstream(local)
+    print(ManifestDiff(local, upstream))
 ## [un]Installation
 def install(man: Manifest, root: Path = Path.cwd(), *, pack: str | None = None, dry_run: bool = False):
     ...
