@@ -286,7 +286,7 @@ def check(manifest: Manifest, *, target: typing.BinaryIO, against: typing.Binary
         AGAINST is a key to check against--when not supplied, the manifest's public key is used
     '''
     def _deb(type: str, values: tuple[bytes, ...]):
-        print({
+        click.echo({
             'check': '{} -?-> {}',
             'saw': 'Saw key: {}',
             'match': 'Matched target key: {}',
