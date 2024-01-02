@@ -20,7 +20,7 @@ class EnvConfig(UserDict):
         self._type = type_
         self._rawenv = os.getenv(self._envvar, '')
         if (p := Path(f'./{self._envvar}.flynx.env')).is_file():
-            self._rawenv = f'{p.readtext()} {self._rawenv}'.strip()
+            self._rawenv = f'{p.read_text()} {self._rawenv}'.strip()
         self.__dict__ = {k.lower(): self._type(v) for k,v in (kv.split('=', 1)
                                                   for kv in shlex.split(self._rawenv) if '=' in kv)
                          if not (k.startswith('_') or hasattr(self.__class__, k))}
