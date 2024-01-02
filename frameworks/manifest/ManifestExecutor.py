@@ -172,6 +172,7 @@ class _DiffBase:
                 return f'({{", ".join(cls.render_item(i) for i in o)}},)'
             case EdPubK(): return cls.render_item(o.public_bytes_raw())
             case bytes(): return base64.b85encode(o)
+            case Path(): return o.as_posix()
             case (None): return '<not specified>'
         return repr(o)
 class ManifestDiff(_DiffBase):
