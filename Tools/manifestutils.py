@@ -221,7 +221,7 @@ def key(*, output: typing.BinaryIO):
     '''
         Generates an Ed25519 key suitible for signing manifests
 
-        OUTPUT is the file to write output to, defaulting to "key.pyk" (use "-" to write to stdout)
+        OUTPUT is the file to write output to (use "-" to write to stdout)
     '''
     click.echo(f'\nWrote {output.write(EdPrivK.generate().private_bytes_raw())} byte(s) to {output.name}', file=sys.stderr)
 # Diff
