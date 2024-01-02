@@ -140,11 +140,16 @@ class Manifest:
         raise RecursionError(f'cascade rejected: circular cascade detected surrounding {self.crypt._encode_(ckb)}')
 # Rendering & loading
 ## packlib
-def render_pack(m: Manifest) -> bytes:
+PACK_HEADER = b'\x00\xFFmpack\xFF\x00'
+def render_pack(m: Manifest, add_header: bool = True) -> bytes:
     '''Renders a Manifest to bytes via packlib'''
-    return m.pack()
-def load_packed(p: bytes) -> Manifest:
+    return (PACK_HEADER if add_header else b'') + m.pack()
+def load_packed(p: bytes, take_header: bool = True) -> Manifest:
     '''Loads a Manifest from bytes via packlib'''
+    if take_header:
+        if not p.startswith(PACK_HEADER):
+            raise TypeError('pack rejected - missing header')
+        p = p.removeprefix(PACK_HEADER)
     return Manifest.from_dict(man_packer.unpack(p)[0])
 ## JSON
 JSON_ARRAY_CLEANER_A = re.compile(r'^(\s*"[^"]*":\s*)(\[[^\]]*\])(,?\s*)$', re.MULTILINE)
