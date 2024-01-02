@@ -4,7 +4,6 @@
 import os
 import sys
 import click
-import importlib
 import base64
 import shlex
 import typing
