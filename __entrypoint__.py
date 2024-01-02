@@ -26,20 +26,18 @@ def __init__():
     FlexiLynx = flexispacelib.TFlexiSpace('FlexiLynx', 'The shared library across FlexiLynx', assimilate=True)
     ## Core namespace
     _core = FlexiLynx/'core'
-    ### Add libraries
-    #### flexispacelib
-    _core.flexispacelib = flexispacelib
-    #### env-config (lib)
+    ### Add env-config library
     _core.envconfiglib = _resolve_import('libraries.envconfiglib')
-    #### packlib
+    ### Setup logger
+    FlexiLynx.core.loglib = _resolve_import('libraries.loglib')
+    FlexiLynx.logger = FlexiLynx.core.loglib.mklogger()
+    ### Add other libraries
+    _core.flexispacelib = flexispacelib
     _core.packlib = _resolve_import('libraries.packlib')
     ### Add framewarks
     _core/'frameworks'
     #### "manifest" framework
     _core.frameworks.manifest = _resolve_import('frameworks.manifest')
-    # Setup logger
-    FlexiLynx.core.loglib = _resolve_import('libraries.loglib')
-    FlexiLynx.logger = FlexiLynx.core.loglib.mklogger()
 def __setup__():
     ...
 #</Header
