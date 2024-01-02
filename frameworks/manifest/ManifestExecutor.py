@@ -238,7 +238,8 @@ class ContentDiff(_DiffBase):
 
     def diff(self, root: Path = Path('.'), pack: str | None = None) -> str:
         c = dict(get_content(self.man, root, pack))
-        return '\n'.join(self.dict_diff(self.hash_files(self.man.crypt.hash_algorithm, c.keys()), c))
+        return '\n'.join(self.dict_diff(self.hash_files(self.man.crypt.hash_algorithm,
+                                                        tuple(f for f in c.keys() if f.is_file())), c))
     __str__ = diff
 
     @staticmethod
