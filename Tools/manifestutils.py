@@ -94,7 +94,6 @@ def w_carguments(*names: str) -> typing.Callable[[click.Command], click.Command]
 #> Main >/
 cli = click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160})
 
-# Misc commands #
 # Update
 @cli.command()
 @w_io
@@ -121,8 +120,12 @@ def update(manifest: Manifest, *, meta_version: str | None,
                                          key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
                                          files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
                                          packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack})
+
+# Execute commands #
+execute_cli = click.Group('execute', help='Run various manifest features (install/uninstall, sanity check, info)')
+cli.add_command(execute_cli)
 # Uninstall
-@cli.command()
+@execute_cli.command()
 @w_input
 @click.option('--root', type=Path, help='The root where this manifest was installed', default=Path('.'))
 @click.option('--pack', type=str, help='Select a specific pack to uninstall, instead of uninstalling root conetnt', default=None)
@@ -132,20 +135,20 @@ def update(manifest: Manifest, *, meta_version: str | None,
 def uninstall(manifest: Manifest, *, root: Path, pack: str | None, dry_run: bool, no_interactive: bool, no_ensure_installed: bool):
     executor.uninstall(manifest, root, pack=pack, dry_run=dry_run, interactive=not no_interactive, ensure_all_installed=not no_ensure_installed)
 # Sanity check
-@cli.command()
+@execute_cli.command()
 @w_input
 @click.option('--unsupported-version-fail', help='Fail when using an unsupported version of Python', is_flag=True, default=False)
 def sanity_check(manifest: Manifest, *, unsupported_version_fail: bool):
     '''Checks a manifest for several defects / inconsistencies'''
     executor.is_insane(manifest, unsupported_version_fail)
 # Inspect/info
-@cli.command()
+@execute_cli.command()
 @w_input
 def info(manifest: Manifest):
     '''Prints out information on MANIFEST'''
     click.echo(executor.render_info(manifest, 'verbose'))
 # Transpose
-@cli.command()
+@execute_cli.command()
 @click.argument('manifest', type=click.File('rb'))
 @click.argument('new_format', type=click.Choice(('auto', 'ini', 'json', 'pack')))
 @click.option('--output', type=click.File('wb'), help=f'The file to write to (defaults to stdout)', default='-', show_default=False)
