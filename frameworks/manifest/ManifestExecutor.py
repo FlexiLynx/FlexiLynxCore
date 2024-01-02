@@ -242,7 +242,7 @@ class ContentDiff(_DiffBase):
     __str__ = diff
 
     @staticmethod
-    def _hash_file(algorithm: typing.Literal[*hashlib.algorithms_available], file: Path) -> (Path, bytes):
+    def _hash_file(algorithm: typing.Literal[*hashlib.algorithms_available], file: Path) -> tuple[Path, bytes]:
         return (file, hashlib.new(algorithm, file.read_bytes()).digest())
     @classmethod
     def hash_files(cls, algorithm: typing.Literal[*hashlib.algorithms_available], files: tuple[Path, ...], *, max_processes: int = multiprocessing.cpu_count() * 2) -> dict[Path, bytes]:
