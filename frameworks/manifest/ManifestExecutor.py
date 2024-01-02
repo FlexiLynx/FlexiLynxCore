@@ -20,7 +20,7 @@ from FlexiLynx import logger
 #</Imports
 
 #> Header >/
-__all__ = ('is_insane', 'render_info',
+__all__ = ('is_insane', 'render_info', 'get_content',
            'try_load_manifest', 'fetch_upstream', 'verify_upstream',
            'ManifestDiff',
            'self_update', 'install', 'uninstall')
@@ -81,6 +81,24 @@ def render_info(m: Manifest, level: typing.Literal['terse+', 'terse', 'normal', 
            f'{"" if m.relatedepends.min_python_version is None else f""" {".".join(map(str, m.relatedepends.min_python_version))}"""} on {m.relatedepends.platform}' \
            f'{f"""\ndepends on: {",".join(m.relatedepends.requires)}""" if m.relatedepends.requires else ""}'
 
+def get_content(m: Manifest, root: Path = Path('.'), pack: str | None = None) -> typing.Iterator[tuple[Path, bytes]]:
+    '''
+        Extracts content-data from a manifest
+        Resolves packs as needed and respects skip_files
+
+        Returns an iterator of (path, hash)
+    '''
+    use_pack = pack is not None
+    if not man.contentinfo.use_packs:
+        if use_pack:
+            raise ValueError('Cannot specify a pack when packs are not used by this manifest')
+        return ((root/f, h) for f,h in man.contentdata.items())
+    # note: in `f.split('@', use_pack)[use_pack]`, use_pack is used as an integer
+    return ((root / f, h) for f,h in (
+        (f.split('@', use_pack)[use_pack], h) for f,h in man.contentdata.items()
+        if ((use_pack and (f.split('@', 1)[0] == pack)) if ('@' in f) else not use_pack)
+    ) if f not in man.contentdata.skip_files)
+
 # Loading & upstream functions
 def try_load_manifest(data: bytes, methods: tuple[typing.Callable[[bytes], Manifest], ...]) -> tuple[typing.Callable[[bytes], Manifest], Manifest]:
     for i,m in enumerate(methods):
@@ -131,6 +149,7 @@ class ManifestDiff:
     def __init__(self, local: Manifest, upstream: Manifest):
         self.local = local
         self.upstream = upstream
+
     def __str__(self) -> str:
         with io.StringIO() as sio:
             # <top>
@@ -229,20 +248,12 @@ def uninstall(man: Manifest, root: Path = Path.cwd(), *,
 
         Note that if `pack` is given, the "root" (not part of a pack) content is not uninstalled
     '''
-    use_pack = pack is not None
-    assert (not use_pack) or man.contentinfo.use_packs, 'Cannot specify a pack when packs are not used by this manifest'
     def rm(p: Path):
         if interactive and input(f'Unlink {p} ? (Y/n) >').lower().startswith('n'): return
         mlogger.warning(f'Unlinking {p}')
         if dry_run: print(f'<dry_run> unlink {p}')
         else: p.unlink()
-    # Get a list of files to remove
-    # note: the following line makes some use of the property of booleans as integers, where False resolves to 0 and True resolves to 1
-    # `k.split('@', 1)[1]` if use_pack else `k.split('@', 0)[0]` (resolves to `k`)
-    to_rm = sorted({root / p.split('@', use_pack)[use_pack]
-                    for p,h in man.contentdata.items() if (
-                        (('@' in p) and (p.split('@', 1)[0] == pack)) if use_pack
-                        else ('@' not in p))})
+    to_rm = tuple(f for f,h in get_content(man, root, pack))
     # Ensure that all files to remove are already installed (if needed)
     if ensure_all_installed:
         if not_found := tuple(f for f in to_rm if not f.is_file()):
