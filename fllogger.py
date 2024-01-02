@@ -49,6 +49,22 @@ FGBColors = _ColorBase('FGBColors', {k: CODE_FMT.format(v+60) for k,v in _raw_co
 BGColors = _ColorBase('BGColors', {k: CODE_FMT.format(v+10) for k,v in _raw_colors.items()})
 BGBColors = _ColorBase('BGBColors', {k: CODE_FMT.format(v+70) for k,v in _raw_colors.items()} | {'_RESET': BGColors['_RESET']})
 def colorfmt_from_str(color: str) -> str:
+    '''
+        Handles colors from a structured string, returning a string to be used with `str.format()`
+
+        Explanation of syntax:
+            `FG:{color}` - a simple foreground color (`{color}` also resolves to this)
+                `FGB:{color}` - a "brightened" version of the same foreground color
+            `BG:{color}` - a simple background color
+                `BGB:{color}` - a "brightened" version of the same background color
+            `FG[B]:{color1}+BG[B]:{color2}` - a ["brightened"] foreground (`color1`) and ["brightened"] background (`color2`) color
+        Examples of syntax:
+            `FG:BLACK+BG:WHITE` - simple black text on white background
+                `BLACK+BG:WHITE` - same as above
+            `FGB:YELLOW` - "brightened" yellow text on default background
+            `BG:BLACK` - default text on black background
+            `` - default text on default background
+    '''
     cpmap = {'FG': FGColors, 'FGB': FGBColors,
              'BG': BGColors, 'BGB': BGBColors}
     s = '{}'
