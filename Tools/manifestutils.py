@@ -115,6 +115,12 @@ click.option('--store', type=click.File('w'), help='Instead of executing the com
              callback=store_args, expose_value=False, is_eager=True)(cli)
 
 # Multi-place commands #
+@click.command('content-diff')
+@click.option('-r', '--root', type=Path, help='The root where this manifest was installed', default=Path('.'))
+@w_input
+def m_content_diff(manifest: Manifest, *, root: Path):
+    '''Prints a diff of MANIFEST's content and local content at --root'''
+    click.echo(executor.ContentDiff(manifest).diff(root))
 @click.command('diff')
 @w_2input
 def m_diff(manifest_a: Manifest, manifest_b: Manifest):
@@ -250,6 +256,8 @@ def remap(manifest: Manifest, *, old: typing.BinaryIO, new: typing.BinaryIO, ove
 # Execute commands #
 execcli = click.Group('exec', help='Execute various manifest features')
 cli.add_command(execcli)
+# exec content-diff
+execcli.add_command(m_content_diff)
 # exec diff
 execcli.add_command(m_diff)
 # exec info
@@ -287,6 +295,8 @@ def uninstall(manifest: Manifest, *, root: Path, pack: str | None, dry_run: bool
 # Generate commands #
 gencli = click.Group('gen', help='Generate manifests, keys, and more')
 cli.add_command(gencli)
+# gen content-diff
+gencli.add_command(m_content_diff)
 # gen diff
 gencli.add_command(m_diff)
 # gen key
