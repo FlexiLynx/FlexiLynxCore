@@ -44,27 +44,28 @@ def __setup__():
 
 #> Main >/
 # Testing code
-__init__()
+if __name__ == '__main__':
+    __init__()
 
-_core = FlexiLynx.core
-privkey = _core.frameworks.manifest.ManifestCore.EdPrivK.generate()
-man = _core.frameworks.manifest.Manifest(
-    id='testmod', real_version=0, type='module', format_version=1,
-    upstream=_core.frameworks.manifest.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
-    crypt=_core.frameworks.manifest.types.Manifest_crypt(signature=None, public_key=privkey.public_key()),
-    version=_core.frameworks.manifest.types.Manifest_version(meta_version='Manifest.version.meta_version val', last_update_time=-1, last_update_time_pretty='lutp', first_creation_time=-2, first_creation_time_pretty='fctp'),
-    metadata=_core.frameworks.manifest.types.Manifest_metadata(name='Test Module', by='Shae'),
-    relatedepends=_core.frameworks.manifest.types.Manifest_relatedepends(python_implementation='cpython', platform='linux'),
-    contentinfo=None,
-    contentdata=_core.frameworks.manifest.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
-)
+    _core = FlexiLynx.core
+    privkey = _core.frameworks.manifest.ManifestCore.EdPrivK.generate()
+    man = _core.frameworks.manifest.Manifest(
+        id='testmod', real_version=0, type='module', format_version=1,
+        upstream=_core.frameworks.manifest.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
+        crypt=_core.frameworks.manifest.types.Manifest_crypt(signature=None, public_key=privkey.public_key()),
+        version=_core.frameworks.manifest.types.Manifest_version(meta_version='Manifest.version.meta_version val', last_update_time=-1, last_update_time_pretty='lutp', first_creation_time=-2, first_creation_time_pretty='fctp'),
+        metadata=_core.frameworks.manifest.types.Manifest_metadata(name='Test Module', by='Shae'),
+        relatedepends=_core.frameworks.manifest.types.Manifest_relatedepends(python_implementation='cpython', platform='linux'),
+        contentinfo=None,
+        contentdata=_core.frameworks.manifest.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
+    )
 
-def test_logger():
-    FlexiLynx.logger.debug('test 0')
-    FlexiLynx.logger.verbose('test 1')
-    FlexiLynx.logger.info('test 2')
-    FlexiLynx.logger.warning('test 3')
-    FlexiLynx.logger.error('test 4')
-    FlexiLynx.logger.critical('test 5')
-    FlexiLynx.logger.irrec('test 6')
-test_logger()
+    def test_logger():
+        FlexiLynx.logger.debug('test 0')
+        FlexiLynx.logger.verbose('test 1')
+        FlexiLynx.logger.info('test 2')
+        FlexiLynx.logger.warning('test 3')
+        FlexiLynx.logger.error('test 4')
+        FlexiLynx.logger.critical('test 5')
+        FlexiLynx.logger.irrec('test 6')
+    test_logger()
