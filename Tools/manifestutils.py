@@ -93,13 +93,13 @@ def w_carguments(*names: str) -> typing.Callable[[click.Command], click.Command]
 #</Header
 
 #> Main >/
+cli = click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160})
 def store_args(ctx: click.Context, param: click.Parameter, value: typing.TextIO | None):
     if not value or ctx.resilient_parsing: return
     click.echo(shlex.join(sys.argv[:sys.argv.index('--store')] + sys.argv[sys.argv.index('--store')+2:]), file=value)
     ctx.exit()
-cli = click.option('--store', type=click.File('w'), help='Instead of executing the command, store it to a shell script (or stdout with "-") instead',
-                   callback=store_args, expose_value=False, is_eager=True)(
-                       click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160}))
+click.option('--store', type=click.File('w'), help='Instead of executing the command, store it to a shell script (or stdout with "-") instead',
+             callback=store_args, expose_value=False, is_eager=True)(cli)
 
 # Multi-place commands #
 @click.command('diff')
