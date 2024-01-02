@@ -3,8 +3,8 @@
 '''
     Provides a framework for FlexiLynx's logging, as well as possibly useful facilities for coloring terminal output
 
-    The builtin logging facilities can be configured through the `FLLOGCFG` environment variable, or `FLLOGCFG.flynx.env` file as such:
-      - TO BE ADDED
+    The builtin logging facilities can be configured through the `FLLOGCFG` environment variable, or `FLLOGCFG.flynx.env` file.
+        See `help(mklogger)` for information on the exact configuration keys used
 
     As for the module API, note that whilst not mentioned in `__all__` (due to the very small possibility of external use), the following symbols are considered fully public:
       - `colorfmt_from_str()`
@@ -170,8 +170,8 @@ def mk_stream_h(verbosity: int | str, fmt: logging.Formatter) -> logging.StreamH
 def mk_mainfile_h(path: Path, fmt: logging.Formatter) -> logging.handlers.RotatingFileHandler:
     path.mkdir(exist_ok=True, parents=True)
     mainfile_h = logging.handlers.RotatingFileHandler(path / 'FlexiLynx.log',
-                                                      maxBytes=1024**2 * float(LoggerConfig.get('file_size_mb', '0.1')),
-                                                      backupCount=int(LoggerConfig.get('file_backups', '12')))
+                                                      maxBytes=1024**2 * float(LoggerConfig.get('file.size_mib', '0.1')),
+                                                      backupCount=int(LoggerConfig.get('file.backups', '12')))
     mainfile_h.setFormatter(fmt)
     mainfile_h.setLevel(logging.INFO)
     def mainfile_h_rotator(src: str, dst: str):
@@ -185,13 +185,37 @@ def mk_debugfile_h(path: Path, fmt: logging.Formatter) -> logging.handlers.Rotat
     path.mkdir(exist_ok=True, parents=True)
     (path / 'FlexiLynx.debug.log').unlink(missing_ok=True)
     debugfile_h = logging.handlers.RotatingFileHandler(path / 'FlexiLynx.debug.log', mode='w', backupCount=1,
-                                                       maxBytes=1024**2 * float(LoggerConfig.get('debug_file_size_mb', '4')))
+                                                       maxBytes=1024**2 * float(LoggerConfig.get('file.debug.size_mib', '4')))
     debugfile_h.setFormatter(fmt)
     debugfile_h.setLevel(logging.DEBUG)
     debugfile_h.rotator = lambda src,dst: Path(src).unlink()
     return debugfile_h
 # Logger maker
 def mklogger() -> logging.Logger:
+    '''
+        Sets up logging and creates a new logger, using configuration from the `FLLOGCFG` environment variable or `FLLOGCFG.flynx.env` file
+
+        The following configuration keys (in `FLLOGCFG` or `FLLOGCFG.flynx.env`) are used:
+
+        |      Config key       | Description
+        | :-------------------: | :----------
+        | `verbosity`           | How much information to show. Can be an integer (`verbosity=-4` to `verbosity=3`), or the name of a logging level to show as the minimum level (note that this is only for stderr output)
+        | `no_color=1`          | Completely disable colored output in logging
+        | `no_colorama=1`       | Disable the use of the `colorama` module to ensure terminal compatability
+        | `file.log=1`          | Enables logging (with a verbosity of 0/INFO) to a rotating set of files (on by default, pass `file.log=0` to disable)
+        | `file.path`           | The path to put logging files in (defaults to `./FlexiLynx_logs/`)
+        | `file.size_mib`       | How many MiB to store in a single logging file before rotating it (defaults to 0.1)
+        | `file.backups`        | How many logging files to store as backups (defaults to 12)
+        | `file.debug=1`        | Enables logging (with a verbosity of 2/DEBG) to a single debugging file, which gets erased upon every program start (on by default, pass `file.debug=0` to disable)
+        | `file.debug.size_mib` | How large to allow the debug file to grow (in MiB) before forcefully clearing it (defaults to 4)
+        | `format.header`       | The format of the logging header (in "{" style)
+        | `file.format.header`  | Same as above, but for the regular and debug files
+        | `format.date`         | The format of timestamps in logging headers (in `strftime` format)
+        | `file.format.date`    | Same as above, but for the regular and debug files
+
+        See `help(FlexiLynx.core.loglib.ColoredFormatter)` for details on how to configure logging colors
+            See `help(FlexiLynx.core.loglib.colorfmt_from_str)` for details on how to specify colors
+    '''
     no_color = LoggerConfig.get_bool('no_color')
     # Setup logging and colors
     setup(no_color or LoggerConfig.get_bool('no_colorama'))
@@ -205,19 +229,19 @@ def mklogger() -> logging.Logger:
     logger.propogate = False
     # Create formatters
     stream_fmt = (logging.Formatter if no_color else ColoredFormatter)(
-        LoggerConfig.get('header_format', '[{asctime}] [{name}/{levelname}]: {message}'),
-        LoggerConfig.get('date_format', '%H:%M:%S'), style='{')
+        LoggerConfig.get('format.header', '[{asctime}] [{name}/{levelname}]: {message}'),
+        LoggerConfig.get('format.date', '%H:%M:%S'), style='{')
     file_fmt = logging.Formatter(
-        LoggerConfig.get('file_header_format', '[{asctime}] [{name}/{processName}:{threadName}<{module}.{funcName}[{lineno}]>/{levelname}]: {message}'),
-        LoggerConfig.get('%Y-%m-%d %H:%M:%S'), style='{')
+        LoggerConfig.get('file.format.header', '[{asctime}] [{name}/{processName}:{threadName}<{module}.{funcName}[{lineno}]>/{levelname}]: {message}'),
+        LoggerConfig.get('file.format.date', '%Y-%m-%d %H:%M:%S'), style='{')
     # Create handlers
     ## File handlers
-    p = Path(LoggerConfig.get('file_log_path', './FlexiLynx_logs/'))
+    p = Path(LoggerConfig.get('file.path', './FlexiLynx_logs/'))
     ### Main file handler
-    if LoggerConfig.get('log_to_file', '1'):
+    if LoggerConfig.get('file.log', '1'):
         logger.addHandler(mk_mainfile_h(p, file_fmt))
     ### Debug file handler
-    if LoggerConfig.get('debug_to_file', '1'):
+    if LoggerConfig.get('file.debug', '1'):
         logger.addHandler(mk_debugfile_h(p, file_fmt))
     ## STDERR stream handler
     logger.addHandler(mk_stream_h(verbosity, stream_fmt))
