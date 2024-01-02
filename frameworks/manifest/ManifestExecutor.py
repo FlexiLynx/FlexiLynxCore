@@ -8,8 +8,10 @@ import traceback
 import warnings
 import base64, hashlib
 import typing
+import multiprocessing
 from pathlib import Path
 from urllib import request
+from functools import partial
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
@@ -22,7 +24,7 @@ from FlexiLynx import logger
 #> Header >/
 __all__ = ('is_insane', 'render_info', 'get_content',
            'try_load_manifest', 'fetch_upstream', 'verify_upstream',
-           'ManifestDiff',
+           'ManifestDiff', 'ContentDiff',
            'self_update', 'install', 'uninstall')
 
 mlogger = logger.getChild('core.fw.manifests')
@@ -226,6 +228,26 @@ class ManifestDiff:
             case bytes(): return base64.b85encode(o)
             case (None): return '<not specified>'
         return repr(o)
+class ContentDiff:
+    __slots__ = ('man',)
+
+    def __init__(self, man: Manifest):
+        self.man = man
+
+    def diff(): pass
+
+    @staticmethod
+    def _hash_file(algorithm: typing.Literal[*hashlib.algorithms_available], file: Path) -> (Path, bytes):
+        return (file, hashlib.new(algorithm, file.read_bytes()).digest())
+    @classmethod
+    def hash_files(cls, algorithm: typing.Literal[*hashlib.algorithms_available], files: tuple[Path, ...], *, max_processes: int = multiprocessing.cpu_count() * 2) -> dict[Path, bytes]:
+        '''Hashes a tuple of files'''
+        h = partial(cls._hash_file, algorithm)
+        processes = min(len(files), max_processes)
+        if processes < 2:
+            return dict(map(h, files))
+        with multiprocessing.Pool(processes) as mp:
+            return dict(mp.map(h, files))
 
 # Actual manifest execution
 ## Manifest update
