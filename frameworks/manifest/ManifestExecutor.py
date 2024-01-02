@@ -152,7 +152,7 @@ class _DiffBase:
         '''Yields a string diff of two dicts'''
         for add in (b.keys() - a.keys()): yield f' + {cls.render_item(add)}'
         for rem in (a.keys() - b.keys()): yield f' - {cls.render_item(rem)}'
-        for chg in (k for k,v in b.items() if (k in b) and (b[k] != v)):
+        for chg in (k for k,v in a.items() if (k in b) and (b[k] != v)):
             yield f'   {cls.render_item(chg)}: {cls.render_item(a[chg])} -> {cls.render_item(b[chg])}'
     @classmethod
     def set_diff(cls, a: set, b: set) -> typing.Generator[str, None, None]:
