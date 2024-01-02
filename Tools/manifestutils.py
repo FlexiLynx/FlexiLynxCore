@@ -28,7 +28,7 @@ __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
 
 #> Header
 __entrypoint__.__init__()
-from FlexiLynx.core.manifestlib import *
+from FlexiLynx.core.frameworks.manifest import *
 
 # Define input/output formats
 def auto_format(f: typing.BinaryIO) -> str:

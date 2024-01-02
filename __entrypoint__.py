@@ -21,21 +21,24 @@ def __init__():
     assert sys.version_info[:3] >= MIN_PYTHON_VERSION, f'Minimum Python version not met! Need {".".join(map(str, MIN_PYTHON_VERSION))}, got {".".join(map(str, sys.version_info[:3]))}'
     # Setup FlexiSpaces #
     global FlexiLynx
-    flexispacelib = _resolve_import('flexispacelib')
+    flexispacelib = _resolve_import('libraries.flexispacelib')
     # Base namespace
     FlexiLynx = flexispacelib.TFlexiSpace('FlexiLynx', 'The shared library across FlexiLynx', assimilate=True)
     ## Core namespace
     _core = FlexiLynx/'core'
-    ### Add flexispacelib
+    ### Add libraries
+    #### flexispacelib
     _core.flexispacelib = flexispacelib
-    ### Add env-config
-    _core.envconfiglib = _resolve_import('envconfiglib')
-    ### Add packlib
-    _core.packlib = _resolve_import('packlib')
-    ### Add manifestlib
-    _core.manifestlib = _resolve_import('manifestlib')
+    #### env-config (lib)
+    _core.envconfiglib = _resolve_import('libraries.envconfiglib')
+    #### packlib
+    _core.packlib = _resolve_import('libraries.packlib')
+    ### Add framewarks
+    _core/'frameworks'
+    #### "manifest" framework
+    _core.frameworks.manifest = _resolve_import('frameworks.manifest')
     # Setup logger
-    FlexiLynx.core.loglib = _resolve_import('fllogger')
+    FlexiLynx.core.loglib = _resolve_import('libraries.loglib')
     FlexiLynx.logger = FlexiLynx.core.loglib.mklogger()
 def __setup__():
     ...
@@ -46,16 +49,16 @@ def __setup__():
 __init__()
 
 _core = FlexiLynx.core
-privkey = _core.manifestlib.ManifestCore.EdPrivK.generate()
-man = _core.manifestlib.Manifest(
+privkey = _core.frameworks.manifest.ManifestCore.EdPrivK.generate()
+man = _core.frameworks.manifest.Manifest(
     id='testmod', real_version=0, type='module', format_version=1,
-    upstream=_core.manifestlib.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
-    crypt=_core.manifestlib.types.Manifest_crypt(signature=None, public_key=privkey.public_key()),
-    version=_core.manifestlib.types.Manifest_version(meta_version='Manifest.version.meta_version val', last_update_time=-1, last_update_time_pretty='lutp', first_creation_time=-2, first_creation_time_pretty='fctp'),
-    metadata=_core.manifestlib.types.Manifest_metadata(name='Test Module', by='Shae'),
-    relatedepends=_core.manifestlib.types.Manifest_relatedepends(python_implementation='cpython', platform='linux'),
+    upstream=_core.frameworks.manifest.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
+    crypt=_core.frameworks.manifest.types.Manifest_crypt(signature=None, public_key=privkey.public_key()),
+    version=_core.frameworks.manifest.types.Manifest_version(meta_version='Manifest.version.meta_version val', last_update_time=-1, last_update_time_pretty='lutp', first_creation_time=-2, first_creation_time_pretty='fctp'),
+    metadata=_core.frameworks.manifest.types.Manifest_metadata(name='Test Module', by='Shae'),
+    relatedepends=_core.frameworks.manifest.types.Manifest_relatedepends(python_implementation='cpython', platform='linux'),
     contentinfo=None,
-    contentdata=_core.manifestlib.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
+    contentdata=_core.frameworks.manifest.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
 )
 
 def test_logger():
