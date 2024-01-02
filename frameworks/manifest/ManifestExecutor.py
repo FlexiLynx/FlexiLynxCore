@@ -103,4 +103,4 @@ def fetch_upstream(local: Manifest) -> Manifest:
              (load_ini, load_json, load_packed))
     mlogger.info('Attempting to decode %d byte(s)', len(data))
     mlogger.verbose(' using methods:\n - %s\n - %s\n - %s', *(m.__name__ for m in order))
-    return try_load_manifest(data, order)
+    return try_load_manifest(data, order)[1]
