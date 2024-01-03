@@ -268,6 +268,10 @@ def unmap(manifest: Manifest, *, key: typing.BinaryIO, is_public: bool) -> Manif
         if is_public else EdPrivK.from_private_bytes(key.read()).public_key().public_bytes_raw()]
     return manifest
 
+## Crypt Inspect commands ##
+inspectcli = click.Group('inspect', help='Inspect various cryptographic facilities')
+cryptcli.add_command(inspectcli)
+
 # Execute commands #
 execcli = click.Group('exec', help='Execute various manifest features')
 cli.add_command(execcli)
