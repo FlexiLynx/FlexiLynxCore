@@ -212,13 +212,13 @@ def map_(manifest: Manifest, *, print_values: bool, complexity: int | None):
     '''Prints out a "map" of MANIFEST's cascade in a (hopefully) human-readable format'''
     click.echo('Flattening cascade...', file=sys.stderr)
     flat_cascade = []
-    for pkey,(nkey,_) in manifest.crypt.key_remap_cascade.items():
+    for pkey,(_,nkey,_) in manifest.crypt.key_remap_cascade.items():
         if pkey not in flat_cascade: flat_cascade.append(pkey)
         if nkey not in flat_cascade: flat_cascade.append(nkey)
     click.echo('Building chains...', file=sys.stderr)
     chains = []
     for _ in range(len(flat_cascade) if complexity is None else complexity):
-        for pkey,(nkey,_) in manifest.crypt.key_remap_cascade.items():
+        for pkey,(_,nkey,_) in manifest.crypt.key_remap_cascade.items():
             chained = False
             for chain in chains:
                 if pkey not in chain: continue
@@ -236,7 +236,7 @@ def map_(manifest: Manifest, *, print_values: bool, complexity: int | None):
     chains = ((seen_chains.add(c[0]), c)[1] for c in schains if c[0] not in seen_chains)
     def render(k: bytes) -> str: return manifest.crypt._encode_(k) if print_values else flat_cascade.index(k)
     click.echo('Keys:')
-    for k in flat_cascade: click.echo(f'- {flat_cascade.index(k)}: {manifest.crypt._encode_(k)}')
+    for k in flat_cascade: click.echo(f'- {flat_cascade.index(k)} "{manifest.crypt.key_remap_cascade[k][0]}": {manifest.crypt._encode_(k)}')
     for nchain,chain in enumerate(chains):
         click.echo(f'Chain {nchain}:\n / {" ~> ".join(str(render(key)) for key in chain)} /')
 # crypt cascade remap
@@ -244,13 +244,18 @@ def map_(manifest: Manifest, *, print_values: bool, complexity: int | None):
 @w_io
 @click.argument('old', type=click.File('rb'))
 @click.argument('new', type=click.File('rb'))
+@click.argument('note', default='')
 @click.option('--overwrite', help='Forcefully overwrite an existing remap', is_flag=True, default=False)
 @click.option('--new-is-public', help='Treat NEW as a public key instead of as a private key', is_flag=True, default=False)
-def remap(manifest: Manifest, *, old: typing.BinaryIO, new: typing.BinaryIO, overwrite: bool, new_is_public: bool) -> Manifest:
-    '''Add cascade where OLD's private key vouches for NEW's public key to MANIFEST'''
+def remap(manifest: Manifest, *, old: typing.BinaryIO, new: typing.BinaryIO, note: str, overwrite: bool, new_is_public: bool) -> Manifest:
+    '''
+        Add cascade where OLD's private key vouches for NEW's public key to MANIFEST
+
+        When given, NOTE is added into the cascade along with the key
+    '''
     manifest.remap(EdPrivK.from_private_bytes(old.read()),
                    EdPubK.from_public_bytes(new.read()) if new_is_public
-                   else EdPrivK.from_private_bytes(new.read()).public_key(), overwrite)
+                   else EdPrivK.from_private_bytes(new.read()).public_key(), overwrite, note)
     return manifest
 
 # Execute commands #
