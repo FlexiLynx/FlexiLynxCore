@@ -19,15 +19,20 @@ class DictUnion(UserDict):
 
         Similar concept to `collections.ChainMap`, but is somewhat lighter
     '''
-    __slots__ = ('dicts', 'default_set_dict')
+    __slots__ = ('dicts', 'default_set_dict', 'op_all')
 
-    def __init__(self, *dicts: dict, default_set_dict: int = -1):
+    def __init__(self, *dicts: dict, default_set_dict: int = -1, op_all: bool = False):
         self.dicts = dicts
-        self.default_set_dict = dicts[default_set_dict]
-    def _dict_containing(self, item: str) -> dict | None:
+        self.op_all = op_all
+        if not op_all:
+            self.default_set_dict = dicts[default_set_dict]
+    def _dict_containing(self, item: str, g_all: bool) -> dict | tuple[dict] | None:
+        if g_all:
+            return tuple(d for d in self.dicts if item in d) or None
         for d in self.dicts:
             if item in d: return d
         return None
+
     def __contains__(self, item: str) -> bool:
         return self._dict_containing(item) is not None
     def __getitem__(self, item: str) -> typing.Any:
@@ -35,7 +40,12 @@ class DictUnion(UserDict):
             return d[item]
         raise KeyError(item)
     def __setitem__(self, item: str, value: typing.Any):
-        (self._dict_containing(item) or self.default_set_dict)[item] = value
+        if self.op_all:
+            for d in self.dicts: d[item] = value
+        else:
+            (self._dict_containing(item) or self.default_set_dict)[item] = value
+
+
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
