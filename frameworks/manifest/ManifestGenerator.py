@@ -80,6 +80,7 @@ def autoupdate_manifest(m: Manifest, *, meta_version: str | None = None, key: Ed
     m.version.last_update_time = round(time.time())
     m.version.last_update_time_pretty = time.ctime()
     m.contentinfo.use_packs = bool(packs)
-    m.contentdata = files.render(None, m.crypt.hash_algorithm) | reduce(dict.__or__, (pk.render(pn, m.crypt.hash_algorithm) for pn,pk in packs))
+    m.contentdata = files.render(None, m.crypt.hash_algorithm) \
+                    | reduce(dict.__or__, (pk.render(pn, m.crypt.hash_algorithm) for pn,pk in packs) if packs else (), {})
     if do_sign: m.sign(key)
     return m
