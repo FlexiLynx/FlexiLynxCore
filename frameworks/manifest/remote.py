@@ -1,9 +1,11 @@
 #!/bin/python3
 
 #> Imports
+import json
 import typing
 from pathlib import Path
-from urllib import request
+from collections import UserDict
+from urllib import error, request
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from . import executor
@@ -14,7 +16,7 @@ from FlexiLynx import logger
 #</Imports
 
 #> Header >/
-__all__ = ('fetch_upstream', 'verify_upstream', 'self_update')
+__all__ = ('fetch_upstream', 'verify_upstream', 'self_update', 'Store')
 
 mlogger = logger.getChild('core.fw.manifests')
 
@@ -58,3 +60,49 @@ def self_update(local: Manifest, upstream: Manifest | None = None, *, print_diff
         mlogger.warning('Authenticating upstream manifest')
         verify_upstream(local, upstream)
     return upstream
+
+class Store(UserDict):
+    __slots__ = ('url',)
+
+    def __init__(self, *, user: str = 'FlexiLynx', repo: str = 'ManifestStore',
+                 url_fmt: str = 'https://api.github.com/repos/{user}/{repo}/contents/'):
+        self.url = url_fmt.format(user=user, repo=repo)
+        super().__init__()
+
+    def fetch(self, url: str) -> bytes:
+        mlogger.verbose(f'fetch {url}')
+        with request.urlopen(url) as r:
+            return r.read()
+    def fetchj(self, url: str) -> list | dict:
+        mlogger.verbose(f'fetch {url}')
+        with request.urlopen(url) as r:
+            return json.load(r)
+    def _populate(self, target: dict, entries: tuple[dict, ...]):
+        lmap = {'ini': load_ini, 'json': load_json, 'pakd': load_packed}
+        for e in entries:
+            if e['type'] == 'dir':
+                if e['name'] in target: target[e['name']].clear()
+                else: target[e['name']] = {}
+                self._populate(target[e['name']], self.fetchj(e['url']))
+                continue
+            if e['type'] != 'file': continue
+            if not (e['name'].endswith('.ini')
+                 or e['name'].endswith('.json')
+                 or e['name'].endswith('.pakd')): continue
+            target[e['name'].rsplit('.', 1)[0]] = lmap[e['name'].rsplit('.', 1)[1]](self.fetch(e['download_url']))
+    def populate(self, id: str = ''):
+        t = self.data
+        for p in id.split('.'):
+            if not p: continue
+            if p not in t: t[p] = {}
+            t = t[p]
+        t.clear()
+        self._populate(self.data, self.fetchj(f'{self.url}/{id.replace(".", "/")}'))
+
+    def __getitem__(self, id: str) -> dict | typing.Any:
+        t = self.data
+        for p in id.split('.'):
+            t = t[p]
+        return t
+    def __setitem__(self, item: typing.Never, value: typing.Never):
+        raise TypeError('__setitem__() not supported on instances of Store')
