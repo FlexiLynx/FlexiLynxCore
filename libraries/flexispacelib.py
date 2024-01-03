@@ -4,13 +4,34 @@
 import sys
 import typing
 from types import ModuleType
+from collections import UserDict
 from importlib.abc import MetaPathFinder, Loader
 from importlib.util import spec_from_loader
 from importlib.machinery import ModuleSpec
 #</Imports
 
 #> Header >/
-__all__ = ('TFlexiSpace',)
+__all__ = ('TFlexiSpace', 'DictUnion')
+
+class DictUnion(UserDict):
+    '''Allows accessing multiple dictionaries as one'''
+    __slots__ = ('dicts', 'default_set_dict')
+
+    def __init__(self, *dicts: dict, default_set_dict: int = -1):
+        self.dicts = dicts
+        self.default_set_dict = dicts[default_set_dict]
+    def _dict_containing(self, item: str) -> dict | None:
+        for d in self.dicts:
+            if item in d: return d
+        return None
+    def __contains__(self, item: str) -> bool:
+        return self._dict_containing(item) is not None
+    def __getitem__(self, item: str) -> typing.Any:
+        if (d := self._dict_containing(item)) is not None:
+            return d[item]
+        raise KeyError(item)
+    def __setitem__(self, item: str, value: typing.Any):
+        (self._dict_containing(item) or self.default_set_dict)[item] = value
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
