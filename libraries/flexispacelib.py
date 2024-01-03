@@ -69,15 +69,15 @@ class DictUnion(UserDict):
     ### | operators
     def __or__(self, other: dict | typing.Self) -> dict | typing.Self:
         if isinstance(other, type(self)):
-            return type(self)(self.dicts + [d for d in other.dicts if d not in self.dicts], # join self.dicts and other.dicts
-                              getattr(self, '_default_set_dict', None), self.op_all)
+            return type(self)(*self.dicts, *(d for d in other.dicts if d not in self.dicts), # join self.dicts and other.dicts
+                              default_set_dict=getattr(self, '_default_set_dict', None), op_all=self.op_all)
         if isinstance(other, dict):
             return self.__reduce__() | other
         return NotImplemented
     def __ror__(self, other: dict | typing.Self) -> dict | typing.Self:
         if isinstance(other, type(self)):
-            return type(self)(other.dicts + [d for d in self.dicts if d not in other.dicts], # join other.dicts and self.dicts
-                              getattr(self, '_default_set_dict', None), self.op_all)
+            return type(self)(*other.dicts, *(d for d in self.dicts if d not in other.dicts), # join other.dicts and self.dicts
+                              default_set_dict=getattr(self, '_default_set_dict', None), op_all=self.op_all)
         if isinstance(other, dict):
             return other | self.__reduce__()
         return NotImplemented
