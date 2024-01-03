@@ -1,6 +1,6 @@
 #!/bin/bash
 
-./Tools/manifestutils.py gen manifest 'flexilynx.core' \
+${PYTHON:-} ./Tools/manifestutils.py gen manifest 'flexilynx.core' \
     'FlexiLynx Core' --desc 'Core files required to run FlexiLynx, including frameworks for manifests, modules, and plugins' \
     'Shae VanCleave' --contact 'https://github.com/Tiger-Tom' \
     'https://raw.githubusercontent.com/FlexiLynx/ManifestStore/main/FlexiLynx/Core.manifest.ini' \
