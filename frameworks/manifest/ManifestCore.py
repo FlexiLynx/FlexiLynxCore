@@ -123,6 +123,7 @@ class Manifest:
             raise InitBrokenCascadeError(self, current_key, f'cascade rejected: broken off at initial key {self.crypt._encode_(current_key.public_bytes_raw())}')
         seen = set()
         while (ckb := current_key.public_bytes_raw()) not in seen:
+            seen.add(ckb)
             if current_key == target_key:
                 if __debug__: debug_callback('match', (ckb, target_key.public_bytes_raw()))
                 return None
