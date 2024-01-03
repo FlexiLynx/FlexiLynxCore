@@ -111,7 +111,6 @@ class Manifest:
                 CASC_BROKEN/BrokenCascadeError, if the cascade is "broken" (an intermediate/referenced key isn't in the cascade)
                 CASC_SIG_REJECTED/CascadeSignatureError from cryptography.exceptions.InvalidSignature, if a signature isn't correct
                 CASC_CIRCULAR/CircularCascadeError, if a circular cascade is detected
-                    Note that despite the exception used, the current implementation does not use recursion, but rather keeps track of seen keys manually
         '''
         if current_key is None: current_key = self.crypt.public_key
         if __debug__: debug_callback('check', (current_key.public_bytes_raw(), target_key.public_bytes_raw()))
