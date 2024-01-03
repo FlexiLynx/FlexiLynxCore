@@ -97,7 +97,7 @@ class Store(UserDict):
             if p not in t: t[p] = {}
             t = t[p]
         t.clear()
-        self._populate(self.data, self.fetchj(f'{self.url}/{id.replace(".", "/")}'))
+        self._populate(t, self.fetchj(f'{self.url}/{id.replace(".", "/")}'))
 
     def __getitem__(self, id: str) -> dict | typing.Any:
         t = self.data
