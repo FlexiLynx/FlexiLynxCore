@@ -13,7 +13,7 @@ from importlib.machinery import ModuleSpec
 #</Imports
 
 #> Header >/
-__all__ = ('TFlexiSpace', 'DictUnion')
+__all__ = ('TFlexiSpace', 'DictUnion', 'DictJoiner')
 
 class DictUnion(UserDict):
     '''
@@ -112,7 +112,18 @@ class DictUnion(UserDict):
         memo[id(self)] = copy
         return type(self)(*(deepcopy(d, memo) for d in self.dicts),
                           default_set_dict=deepcopy(getattr(self, '_default_set_dict', None), memo), op_all=self.op_all)
+class DictJoiner(DictUnion):
+    '''Similar to `DictUnion`, but offers methods to aggressively synchronize each sub-dict'''
+    __slots__ = ()
 
+    def __init__(self, *dicts: dict, sync_on_init: bool = True, init_force_order: bool = True):
+        super().__init__(*dicts, op_all=True)
+        if sync_on_init: self.sync(init_force_order)
+    def sync(self, force_order: bool = False):
+        items = self.items()
+        if force_order:
+            for d in self.dicts: d.clear()
+        for k,v in items: self[k] = v
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
