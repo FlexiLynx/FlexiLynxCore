@@ -33,6 +33,7 @@ class DictUnion(UserDict):
             if item in d: return d
         return None
 
+    # Common special methods
     def __contains__(self, item: str) -> bool:
         return self._dict_containing(item) is not None
     def __getitem__(self, item: str) -> typing.Any:
@@ -44,8 +45,11 @@ class DictUnion(UserDict):
             for d in self.dicts: d[item] = value
         else:
             (self._dict_containing(item) or self.default_set_dict)[item] = value
-
-
+    def __delitem__(self, item: str):
+        if ds := self._dict_containing(item, True):
+            for d in ds: del d[item]
+            return
+        raise KeyError(item)
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
