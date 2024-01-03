@@ -51,7 +51,7 @@ class Manifest_crypt:
     public_key: EdPubK | None
     hash_algorithm: typing.Literal[*hashlib.algorithms_available] = 'sha1'
     byte_encoding: typing.Literal[*set(e.removesuffix('decode') for e in dir(base64) if e.endswith('decode') and e != 'decode')] = 'b85'
-    key_remap_cascade: dict[bytes, tuple[bytes, bytes]] | None = None
+    key_remap_cascade: dict[bytes, tuple[str, bytes, bytes]] | None = None
     def _encode_(self, b: bytes) -> str:
         return getattr(base64, f'{self.byte_encoding}encode')(b).decode()
     @staticmethod
@@ -64,7 +64,7 @@ class Manifest_crypt:
             'hash_algorithm': self.hash_algorithm, 'byte_encoding': self.byte_encoding,
             'key_remap_cascade': None if self.key_remap_cascade is None \
                 else self._encode_(packlib.pack(self.key_remap_cascade)) if pack_cascade \
-                else {self._encode_(k): (self._encode_(v[0]), self._encode_(v[1])) for k,v in self.key_remap_cascade.items()},
+                else {f'{v[0]}:{self._encode_(k)}': (self._encode_(v[1]), self._encode_(v[2])) for k,v in self.key_remap_cascade.items()},
         })
     @classmethod
     def _from_dict_(cls, d: ManifestDict_crypt) -> typing.Self:
@@ -75,7 +75,7 @@ class Manifest_crypt:
             hash_algorithm=d['hash_algorithm'], byte_encoding=be,
             key_remap_cascade=None if (krc := d['key_remap_cascade']) is None
                 else packlib.unpack(cls._decode_(krc, d['public_key'])) if isinstance(krc, str)
-                else {cls._decode_(be, k): (cls._decode_(be, v[0]), cls._decode_(be, v[1])) for k,v in krc.items()},
+                else {cls._decode_(be, k.split(':', 1)[1]): (k.split(':', 1)[0], cls._decode_(be, v[0]), cls._decode_(be, v[1])) for k,v in krc.items()},
         )
 # Versioning
 @_manifesttype

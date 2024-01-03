@@ -1,6 +1,7 @@
 #!/bin/python3
 
 #> Imports
+import re
 import typing
 import hashlib
 import base64
@@ -10,7 +11,6 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 ## Rendering & Loading
 import io
-import re
 import json
 from ast import literal_eval
 from configparser import ConfigParser
@@ -80,15 +80,18 @@ class Manifest:
         except InvalidSignature: return False
         return True
 
-    def remap(self, prev_key: EdPrivK, new_key: EdPubK, overwrite: bool = False):
+    LEGAL_NOTE_CHARS = re.compile(r'[\w\d ]*')
+    def remap(self, prev_key: EdPrivK, new_key: EdPubK, overwrite: bool = False, note: str = ''):
         '''
             Adds a new public key to the remap cascade (or creates a new cascade if one isn't supplied)
                 Requires the previous private key to sign the new public key
         '''
+        if not self.LEGAL_NOTE_CHARS.fullmatch(note):
+            raise IllegalCascadeNoteError(self, f'{note!r} contains illegal characters')
         if self.crypt.key_remap_cascade is None:
             self.crypt.key_remap_cascade = {}
         if ((pkpb := prev_key.public_key().public_bytes_raw()) not in self.crypt.key_remap_cascade) or overwrite:
-            self.crypt.key_remap_cascade |= {pkpb: (new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
+            self.crypt.key_remap_cascade |= {pkpb: (note, new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
         else: raise CascadeOverrideError(self, 'prev_key has already vouched for a key, pass overwrite=True to overwrite')
     CASC_EMPTY = 1
     CASC_INIT_BROKEN = 2
@@ -129,7 +132,7 @@ class Manifest:
             if ckb not in self.crypt.key_remap_cascade:
                 if no_fail: return self.CASC_BROKEN
                 raise BrokenCascadeError(self, current_key, f'cascade rejected: broken off at {self.crypt._encode_(ckb)}')
-            nkey,sig = self.crypt.key_remap_cascade[ckb]
+            note,nkey,sig = self.crypt.key_remap_cascade[ckb]
             if __debug__: debug_callback('found', (nkey, sig))
             try: current_key.verify(sig, nkey)
             except InvalidSignature:

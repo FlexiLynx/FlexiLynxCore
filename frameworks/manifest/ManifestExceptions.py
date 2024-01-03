@@ -44,6 +44,9 @@ class CascadeOverrideError(CascadeError):
     def __init__(self, manifest: 'Manifest', overriden: str, *args, **kwargs):
         self.overriden = overriden
         super().__init__(manifest, *args, **kwargs)
+class IllegalCascadeNoteError(CascadeError):
+    '''An attempt was made to add a key with a note that contains illegal characters'''
+    __slots__ = ()
 class EmptyCascadeError(CascadeError):
     '''An attempt was made to check a key against a nonexistent or blank cascade'''
     __slots__ = ()
