@@ -71,8 +71,14 @@ def autogen_manifest(*, id: str, type_: typing.Literal['module', 'plugin', 'othe
     if do_sign: m.sign(key)
     return m
 def autoupdate_manifest(m: Manifest, *, meta_version: str | None = None, key: EdPrivK | Path | None, do_sign: bool = False,
-                        files: FilePack, packs: tuple[FilePack, ...] | None = None) -> Manifest:
+                        files: FilePack, packs: tuple[FilePack, ...] | None = None, force: bool = False, fail_if_no_change: bool = True) -> Manifest:
     '''Automatically updates and signs the Manifest (in-place!) with the given parameters'''
+    assert not (force and fail_if_no_change), '`force` and `fail_if_no_change` should never both be True'
+    new_content = files.render(None, m.crypt.hash_algorithm) \
+                  | reduce(dict.__or__, (pk.render(pn, m.crypt.hash_algorithm) for pn,pk in packs) if packs else (), {})
+    if (not force) and (m.contentdata == new_content):
+        if fail_if_no_change: raise ValueError('No changes detected')
+        return m
     if do_sign:
         key = EdPrivK.from_private_bytes(key.read_bytes()) if isinstance(key, Path) else key
     m.real_version += 1
