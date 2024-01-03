@@ -26,7 +26,7 @@ class DictUnion(UserDict):
         self.op_all = op_all
         if not op_all:
             self.default_set_dict = dicts[default_set_dict]
-    def _dict_containing(self, item: str, g_all: bool) -> dict | tuple[dict] | None:
+    def _dict_containing(self, item: str, g_all: bool = False) -> dict | tuple[dict] | None:
         if g_all:
             return tuple(d for d in self.dicts if item in d) or None
         for d in self.dicts:
@@ -41,10 +41,8 @@ class DictUnion(UserDict):
             return d[item]
         raise KeyError(item)
     def __setitem__(self, item: str, value: typing.Any):
-        if self.op_all:
-            for d in self.dicts: d[item] = value
-        else:
-            (self._dict_containing(item) or self.default_set_dict)[item] = value
+        for d in (self.dicts if self.op_all else self._dict_containing(item, True)):
+            d[item] = value
     def __delitem__(self, item: str):
         if ds := self._dict_containing(item, True):
             for d in ds: del d[item]
