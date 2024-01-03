@@ -61,18 +61,28 @@ class TFlexiSpace(ModuleType):
             sys.modules[f'{self.__name__}.{attr}'] = val
         super().__setattr__(attr, val)
 
+    def _intrusive_assimilate(self, obj: type('HasDunderModule', (typing.Protocol,), {'__module__': ''})):
+        '''Sets __module__ attributes of an object (if possible)'''
+        try: obj.__module__ = self.__name__
+        except Exception: pass
+        else: return
+        try: object.__setattr__('__module__', self.__name__) # try forceful override with base object
+        except Exception: pass
+        else: return
+        try: super(type(v), v).__setattr__('__module__', self.__name__) # try forceful override with super type
+        except Exception: pass
     def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self:
-        '''Converts a `ModuleType` into a `TFlexiSpace`, and sets __module__ attributes if intrusive_assimilate was set'''
+        '''Converts a `ModuleType` into a `TFlexiSpace`'''
         amod = type(self)(as_, getattr(mod, '__doc__', None), _parent=self)
         public = set(getattr(mod, '__all__', set()))
         for a,v in mod.__dict__.items():
-            if isinstance(v, ModuleType) and not isinstance(v, self.__class__) and a in public:
-                v = amod._assimilate(v, a) # recursively assimilate public sub-modules
+            if a not in public:
+                super(type(self), amod).__setattr__(a, v)
+                continue
+            if isinstance(v, ModuleType) and not isinstance(v, self.__class__):
+                v = amod._assimilate(v, a) # recursively assimilate public sub-modules (that aren't FlexiSpace modules)
             elif ((~self)._FS_assimilate_ > 1) and (getattr(v, '__module__', None) == mod.__name__):
-                try: v.__module__ = amod.__name__
-                except Exception:
-                    try: super(type(v), v).__setattr__('__module__', amod.__name__) # try forceful override
-                    except Exception: pass
+                amod._intrusive_assimilate(v)
             super(type(self), amod).__setattr__(a, v)
         return amod
 
