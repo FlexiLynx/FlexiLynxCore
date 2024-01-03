@@ -15,6 +15,7 @@
 '''
 
 #> Imports
+import sys
 import gzip
 import logging, logging.handlers
 import typing
