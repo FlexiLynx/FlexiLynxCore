@@ -271,6 +271,8 @@ def unmap(manifest: Manifest, *, key: typing.BinaryIO, is_public: bool) -> Manif
 ## Crypt Inspect commands ##
 inspectcli = click.Group('inspect', help='Inspect various cryptographic facilities')
 cryptcli.add_command(inspectcli)
+# crypt inspect cascade
+inspectcli.add_command(map_, 'cascade')
 
 # Execute commands #
 execcli = click.Group('exec', help='Execute various manifest features')
