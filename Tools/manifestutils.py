@@ -415,6 +415,24 @@ def manifest(sign: typing.BinaryIO | None,
 # Modify commands #
 modcli = click.Group('mod', help='Modify manifests in various generic ways (updating, etc.)')
 cli.add_command(modcli)
+# mod extract
+@modcli.command()
+@w_input
+@click.argument('spec')
+@click.option('--no-newline', help='Don\'t echo a newline after FORMAT', is_flag=True, default=False)
+def extract(manifest: Manifest, *, spec: str, no_newline: bool):
+    '''
+        Extract data from MANIFEST into SPEC
+
+        SPEC is a Python "{"-style formatting string\n
+        Example usage: "{id} {metadata.name}: {metadata.desc} ({metadata.by})"
+    '''
+    click.echo(spec.format_map({a: getattr(manifest, a) for a in
+                                ('id', 'real_version', 'type', 'format_version',
+                                 'upstream', 'crypt',
+                                 'version', 'metadata',
+                                 'relatedepends',
+                                 'contentinfo', 'contentdata')}), nl=not no_newline)
 # mod transpose
 @modcli.command()
 @click.argument('manifest', type=click.File('rb'))
