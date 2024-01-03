@@ -476,9 +476,12 @@ def transpose(*, manifest: typing.BinaryIO, input_format: str, new_format: str, 
 @click.option('-E', '--exclude', help='Glob to add to excludes', default=('**/__pycache__/**/*', '**/MANIFEST*', '**/.git/**/*', '**/.gitignore'), multiple=True)
 @click.option('-P', '--pack', type=(str, click.Path(exists=True, file_okay=False, path_type=Path)), help='Pack-name and root to add (adding this at least once enables packs)', default=None, multiple=True)
 @click.option('-k', '--sign', type=click.File('rb'), help='Key to sign the manifest with')
+@click.option('-f', '--force', help='Update the manifest anyway, even if there are no changes', is_flag=True, default=False)
+@click.option('-Q', '--quiet-on-no-change', help='Don\'t throw an error when no changes have been made', is_flag=True, default=False)
 def update(manifest: Manifest, *, meta_version: str | None,
            default_root: Path, include: tuple[str, ...], exclude: tuple[str, ...], pack: tuple[tuple[str, Path]],
-           sign: typing.BinaryIO | None) -> Manifest:
+           sign: typing.BinaryIO | None,
+           force: bool, quiet_on_no_change: bool) -> Manifest:
     '''
         Updates the MANIFEST's content (files)
 
@@ -488,7 +491,8 @@ def update(manifest: Manifest, *, meta_version: str | None,
     return generator.autoupdate_manifest(manifest, meta_version=meta_version,
                                          key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
                                          files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
-                                         packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack})
+                                         packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack},
+                                         force=force, fail_if_no_change=not quiet_on_no_change)
 
 # Pull commands #
 pullcli = click.Group('pull', help='Pull manifests and content from upstream')
