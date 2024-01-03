@@ -3,7 +3,7 @@
 #> Imports
 import typing
 from pathlib import Path
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 #</Imports
 
 #> Header >/
@@ -41,7 +41,7 @@ class CascadeError(BoundManifestException):
 class CascadeOverrideError(CascadeError):
     '''An attempt was made to add a key that had already vouched for another key in the cascade'''
     __slots__ = ('overridden',)
-    def __init__(self, manifest: 'Manifest', overriden: str, *args, **kwargs):
+    def __init__(self, manifest: 'Manifest', overriden: EdPrivK, *args, **kwargs):
         self.overriden = overriden
         super().__init__(manifest, *args, **kwargs)
 class IllegalCascadeNoteError(CascadeError):
