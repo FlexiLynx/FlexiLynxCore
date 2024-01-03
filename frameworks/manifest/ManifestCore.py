@@ -64,8 +64,10 @@ class Manifest:
         if not exclude_sig: return man_packer.pack(self.as_dict())
         return man_packer.pack({k: ({vk: vv for vk,vv in v.items() if vk != 'signature'} if k == 'crypt' else v)
                                 for k,v in self.as_dict().items()})
-    def sign(self, private_key: EdPrivK):
+    def sign(self, private_key: EdPrivK | Path):
         '''Signs this Manifest and embeds the public key and signature into it'''
+        if isinstance(private_key, Path):
+            private_key = EdPrivK.from_private_bytes(private_key.read())
         self.crypt.public_key = private_key.public_key()
         self.crypt.signature = private_key.sign(self.pack(exclude_sig=True))
     def verify(self, public_key: EdPubK | None = None, fail_on_missing: bool = True) -> bool:
