@@ -92,7 +92,7 @@ class Manifest:
             self.crypt.key_remap_cascade = {}
         if ((pkpb := prev_key.public_key().public_bytes_raw()) not in self.crypt.key_remap_cascade) or overwrite:
             self.crypt.key_remap_cascade |= {pkpb: (note, new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
-        else: raise CascadeOverrideError(self, 'prev_key has already vouched for a key, pass overwrite=True to overwrite')
+        else: raise CascadeOverrideError(self, prev_key, 'prev_key has already vouched for a key, pass overwrite=True to overwrite')
     CASC_EMPTY = 1
     CASC_INIT_BROKEN = 2
     CASC_BROKEN = 3
