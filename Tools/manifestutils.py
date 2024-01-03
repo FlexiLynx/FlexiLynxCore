@@ -291,7 +291,16 @@ def encodings(manifest: Manifest, *, test_data_source: typing.BinaryIO | None, t
                f'Hashed test data:          {hsh.digest()!r}\n'
                f'Hashed test data hexdigest: {hsh.hexdigest()!r}\n'
                f'Encoded hashed test data:   {manifest.crypt._encode_(hsh.digest())!r}')
-
+# crypt inspect signing
+@inspectcli.command()
+@w_input
+def signing(manifest: Manifest):
+    '''Shows MANIFEST's signature and public key in various formats'''
+    for be in BYTE_ENCODINGS:
+        m = getattr(base64, f'{be}encode')
+        click.echo(f'{">" if be == manifest.crypt.byte_encoding else " "}{be}:\n'
+                   f' - sig: {m(manifest.crypt.signature).decode()}\n'
+                   f' - key: {m(manifest.crypt.public_key.public_bytes_raw()).decode()}')
 # Execute commands #
 execcli = click.Group('exec', help='Execute various manifest features')
 cli.add_command(execcli)
