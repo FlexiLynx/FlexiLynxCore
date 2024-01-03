@@ -31,17 +31,17 @@ class FlexiSpaceFinder(MetaPathFinder):
 
 class TFlexiSpace(ModuleType):
     '''Provides a way to recursively define and use namespaces as importable modules'''
-    __slots__ = ('_FS_initialized_', '_FS_do_assimilate_', '_FS_metafinder_', '_FS_parents_', '_FS_key_')
+    __slots__ = ('_FS_initialized_', '_FS_assimilate_', '_FS_metafinder_', '_FS_parents_', '_FS_key_')
 
     __FS_sys_is_finalizing = sys.is_finalizing # keep reference even if `sys` name is collected
 
-    def __init__(self, name: str, doc: str | None = None, *, assimilate: bool = False, _parent: typing.Self | None = None):
+    def __init__(self, name: str, doc: str | None = None, *, assimilate: bool = False, intrusive_assimilate: bool = True, _parent: typing.Self | None = None):
         if _parent is None:
             self._FS_parents_ = ()
             self._FS_key_ = (name,)
             self._FS_metafinder_ = FlexiSpaceFinder(self)
             sys.meta_path.append(self._FS_metafinder_)
-            self._FS_do_assimilate_ = assimilate
+            self._FS_assimilate_ = assimilate * (1+intrusive_assimilate)
             self.__package__ = None
         else:
             self._FS_parents_ = _parent._FS_parents_+(_parent,)
@@ -56,19 +56,24 @@ class TFlexiSpace(ModuleType):
         sys.meta_path.remove(self._FS_metafinder_)
     def __setattr__(self, attr: str, val: typing.Any):
         if isinstance(val, ModuleType) and getattr(self, '_FS_initialized_', False):
-            if (~self)._FS_do_assimilate_ and (not isinstance(val, self.__class__)):
+            if (~self)._FS_assimilate_ and (not isinstance(val, self.__class__)):
                 val = self._assimilate(val, attr)
             sys.modules[f'{self.__name__}.{attr}'] = val
         super().__setattr__(attr, val)
 
     def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self:
-        '''Converts a `ModuleType` into a `TFlexiSpace`'''
-        amod = self.__class__(as_, getattr(mod, '__doc__', None), _parent=self)
-        amod.__dict__.update({a: amod._assimilate(v, a)
-                              if (a in getattr(mod, '__all__', ())
-                                  and isinstance(v, ModuleType)
-                                  and not isinstance(v, self.__class__)
-                              ) else v for a,v in mod.__dict__.items() if a not in {'__name__', '__package__'}})
+        '''Converts a `ModuleType` into a `TFlexiSpace`, and sets __module__ attributes if intrusive_assimilate was set'''
+        amod = type(self)(as_, getattr(mod, '__doc__', None), _parent=self)
+        public = set(getattr(mod, '__all__', set()))
+        for a,v in mod.__dict__.items():
+            if isinstance(v, ModuleType) and not isinstance(v, self.__class__) and a in public:
+                v = amod._assimilate(v, a) # recursively assimilate public sub-modules
+            elif ((~self)._FS_assimilate_ > 1) and (getattr(v, '__module__', None) == mod.__name__):
+                try: v.__module__ = amod.__name__
+                except Exception:
+                    try: super(type(v), v).__setattr__('__module__', amod.__name__) # try forceful override
+                    except Exception: pass
+            super(type(self), amod).__setattr__(a, v)
         return amod
 
     def _get_tree(self, key: str | tuple[str, ...]) -> typing.Self:
