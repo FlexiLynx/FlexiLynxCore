@@ -12,6 +12,7 @@ import typing
 from io import SEEK_SET
 from pathlib import Path
 from urllib import request
+from ast import literal_eval
 from importlib import util as iutil
 from functools import partial, wraps
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
@@ -415,6 +416,20 @@ def manifest(sign: typing.BinaryIO | None,
 # Modify commands #
 modcli = click.Group('mod', help='Modify manifests in various generic ways (updating, etc.)')
 cli.add_command(modcli)
+# mod edit
+@modcli.command()
+@w_io
+@click.argument('values', nargs=-1)
+def edit(manifest: Manifest, *, values: tuple[str, ...]) -> Manifest:
+    if (len(values) % 2):
+        raise TypeError('An even number of arguments should be supplied (in "key" "value" pairs)')
+    for k,v in zip(values[::2], values[1::2]):
+        if k.count('.') == 0:
+            setattr(manifest, k, literal_eval(v))
+        elif len(k := k.split('.')) == 2:
+            setattr(getattr(manifest, k[0]), k[1], v)
+        else: raise ValueError(f'Key {".".join(k)!r} has too many "."')
+    return manifest
 # mod extract
 @modcli.command()
 @w_input
