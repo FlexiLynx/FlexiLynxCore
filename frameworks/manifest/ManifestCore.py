@@ -68,13 +68,15 @@ class Manifest:
         '''Signs this Manifest and embeds the public key and signature into it'''
         self.crypt.public_key = private_key.public_key()
         self.crypt.signature = private_key.sign(self.pack(exclude_sig=True))
-    def verify(self, public_key: EdPubK | None = None) -> bool:
+    def verify(self, public_key: EdPubK | None = None, fail_on_missing: bool = True) -> bool:
         '''Verifies this Manifest with the given public key, or the embedded key if a key isn't supplied'''
         if public_key is None:
             if self.crypt.public_key is None:
+                if not fail_on_missing: return False
                 raise AttributeError('crypt.public_key field is missing and no public key was supplied')
             public_key = self.crypt.public_key
         if self.crypt.signature is None:
+            if not fail_on_missing: return False
             raise AttributeError('crypt.signature field is missing')
         try: public_key.verify(self.crypt.signature, self.pack(exclude_sig=True))
         except InvalidSignature: return False
