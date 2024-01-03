@@ -146,7 +146,7 @@ class FlexiSpaceFinder(MetaPathFinder):
 
 class TFlexiSpace(ModuleType):
     '''Provides a way to recursively define and use namespaces as importable modules'''
-    __slots__ = ('_FS_initialized_', '_FS_assimilate_', '_FS_metafinder_', '_FS_parents_', '_FS_key_')
+    __slots__ = ('_FS_dict_', '_FS_initialized_', '_FS_assimilate_', '_FS_metafinder_', '_FS_parents_', '_FS_key_')
 
     __FS_sys_is_finalizing = sys.is_finalizing # keep reference even if `sys` name is collected
 
@@ -154,8 +154,9 @@ class TFlexiSpace(ModuleType):
     __FS_ASSIMILATE_INTRUSIVE  = 0b010
     __FS_ASSIMILATE_AGGRESSIVE = 0b100
 
-    def __init__(self, name: str, doc: str | None = None, *, _parent: typing.Self | None = None,
+    def __init__(self, name: str, doc: str | None = None, *, _parent: typing.Self | None = None, _dict: dict | None = None,
                  assimilate: bool = False, intrusive_assimilate: bool = True, aggressive_assimilate: bool = True):
+        self._FS_dict_ = DictJoiner(self.__dict__) if _dict is None else DictJoiner(self.__dict__, _dict)
         if _parent is None:
             self._FS_parents_ = ()
             self._FS_key_ = (name,)
@@ -173,16 +174,29 @@ class TFlexiSpace(ModuleType):
             self.__package__ = '.'.join(self._FS_key_[:-1])
         self._FS_initialized_ = True
         super().__init__('.'.join(self._FS_key_), doc)
+        self._FS_dict_.sync(True)
     def __del__(self):
         if self.__FS_sys_is_finalizing() or (self._FS_metafinder_ is None): return
         sys.meta_path.remove(self._FS_metafinder_)
-    def __setattr__(self, attr: str, val: typing.Any):
-        if isinstance(val, ModuleType) and getattr(self, '_FS_initialized_', False):
+    def __getattr__(self, attr: str) -> typing.Any:
+        try:
+            return super().__getattribute__('_FS_dict_')[attr]
+        except KeyError:
+            raise AttributeError(attr)
+    def __setattr__(self, attr: str, val: typing.Any, *, _no_assimilate: bool = False):
+        if not getattr(self, '_FS_initialized_', False):
+            super().__setattr__(attr, val)
+            return
+        if (not _no_assimilate) and isinstance(val, ModuleType):
             if (~self)._FS_assimilate_ and (not isinstance(val, self.__class__)):
                 val = self._assimilate(val, attr)
             sys.modules[f'{self.__name__}.{attr}'] = val
-        super().__setattr__(attr, val)
+        self._FS_dict_[attr] = val
 
+    def _aggressive_assimilate(self, mod: ModuleType, as_: str, doc: str | None) -> typing.Self:
+        new = type(self).__new__(type(self))
+        new.__init__(as_, doc, _parent=self, _dict=mod.__dict__)
+        return new
     def _intrusive_assimilate(self, obj: type('HasDunderModule', (typing.Protocol,), {'__module__': ''})):
         '''Sets __module__ attributes of an object (if possible)'''
         try: obj.__module__ = self.__name__
@@ -195,13 +209,14 @@ class TFlexiSpace(ModuleType):
         except Exception: pass
     def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self:
         '''Converts a `ModuleType` into a `TFlexiSpace`'''
-        amod = type(self)(as_, getattr(mod, '__doc__', None), _parent=self)
         if ((~self)._FS_assimilate_ & self.__FS_ASSIMILATE_AGGRESSIVE):
-            raise NotImplementedError('Aggressive assimilate not yet implemented')
+            amod = self._aggressive_assimilate(mod, as_, getattr(mod, '__doc__', None))
+        else:
+            amod = type(self)(as_, getattr(mod, '__doc__', None), _parent=self)
         public = set(getattr(mod, '__all__', set()))
         for a,v in mod.__dict__.items():
             if a not in public:
-                super(type(self), amod).__setattr__(a, v)
+                amod.__setattr__(a, v, _no_assimilate=True)
                 continue
             if isinstance(v, ModuleType) and not isinstance(v, self.__class__):
                 v = amod._assimilate(v, a) # recursively assimilate public sub-modules (that aren't FlexiSpace modules)
