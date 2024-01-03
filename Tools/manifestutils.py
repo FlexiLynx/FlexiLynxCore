@@ -420,12 +420,13 @@ cli.add_command(modcli)
 @modcli.command()
 @w_io
 @click.argument('values', nargs=-1)
-def edit(manifest: Manifest, *, values: tuple[str, ...]) -> Manifest:
+@click.option('--raw-mode', help='Treat all values as strings instead of literals', is_flag=True, default=False)
+def edit(manifest: Manifest, *, values: tuple[str, ...], raw_mode: bool) -> Manifest:
     if (len(values) % 2):
         raise TypeError('An even number of arguments should be supplied (in "key" "value" pairs)')
     for k,v in zip(values[::2], values[1::2]):
         if k.count('.') == 0:
-            setattr(manifest, k, literal_eval(v))
+            setattr(manifest, k, v if raw_mode else literal_eval(v))
         elif len(k := k.split('.')) == 2:
             setattr(getattr(manifest, k[0]), k[1], v)
         else: raise ValueError(f'Key {".".join(k)!r} has too many "."')
