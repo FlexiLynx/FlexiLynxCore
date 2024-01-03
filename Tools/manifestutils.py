@@ -422,6 +422,15 @@ cli.add_command(modcli)
 @click.argument('values', nargs=-1)
 @click.option('--raw-mode', help='Treat all values as strings instead of literals', is_flag=True, default=False)
 def edit(manifest: Manifest, *, values: tuple[str, ...], raw_mode: bool) -> Manifest:
+    '''
+        Edit MANIFEST's values
+
+        \b
+        Arguments are given in "key" "value" pairs, as such:
+            id 'newtest' upstream.manifest 'https://github.com/'
+        If --raw-mode is given, then values are interpreted as strings instead of through `literal_eval()`:
+            --raw-mode id newtest upstream.manifest https://github.com/
+    '''
     if (len(values) % 2):
         raise TypeError('An even number of arguments should be supplied (in "key" "value" pairs)')
     for k,v in zip(values[::2], values[1::2]):
