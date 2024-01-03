@@ -88,6 +88,9 @@ class DictUnion(UserDict):
         return self
 
     # Overriden dict methods
+    def clear(self):
+        for d in self.dicts: d.clear()
+    ## Getting
     def keys(self) -> set[typing.Hashable]:
         return set(k for k,v in self.items())
     def values(self) -> tuple[typing.Any]:
@@ -121,8 +124,7 @@ class DictJoiner(DictUnion):
         if sync_on_init: self.sync(init_force_order)
     def sync(self, force_order: bool = False):
         items = self.items()
-        if force_order:
-            for d in self.dicts: d.clear()
+        if force_order: self.clear()
         for k,v in items: self[k] = v
 
 class FlexiSpaceLoader(Loader):
