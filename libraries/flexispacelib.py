@@ -3,7 +3,7 @@
 #> Imports
 import sys
 import typing
-from functools import reduce
+from copy import deepcopy
 from types import ModuleType
 from collections import UserDict
 from collections.abc import KeysView, ValuesView, ItemsView
@@ -102,6 +102,17 @@ class DictUnion(UserDict):
         for d in self.dicts:
             yield from ((k,v) for k,v in d.items() if k not in seen)
             seen.update(d.keys())
+
+    # Copy methods
+    copy = __reduce__
+    def __copy__(self) -> typing.Self:
+        return type(self)(*map(dict.copy, self.dicts), default_set_dict=getattr(self, '_default_set_dict', None), op_all=self.op_all)
+    def __deepcopy__(self, memo: dict = {}) -> typing.Self:
+        copy = type(self).__new__(type(self))
+        memo[id(self)] = copy
+        return type(self)(*(deepcopy(d, memo) for d in self.dicts),
+                          default_set_dict=deepcopy(getattr(self, '_default_set_dict', None), memo), op_all=self.op_all)
+
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
