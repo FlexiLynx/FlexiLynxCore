@@ -101,7 +101,12 @@ class Store(UserDict):
 
     def __getitem__(self, id: str) -> dict | typing.Any:
         t = self.data
-        for p in id.split('.'):
+        id = id.split('.')
+        for i,p in enumerate(id):
+            if p not in t:
+                if i >= len(id):
+                    raise KeyError('.'.join(id))
+                self.populate('.'.join(id[:-1]))
             t = t[p]
         return t
     def __setitem__(self, item: typing.Never, value: typing.Never):
