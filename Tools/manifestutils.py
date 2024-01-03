@@ -406,12 +406,11 @@ def manifest(sign: typing.BinaryIO | None,
         BY is the name (or any identifier) of the manifest's creator\n
         MANIFEST_UPSTREAM and FILE_UPSTREAM correspond to where manifest updates and content updates are fetched from
     '''
-    man = generator.autogen_manifest(**kwargs,
-                                     key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
-                                     files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
-                                     packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack},
-                                     min_python_version=None if no_minimum_version else min_version)
-    return man
+    return generator.autogen_manifest(**kwargs,
+                                      key=None if sign is None else EdPrivK.from_private_bytes(sign.read()), do_sign=sign is not None,
+                                      files=generator.FilePack(root=default_root, include_glob=include, exclude_glob=exclude),
+                                      packs={n: generator.FilePack(root=r, include_glob=include, exclude_glob=exclude) for n,r in pack},
+                                      min_python_version=None if no_minimum_version else min_version)
 
 # Modify commands #
 modcli = click.Group('mod', help='Modify manifests in various generic ways (updating, etc.)')
