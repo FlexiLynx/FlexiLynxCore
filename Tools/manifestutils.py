@@ -7,6 +7,7 @@ import click
 import base64
 import shlex
 import hashlib
+import random
 import typing
 from io import SEEK_SET
 from pathlib import Path
@@ -273,6 +274,23 @@ inspectcli = click.Group('inspect', help='Inspect various cryptographic faciliti
 cryptcli.add_command(inspectcli)
 # crypt inspect cascade
 inspectcli.add_command(map_, 'cascade')
+# crypt inspect encodings
+@inspectcli.command()
+@w_input
+@click.option('--test-data-source', type=click.File('rb'), help='The file/stream to get testing data from (defaults to generating them in-script instead)', default=None)
+@click.option('--test-data-size', help='The amount of bytes to read from the --test-data-source', default=24)
+def encodings(manifest: Manifest, *, test_data_source: typing.BinaryIO | None, test_data_size: int):
+    '''Shows and demonstrates MANIFEST's chosen encoding and hash algorithm'''
+    td = random.randbytes(test_data_size) if test_data_source is None else test_data_source.read(test_data_size)
+    hsh = hashlib.new(manifest.crypt.hash_algorithm, td)
+    click.echo(f'Byte-encoding:              {manifest.crypt.byte_encoding!r}\n'
+               f'Hashing algorithm:          {manifest.crypt.hash_algorithm!r}\n'
+               f'Test data:                 {td!r}\n'
+               f'Encoded test data:          {manifest.crypt._encode_(td)!r}\n'
+               f'Decoded encoded test data: {manifest.crypt._decode_(manifest.crypt.byte_encoding, manifest.crypt._encode_(td))!r}\n'
+               f'Hashed test data:          {hsh.digest()!r}\n'
+               f'Hashed test data hexdigest: {hsh.hexdigest()!r}\n'
+               f'Encoded hashed test data:   {manifest.crypt._encode_(hsh.digest())!r}')
 
 # Execute commands #
 execcli = click.Group('exec', help='Execute various manifest features')
