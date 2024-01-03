@@ -7,6 +7,6 @@
     'https://raw.githubusercontent.com/FlexiLynx/FlexiLynxCore/main/' \
     --default-root . --include '**/*.py' --exclude 'Tools/*' \
     --sign ../shae.pyk \
-    --min-version 3 12 2 \
+    --min-version 3 12 0 \
     --meta-version "commit $(git rev-parse --short HEAD)" \
     --output '../ManifestStore/FlexiLynx/Core.manifest.ini'
