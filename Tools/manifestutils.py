@@ -257,6 +257,16 @@ def remap(manifest: Manifest, *, old: typing.BinaryIO, new: typing.BinaryIO, not
                    EdPubK.from_public_bytes(new.read()) if new_is_public
                    else EdPrivK.from_private_bytes(new.read()).public_key(), overwrite, note)
     return manifest
+# crypt cascade unmap
+@cascadecli.command()
+@w_io
+@click.argument('key', type=click.File('rb'))
+@click.option('--is-public', help='Treat KEY as a public key instead of a private key', is_flag=True, default=False)
+def unmap(manifest: Manifest, *, key: typing.BinaryIO, is_public: bool) -> Manifest:
+    '''Removes a key from the cascade'''
+    del manifest.crypt.key_remap_cascade[key.read()
+        if is_public else EdPrivK.from_private_bytes(key.read()).public_key().public_bytes_raw()]
+    return manifest
 
 # Execute commands #
 execcli = click.Group('exec', help='Execute various manifest features')
