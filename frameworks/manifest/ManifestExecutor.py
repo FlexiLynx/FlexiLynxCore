@@ -12,11 +12,11 @@ import multiprocessing
 from pathlib import Path
 from urllib import request
 from functools import partial
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
 from . import ManifestTypes as mtypes
 from .ManifestCore import Manifest, load_packed, load_json, load_ini, load_to_render
+from .ManifestExceptions import *
 
 from FlexiLynx import logger
 #</Imports
@@ -36,36 +36,36 @@ def is_insane(m: Manifest, fail_on_unsupported_version: bool = True):
             This includes verification
         Throws a:
             `AttributeError` if fields are missing
-            `cryptography.exceptions.InvalidSignature` if verification fails
-            `TypeError` if the manifest is of an unknown type
-            `ValueError` if the manifest is of "other" type but specifies relatedepends fields "before", "after", and/or "requires"
-            `NotImplementedError` if the byte encoding or hashing algorithm are not supported
-            `RuntimeError` if the manifest does not support the current version (UserWarning if fail_on_unsupported_version is False)
-            `TimeoutError` if the manifest's last update time is before its first creation time
+            `InsaneSignatureError` if verification fails
+            `UnknownTypeError` if the manifest is of an unknown type
+            `OtherRelationsError` if the manifest is of "other" type but specifies relatedepends fields "before", "after", and/or "requires"
+            `UnknownHashAlgorithmError`/`UnknownByteEncodingError` if the byte encoding or hashing algorithm are not supported
+            `UnsupportedVersionError` if the manifest does not support the current version (UserWarning if fail_on_unsupported_version is False)
+            `TimeTravelError` if the manifest's last update time is before its first creation time
             `UserWarning` if the manifest does not support the current Python implementation or system platform
     '''
     # Verify
     if not m.verify():
-        raise InvalidSignature('Manifest verification failed')
+        raise InsaneSignatureError(m, 'Manifest verification failed')
     # Check type
     if not m.type in {'module', 'plugin', 'other'}:
-        raise TypeError(f'Manifest is of an unknown type "{m.type}"')
+        raise UnknownTypeError(m, f'Manifest is of an unknown type "{m.type}"')
     if m.type == 'other':
         if fields := tuple(f for f in ('before', 'after', 'requires') if getattr(m.relatedepends, f)):
-            raise ValueError(f'Manifest is of type "other", but illegally specifies "{", ".join(fields)}" in relatedepends')
+            raise OtherRelationsError(m, f'Manifest is of type "other", but illegally specifies "{", ".join(fields)}" in relatedepends')
     # Check support
     if not (he := m.crypt.hash_algorithm) in hashlib.algorithms_available:
-        raise NotImplementedError(f'Manifest speaks of an unknown hashing algorithm "{he}"')
+        raise UnknownHashAlgorithmError(m, he, f'Manifest speaks of an unknown hashing algorithm "{he}"')
     if not (be := m.crypt.byte_encoding) in set(e.removesuffix('decode') for e in dir(base64) if e.endswith('decode') and e != 'decode'):
-        raise NotImplementedError(f'Manifest encodes bytes in an unknown format "{be}"')
+        raise UnknownByteEncodingError(m, be, f'Manifest encodes bytes in an unknown format "{be}"')
     # Check version
-    if ((mv := m.relatedepends.min_python_version) is not None) and (cv := sys.version_info[:3]) < m.relatedepends.min_python_version:
+    if ((mv := m.relatedepends.min_python_version) is not None) and (cv := sys.version_info[:3]) < mv:
         msg = f'Manifest demands a Python version of {".".join(mv)}, but you are running {".".join(cv)}'
-        if fail_on_unsupported_version: raise RuntimeError(msg)
+        if fail_on_unsupported_version: raise UnsupportedVersionError(m, mv, msg)
         else: warnings.warn(UserWarning(msg))
     # Check time
     if (delta := (m.version.first_creation_time - m.version.last_update_time)) > 1: # allow a buffer of 1 sec
-        raise TimeoutError(f'Manifest was apparently last updated {delta} seconds before its original creation')
+        raise TimeTravelError(m, delta, f'Manifest was apparently last updated {delta} seconds before its original creation')
     # Check implementation and platform
     if (ci := sys.implementation.name) != (ti := m.relatedepends.python_implementation):
         warnings.warn(UserWarning(f'Manifest is designed for Python "{ti}", but you are using "{ci}". Things may not work as intended!'))
@@ -101,7 +101,7 @@ def get_content(m: Manifest, root: Path = Path('.'), pack: str | None = None) ->
     use_pack = pack is not None
     if not m.contentinfo.use_packs:
         if use_pack:
-            raise ValueError('Cannot specify a pack when packs are not used by this manifest')
+            raise PacksDisabledError(m, 'Cannot specify a pack when packs are not used by this manifest')
         return ((root/f, h) for f,h in m.contentdata.items())
     # note: in `f.split('@', use_pack)[use_pack]`, use_pack is used as an integer
     return ((root / f, h) for f,h in (
@@ -119,7 +119,7 @@ def try_load_manifest(data: bytes, methods: tuple[typing.Callable[[bytes], Manif
         except Exception as e:
             mlogger.info('Could not decode %d byte(s) via %s(); got %s',
                          len(data), m.__name__, (''.join(traceback.format_exception_only(e))).strip())
-    raise TypeError('All handlers failed to load the manifest')
+    raise CorruptedFileError('All handlers failed to load the manifest', data=data)
 def fetch_upstream(local: Manifest) -> Manifest:
     # Fetch
     mlogger.info('Fetching upstream of "%s" manifest "%s" from %s',
@@ -140,7 +140,7 @@ def verify_upstream(local: Manifest, upstream: Manifest):
     # Check upstream signature
     mlogger.warning('Checking upstream manifest against its own signature')
     if not upstream.verify():
-        raise InvalidSignature('Upstream manifest failed verification')
+        raise CrossInvalidSignatureError(local, upstream, 'Upstream manifest failed verification')
     # Handle cascades
     if local.crypt.public_key != upstream.crypt.public_key:
         mlogger.warning('Upstream crypt.public_key differs from local, entering cascade')

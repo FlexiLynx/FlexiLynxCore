@@ -16,6 +16,7 @@ from ast import literal_eval
 from configparser import ConfigParser
 
 from .ManifestTypes import *
+from .ManifestExceptions import *
 
 from FlexiLynx.core import packlib
 #</Imports
@@ -88,7 +89,7 @@ class Manifest:
             self.crypt.key_remap_cascade = {}
         if ((pkpb := prev_key.public_key().public_bytes_raw()) not in self.crypt.key_remap_cascade) or overwrite:
             self.crypt.key_remap_cascade |= {pkpb: (new_key.public_bytes_raw(), prev_key.sign(new_key.public_bytes_raw()))}
-        else: raise NameError('prev_key has already vouched for a key, pass overwrite=True to overwrite')
+        else: raise CascadeOverrideError(self, 'prev_key has already vouched for a key, pass overwrite=True to overwrite')
     CASC_EMPTY = 1
     CASC_INIT_BROKEN = 2
     CASC_BROKEN = 3
@@ -105,21 +106,21 @@ class Manifest:
                 3) `current_key` == `target_key`, so the key is trustworthy
             This function returns None upon a success
             Keys can (normally) fail the cascade in the following ways (returning the int if `no_fail`, otherwise raising the exception):
-                CASC_EMPTY/NotImplementedError, if the cascade is "empty" (evaluates as "falsey", normally an empty dict or None)
-                CASC_INIT_BROKEN/LookupError, if the *original* `target_key` isn't in the cascade
-                CASC_BROKEN/EOFError, if the cascade is "broken" (an intermediate/referenced key isn't in the cascade)
-                CASC_SIG_REJECTED/ValueError from cryptography.exceptions.InvalidSignature, if a signature isn't correct
-                CASC_CIRCULAR/RecursionError, if a circular cascade is detected
+                CASC_EMPTY/EmptyCascadeError, if the cascade is "empty" (evaluates as "falsey", normally an empty dict or None)
+                CASC_INIT_BROKEN/InitBrokenCascadeError(BrokenCascadeError), if the *original* `target_key` isn't in the cascade
+                CASC_BROKEN/BrokenCascadeError, if the cascade is "broken" (an intermediate/referenced key isn't in the cascade)
+                CASC_SIG_REJECTED/CascadeSignatureError from cryptography.exceptions.InvalidSignature, if a signature isn't correct
+                CASC_CIRCULAR/CircularCascadeError, if a circular cascade is detected
                     Note that despite the exception used, the current implementation does not use recursion, but rather keeps track of seen keys manually
         '''
         if current_key is None: current_key = self.crypt.public_key
         if __debug__: debug_callback('check', (current_key.public_bytes_raw(), target_key.public_bytes_raw()))
         if not self.crypt.key_remap_cascade:
             if no_fail: return self.CASC_EMPTY
-            raise NotImplementedError('cascade is empty')
+            raise EmptyCascadeError(self, 'cascade is empty')
         if current_key.public_bytes_raw() not in self.crypt.key_remap_cascade:
             if no_fail: return self.CASC_INIT_BROKEN
-            raise LookupError(f'cascade rejected: broken off at initial key {self.crypt._encode_(ckb)}')
+            raise InitBrokenCascadeError(self, current_key, f'cascade rejected: broken off at initial key {self.crypt._encode_(current_key.public_bytes_raw())}')
         seen = set()
         while (ckb := current_key.public_bytes_raw()) not in seen:
             if current_key == target_key:
@@ -127,17 +128,17 @@ class Manifest:
                 return None
             if ckb not in self.crypt.key_remap_cascade:
                 if no_fail: return self.CASC_BROKEN
-                raise EOFError(f'cascade rejected: broken off at {self.crypt._encode_(ckb)}')
+                raise BrokenCascadeError(self, current_key, f'cascade rejected: broken off at {self.crypt._encode_(ckb)}')
             nkey,sig = self.crypt.key_remap_cascade[ckb]
             if __debug__: debug_callback('found', (nkey, sig))
             try: current_key.verify(sig, nkey)
-            except cryptography.exceptions.InvalidSignature:
+            except InvalidSignature:
                 if no_fail: return self.CASC_SIG_REJECTED
-                raise ValueError(f'cascade rejected: {self.crypt._encode_(ckb)} does not really vouch for {self.crypt._encode_(nkey)}')
+                raise CascadeSignatureError(self, f'cascade rejected: {self.crypt._encode_(ckb)} does not really vouch for {self.crypt._encode_(nkey)}')
             if __debug__: debug_callback('verify', (ckb, sig, nkey))
             current_key = EdPubK.from_public_bytes(nkey)
         if no_fail: return self.CASC_CIRCULAR
-        raise RecursionError(f'cascade rejected: circular cascade detected surrounding {self.crypt._encode_(ckb)}')
+        raise CircularCascadeError(self, f'cascade rejected: circular cascade detected surrounding {self.crypt._encode_(ckb)}')
 # Rendering & loading
 ## packlib
 PACK_HEADER = b'\x00\xFFmpack\xFF\x00'
@@ -148,7 +149,7 @@ def load_packed(p: bytes, take_header: bool = True) -> Manifest:
     '''Loads a Manifest from bytes via packlib'''
     if take_header:
         if not p.startswith(PACK_HEADER):
-            raise TypeError('pack rejected - missing header')
+            raise MissingPackHeaderError('pack rejected - missing header', data=p)
         p = p.removeprefix(PACK_HEADER)
     return Manifest.from_dict(man_packer.unpack(p)[0])
 ## JSON
