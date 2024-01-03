@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from functools import reduce
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
 
-from .ManifestCore import Manifest
-from .ManifestTypes import *
+from .core import Manifest
+from .mtypes import *
 #</Imports
 
 #> Header >/

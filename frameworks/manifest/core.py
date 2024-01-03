@@ -15,8 +15,8 @@ import json
 from ast import literal_eval
 from configparser import ConfigParser
 
-from .ManifestTypes import *
-from .ManifestExceptions import *
+from .mtypes import *
+from .exceptions import *
 
 from FlexiLynx.core import packlib
 #</Imports

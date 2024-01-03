@@ -14,9 +14,9 @@ from urllib import request
 from functools import partial
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
-from . import ManifestTypes as mtypes
-from .ManifestCore import Manifest, load_packed, load_json, load_ini, load_to_render
-from .ManifestExceptions import *
+from . import mtypes
+from .core import Manifest, load_packed, load_json, load_ini, load_to_render
+from .exceptions import *
 
 from FlexiLynx import logger
 #</Imports

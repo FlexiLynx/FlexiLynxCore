@@ -48,7 +48,7 @@ if __name__ == '__main__':
     __init__()
 
     _core = FlexiLynx.core
-    privkey = _core.frameworks.manifest.ManifestCore.EdPrivK.generate()
+    privkey = _core.frameworks.manifest.core.EdPrivK.generate()
     man = _core.frameworks.manifest.Manifest(
         id='testmod', real_version=0, type='module', format_version=1,
         upstream=_core.frameworks.manifest.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
