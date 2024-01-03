@@ -42,7 +42,7 @@ def auto_format(f: typing.BinaryIO) -> str:
     if suff == 'pakd': return 'pack'
     raise ValueError(f'Cannot automatically determine format of {f.name} (suff: {suff!r})')
 def h_output(out: typing.BinaryIO, man: Manifest, fmt: typing.Literal['auto', 'ini', 'json', 'pack']):
-    if not man.verify():
+    if not man.verify(fail_on_missing=False):
         click.echo('The manifest is dirty, signing it is recommended')
     click.echo(f'\nWrote {out.write({"ini": render_ini, "json": render_json, "pack": render_pack}[auto_format(out) if fmt == "auto" else fmt](man))} byte(s) to {out.name}', file=sys.stderr)
 def h_input(inp: typing.BinaryIO, fmt: typing.Literal['auto', 'ini', 'json', 'pack']) -> Manifest:
