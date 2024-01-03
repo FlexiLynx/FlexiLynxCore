@@ -146,7 +146,7 @@ cli.add_command(cryptcli)
 @w_2input
 def cross_verify(manifest_a: Manifest, manifest_b: Manifest):
     '''Verify that MANIFEST_B is a valid update for MANIFEST_A'''
-    executor.verify_upstream(manifest_a, manifest_b)
+    remote.verify_upstream(manifest_a, manifest_b)
 # crypt genkey
 cryptcli.add_command(m_genkey, 'genkey')
 # crypt sign
@@ -508,7 +508,7 @@ def manifest(manifest: Manifest, *, raw: bool, no_auth: bool, show_diff: bool) -
     if raw:
         with request.urlopen(manifest.upstream.manifest) as r:
             return r.read()
-    return executor.self_update(manifest, print_diff=show_diff, auth=not no_auth)
+    return remote.self_update(manifest, print_diff=show_diff, auth=not no_auth)
 
 # Main #
 cli()

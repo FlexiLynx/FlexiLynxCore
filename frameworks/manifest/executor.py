@@ -10,12 +10,10 @@ import base64, hashlib
 import typing
 import multiprocessing
 from pathlib import Path
-from urllib import request
 from functools import partial
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
-from . import mtypes
-from .core import Manifest, load_packed, load_json, load_ini, load_to_render
+from .core import Manifest
 from .exceptions import *
 
 from FlexiLynx import logger
@@ -23,9 +21,9 @@ from FlexiLynx import logger
 
 #> Header >/
 __all__ = ('is_insane', 'render_info', 'get_content',
-           'try_load_manifest', 'fetch_upstream', 'verify_upstream',
+           'try_load_manifest',
            'ManifestDiff', 'ContentDiff',
-           'self_update', 'install', 'uninstall')
+           'install', 'uninstall')
 
 mlogger = logger.getChild('core.fw.manifests')
 
@@ -120,37 +118,6 @@ def try_load_manifest(data: bytes, methods: tuple[typing.Callable[[bytes], Manif
             mlogger.info('Could not decode %d byte(s) via %s(); got %s',
                          len(data), m.__name__, (''.join(traceback.format_exception_only(e))).strip())
     raise CorruptedFileError('All handlers failed to load the manifest', data=data)
-def fetch_upstream(local: Manifest) -> Manifest:
-    # Fetch
-    mlogger.info('Fetching upstream of "%s" manifest "%s" from %s',
-                 local.type, local.metadata.name, local.upstream.manifest)
-    with request.urlopen(local.upstream.manifest) as r:
-        data = r.read()
-    mlogger.verbose('Fetched %d byte(s) from %s',
-                    len(data), local.upstream.manifest)
-    # (try to) Guess its type and parse it
-    suff = Path(local.upstream.manifest).suffix.split('.')[-1].lower()
-    order = ((load_json, load_ini, load_packed) if suff == 'json' else
-             (load_packed, load_ini, load_json) if suff in {'pak', 'pakd', 'packd', 'packed'} else
-             (load_ini, load_json, load_packed))
-    mlogger.info('Attempting to decode %d byte(s)', len(data))
-    mlogger.verbose(' using methods:\n - %s\n - %s\n - %s', *(m.__name__ for m in order))
-    return try_load_manifest(data, order)[1]
-def verify_upstream(local: Manifest, upstream: Manifest):
-    # Check upstream signature
-    mlogger.warning('Checking upstream manifest against its own signature')
-    if not upstream.verify():
-        raise CrossInvalidSignatureError(local, upstream, 'Upstream manifest failed verification')
-    # Handle cascades
-    if local.crypt.public_key != upstream.crypt.public_key:
-        mlogger.warning('Upstream crypt.public_key differs from local, entering cascade')
-        upstream.chk_cascade(upstream.crypt.public_key, local.crypt.public_key, debug_callback=lambda type_, vals: mlogger.info({
-            'check': 'Entering cascade with %s, looking for {}',
-            'match': 'Key {} is trustworthy through cascade',
-            'found': 'Checking next key in cascade: {}',
-            'verify': '{0} cascades to {2}',
-        }[type_].format(*(local.crypt._encode_(v.public_bytes_raw() if isinstance(v, EdPubK) else v) for v in vals))))
-        mlogger.info('Cascade accepted: new public key %s is trusted', local.crypt._encode_(upstream.crypt.public_key.public_bytes_raw()))
 
 # Manifest diffs
 class _DiffBase:
@@ -263,17 +230,7 @@ class ContentDiff(_DiffBase):
         with multiprocessing.Pool(processes) as mp:
             return dict(mp.map(h, files))
 
-# Actual manifest execution
-## Manifest update
-def self_update(local: Manifest, upstream: Manifest | None = None, *, print_diff: bool = True, auth: bool = True) -> Manifest:
-    '''Updates a manifest'''
-    if upstream is None: upstream = fetch_upstream(local)
-    if print_diff: print(ManifestDiff(local, upstream))
-    if auth:
-        mlogger.warning('Authenticating upstream manifest')
-        verify_upstream(local, upstream)
-    return upstream
-## [un]Installation
+# [un]Installation
 def install(man: Manifest, root: Path = Path.cwd(), *, pack: str | None = None, dry_run: bool = False):
     ...
 def uninstall(man: Manifest, root: Path = Path.cwd(), *,
