@@ -232,6 +232,11 @@ class ContentDiff(_DiffBase):
 
 # [un]Installation
 def install(man: Manifest, root: Path = Path.cwd(), *, pack: str | None = None, dry_run: bool = False):
+    '''
+        Installs a given manifest
+
+        Note that if `pack` is given, the "root" (not part of a pack) content is not installed
+    '''
     ...
 def uninstall(man: Manifest, root: Path = Path.cwd(), *,
               pack: str | None = None, interactive: bool = True, ensure_all_installed: bool = True,
