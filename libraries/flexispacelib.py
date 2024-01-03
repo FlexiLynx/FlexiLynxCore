@@ -14,7 +14,11 @@ from importlib.machinery import ModuleSpec
 __all__ = ('TFlexiSpace', 'DictUnion')
 
 class DictUnion(UserDict):
-    '''Allows accessing multiple dictionaries as one'''
+    '''
+        Allows accessing multiple dictionaries as one
+
+        Similar concept to `collections.ChainMap`, but is somewhat lighter
+    '''
     __slots__ = ('dicts', 'default_set_dict')
 
     def __init__(self, *dicts: dict, default_set_dict: int = -1):
