@@ -3,8 +3,10 @@
 #> Imports
 import sys
 import typing
+from functools import reduce
 from types import ModuleType
 from collections import UserDict
+from collections.abc import KeysView, ValuesView, ItemsView
 from importlib.abc import MetaPathFinder, Loader
 from importlib.util import spec_from_loader
 from importlib.machinery import ModuleSpec
@@ -19,35 +21,87 @@ class DictUnion(UserDict):
 
         Similar concept to `collections.ChainMap`, but is somewhat lighter
     '''
-    __slots__ = ('dicts', 'default_set_dict', 'op_all')
+    __slots__ = ('dicts', 'default_set_dict', '_default_set_dict', 'op_all')
 
-    def __init__(self, *dicts: dict, default_set_dict: int = -1, op_all: bool = False):
-        self.dicts = dicts
+    def __init__(self, *dicts: dict, default_set_dict: int | dict | None = -1, op_all: bool = False):
+        self.dicts = list(dicts)
         self.op_all = op_all
         if not op_all:
-            self.default_set_dict = dicts[default_set_dict]
-    def _dict_containing(self, item: str, g_all: bool = False) -> dict | tuple[dict] | None:
+            assert default_set_dict is not None, 'default_set_dict should only be None if op_all is True'
+            self._default_set_dict = default_set_dict
+            if isinstance(default_set_dict, int):
+                self.default_set_dict = dicts[default_set_dict]
+            else:
+                self.default_set_dict = default_set_dict
+    def _dict_containing(self, item: typing.Hashable, g_all: bool = False) -> dict | tuple[dict] | None:
         if g_all:
             return tuple(d for d in self.dicts if item in d) or None
         for d in self.dicts:
             if item in d: return d
         return None
 
-    # Common special methods
-    def __contains__(self, item: str) -> bool:
+    # Special methods
+    ## Getting
+    def __contains__(self, item: typing.Hashable) -> bool:
         return self._dict_containing(item) is not None
-    def __getitem__(self, item: str) -> typing.Any:
+    def __getitem__(self, item: typing.Hashable) -> typing.Any:
         if (d := self._dict_containing(item)) is not None:
             return d[item]
         raise KeyError(item)
-    def __setitem__(self, item: str, value: typing.Any):
+    ## Mutating
+    def __setitem__(self, item: typing.Hashable, value: typing.Any):
         for d in (self.dicts if self.op_all else self._dict_containing(item, True)):
             d[item] = value
-    def __delitem__(self, item: str):
+    def __delitem__(self, item: typing.Hashable):
         if ds := self._dict_containing(item, True):
             for d in ds: del d[item]
             return
         raise KeyError(item)
+    ## Operators
+    def __len__(self):
+        return len(self.items())
+    def __repr__(self) -> str:
+        '''Note that this method is rather expensive!'''
+        return repr(self.__reduce__())
+    def __reduce__(self) -> dict:
+        '''Reduces self to a basic dictionary'''
+        return dict(self.items())
+    ### | operators
+    def __or__(self, other: dict | typing.Self) -> dict | typing.Self:
+        if isinstance(other, type(self)):
+            return type(self)(self.dicts + [d for d in other.dicts if d not in self.dicts], # join self.dicts and other.dicts
+                              getattr(self, '_default_set_dict', None), self.op_all)
+        if isinstance(other, dict):
+            return self.__reduce__() | other
+        return NotImplemented
+    def __ror__(self, other: dict | typing.Self) -> dict | typing.Self:
+        if isinstance(other, type(self)):
+            return type(self)(other.dicts + [d for d in self.dicts if d not in other.dicts], # join other.dicts and self.dicts
+                              getattr(self, '_default_set_dict', None), self.op_all)
+        if isinstance(other, dict):
+            return other | self.__reduce__()
+        return NotImplemented
+    def __ior__(self, other: dict | typing.Self) -> typing.Self:
+        if isinstance(other, type(self)):
+            self.dicts[:] = other.dicts + [d for d in self.dicts if d not in other.dicts]
+        else: self.dicts.insert(0, other)
+        return self
+
+    # Overriden dict methods
+    def keys(self) -> set[typing.Hashable]:
+        return set(k for k,v in self.items())
+    def values(self) -> tuple[typing.Any]:
+        return tuple(k for k,v in self.items())
+    def items(self) -> tuple[tuple[typing.Hashable, typing.Any]]:
+        return tuple(self.iitems())
+
+    # Standalone methods
+    def iitems(self) -> typing.Generator[tuple[typing.Hashable, typing.Any], None, None]:
+        '''Not thread-safe'''
+        seen = set()
+        for d in self.dicts:
+            yield from ((k,v) for k,v in d.items() if k not in seen)
+            seen.update(d.keys())
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
