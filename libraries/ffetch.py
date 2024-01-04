@@ -60,8 +60,15 @@ class CachedHTTPResponse:
     @property
     def chunk_read_in_progress(self) -> bool:
         return isinstance(self.data, bytearray)
+    @property
+    def url_hash(self) -> typing.Hashable:
+        return hash_url(self.url)
 
 cache = {}
+def hash_url(url: str) -> typing.Hashable:
+    '''Pre-hashes a `url` for placing in the cache dictionary'''
+    return hash(url)
+
 def request(url: str, *, timeout: int | None = None,
             read_from_cache: bool = True, add_to_cache: bool = True, return_as_cache: bool = True) -> CachedHTTPResponse | HTTPResponse:
     '''
@@ -74,7 +81,7 @@ def request(url: str, *, timeout: int | None = None,
     '''
     if read_from_cache or add_to_cache:
         assert return_as_cache, 'Cannot read from or add to cache when return_as_cache is false'
-        h = hash(url)
+        h = hash_url(url)
         if read_from_cache:
             if (c := cache.get(h, None)) is not None:
                 if not return_as_cache:
