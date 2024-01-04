@@ -132,7 +132,9 @@ def request(url: str, *, timeout: int | None = None,
         if read_from_cache:
             if (c := cache_dict.get(h, None)) is not None:
                 return c
-    return FLHTTPResponse(urlrequest.urlopen(url, timeout=timeout))
+    hr = FLHTTPResponse(urlrequest.urlopen(url, timeout=timeout))
+    if add_to_cache: cache_dict[h] = hr
+    return hr
 
 def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
     '''
