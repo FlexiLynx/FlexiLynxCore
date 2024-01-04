@@ -94,6 +94,15 @@ class FLHTTPResponse:
         while not self.completed:
             yield self.read(chunk_size)
 
+    def calc_chunksize(self, chunks: int) -> int | None:
+        '''
+            Calculates how large each chunk should be to get `chunks` chunks from self
+                Uses the expression `int((self.length / chunks) + 0.5)` to calculate chunk size
+            If a `Content-Length` header wasn't sent (`self.length` is `None`), then returns `None`
+        '''
+        if self.length is None: return None
+        return int((self.length / chunks) + 0.5)
+
     @property
     def completed(self) -> bool:
         return self.isclosed()
@@ -180,9 +189,8 @@ def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = Non
     hr = request(url, **(({'add_to_cache': False, 'read_from_cache': False}
                           if no_cache else {'add_to_cache': add_to_cache}) | kwargs))
     if chunk_count is not None:
-        if hr.length is not None:
-            chunk_size = int((hr.length / chunk_count) + 0.5)
-        elif chunk_size is None:
+        chunk_size = hr.calc_chunksize(chunk_count) or chunk_size
+        if chunk_size is None:
             raise ValueError(f'URL {url!r} did not provide a Content-Length header')
     elif chunk_size is None: raise TypeError('chunk_size may not be None if chunk_count is not provided')
     return hr.iter_chunks(chunk_size, chunk_cached=chunk_cached)
