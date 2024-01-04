@@ -177,7 +177,7 @@ def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = Non
     '''
         Fetches bytes in chunks of `chunk_size` byte(s) each
             If `chunk_count` is given, then `chunk_size` is set so that the amount of chunks is (roughly) equivelant to `chunk_count`
-                The chunk size is calculated with `int((FLHTTPResponse.length / chunk_count) + 0.5)`
+                The chunk size is calculated with `<response>.calc_chunksize(chunk_count)`, which (by default) runs `int((<response>.length / chunk_count) + 0.5)`
                 `chunk_size` is used as a fallback in case the request has no `Content-Length` header
                 `chunk_size` can be set to `None` to raise a `ValueError` when the `Content-Length` header is missing (`chunk_size` may only be `None` if `chunk_count` is provided)
         See `help(request)` for additional information and `kwargs`
