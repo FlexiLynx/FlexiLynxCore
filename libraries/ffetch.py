@@ -162,15 +162,25 @@ def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
             `no_cache=True` is a shortcut for `read_from_cache=False` and `add_to_cache=False`
     '''
     return request(url, **(({'read_from_cache': False, 'add_to_cache': False} if no_cache else {}) | kwargs)).read()
-def fetch_chunks(url: str, chunk_size: int, *, chunk_cached: bool = True, no_cache: bool = False, add_to_cache: bool = False, **kwargs) -> typing.Iterator[bytes]:
+def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = None, *, chunk_cached: bool = True, no_cache: bool = False, add_to_cache: bool = False, **kwargs) -> typing.Iterator[bytes]:
     '''
         Fetches bytes in chunks of `chunk_size` byte(s) each
+            If `chunk_count` is given, then `chunk_size` is set so that the amount of chunks is (roughly) equivelant to `chunk_count`
+                The chunk size is calculated with `int((FLHTTPResponse.length / chunk_count) + 0.5)`
+                `chunk_size` is used as a fallback in case the request has no `Content-Length` header
+                `chunk_size` can be set to `None` to raise a `ValueError` when the `Content-Length` header is missing (`chunk_size` may only be `None` if `chunk_count` is provided)
         See `help(request)` for additional information and `kwargs`
             `no_cache=True` is a shortcut for `read_from_cache=False` and `add_to_cache=False`
             Differing from `request()`, `add_to_cache` is false by default in this function, as chunk-reading is usually used for larger files
                 `read_from_cache` is still true by default
         If `chunk_cached` is true, then cached values will be split into chunks
     '''
-    return request(url, **(({'add_to_cache': False, 'read_from_cache': False}
-                            if no_cache else {'add_to_cache': add_to_cache}) | kwargs)) \
-               .iter_chunks(chunk_size, chunk_cached=chunk_cached)
+    hr = request(url, **(({'add_to_cache': False, 'read_from_cache': False}
+                          if no_cache else {'add_to_cache': add_to_cache}) | kwargs))
+    if chunk_count is not None:
+        if hr.length is not None:
+            chunk_size = int((hr.length / chunk_count) + 0.5)
+        elif chunk_size is None:
+            raise ValueError(f'URL {url!r} did not provide a Content-Length header')
+    elif chunk_size is None: raise TypeError('chunk_size may not be None if chunk_count is not provided')
+    return hr.iter_chunks(chunk_size, chunk_cached=chunk_cached)
