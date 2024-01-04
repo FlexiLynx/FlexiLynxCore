@@ -98,7 +98,8 @@ def cachedict_to_urldict(cache_dict: dict[typing.Hashable, CachedHTTPResponse] =
     '''Helper function to convert a dictionary of URLs and `CachedHTTPResponse`s from a dictionary of URL hashes and `CachedHTTPResponse`s'''
     return {c.url: c for c in cache_dict.values()}
 
-def request(url: str, *, timeout: int | None = None,
+def request(url: str, *, cache_dict: dict[typing.Hashable, CachedHTTPResponse] = cache,
+            timeout: int | None = None,
             read_from_cache: bool = True, add_to_cache: bool = True, return_as_cache: bool = True) -> CachedHTTPResponse | HTTPResponse:
     '''
         Requests data from the `url`, waiting for an (optional) `timeout` seconds, with caching capabilities:
@@ -112,7 +113,7 @@ def request(url: str, *, timeout: int | None = None,
         assert return_as_cache, 'Cannot read from or add to cache when return_as_cache is false'
         h = hash_url(url)
         if read_from_cache:
-            if (c := cache.get(h, None)) is not None:
+            if (c := cache_dict.get(h, None)) is not None:
                 if not return_as_cache:
                     raise ValueError('Cannot read CachedHTTPResponse from cache if return_as_cache is false')
                 return c
@@ -121,5 +122,5 @@ def request(url: str, *, timeout: int | None = None,
         if not return_as_cache:
             raise ValueError('Cannot add CachedHTTPResponse to cache if return_as_cache is false')
         r = CachedHTTPResponse(r)
-        cache[h] = r
+        cache_dict[h] = r
     return r
