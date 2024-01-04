@@ -71,7 +71,7 @@ class FLHTTPResponse:
                 Any other value results in a `TypeError`
         '''
         if self.completed:
-            if chunk_anyway:
+            if chunk_cached:
                 yield from (bytes(chunk) for chunk in itertools.batched(self.data, chunksize))
             else:
                 yield self.data
@@ -124,7 +124,7 @@ def pop_cache(item: str | FLHTTPResponse | None = None, *, cache_dict: dict[typi
                     otherwise returning a dictionary of URL hashes and `FLHTTPResponse`s
         Throws `TypeError` if nothing can be done with `item`
     '''
-    if url is None:
+    if item is None:
         popped = cachedict_to_urldict(cache_dict) if dict_url_keys else cache_dict.copy()
         cache_dict.clear()
     elif isinstance(item, str):
@@ -158,7 +158,7 @@ def request(url: str, *, timeout: int | None = None,
 def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
     '''
         Fetches bytes from `url`, with optional caching features
-        See `help(request())` for additional information and `kwargs`
+        See `help(request)` for additional information and `kwargs`
             `no_cache=True` is a shortcut for `read_from_cache=False` and `add_to_cache=False`
     '''
     return request(url, **(({'read_from_cache': False, 'add_to_cache': False} if no_cache else {}) | kwargs)).read()
