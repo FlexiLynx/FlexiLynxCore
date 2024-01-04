@@ -7,7 +7,7 @@ from urllib import request as urlrequest
 #</Imports
 
 #> Header >/
-__all__ = ('CachedHTTPResponse',)
+__all__ = ('CachedHTTPResponse', 'hash_url', 'request')
 
 class CachedHTTPResponse:
     '''
