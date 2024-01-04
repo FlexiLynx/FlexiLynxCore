@@ -3,6 +3,7 @@
 #> Imports
 import typing
 from http.client import HTTPResponse
+from urllib import request as urlrequest
 #</Imports
 
 #> Header >/
@@ -59,3 +60,22 @@ class CachedHTTPResponse:
     @property
     def chunk_read_in_progress(self) -> bool:
         return isinstance(self.data, bytearray)
+
+cache = {}
+def request(url: str, *, timeout: int | None = None,
+            read_from_cache: bool = True, add_to_cache: bool = True, return_as_cache: bool = True) -> CachedHTTPResponse | HTTPResponse:
+    if read_from_cache or add_to_cache:
+        assert return_as_cache, 'Cannot read from or add to cache when return_as_cache is false'
+        h = hash(url)
+        if read_from_cache:
+            if (c := cache.get(h, None)) is not None:
+                if not return_as_cache:
+                    raise ValueError('Cannot read CachedHTTPResponse from cache if return_as_cache is false')
+                return c
+    r = urlrequest.urlopen(url, timeout=timeout)
+    if add_to_cache:
+        if not return_as_cache:
+            raise ValueError('Cannot add CachedHTTPResponse to cache if return_as_cache is false')
+        r = CachedHTTPResponse(r)
+        cache[h] = r
+    return r
