@@ -10,7 +10,7 @@ from urllib import request as urlrequest
 #> Header >/
 __all__ = ('FLHTTPResponse',
            'hash_url', 'pop_cache', 'cachedict_to_urldict',
-           'request', 'fetch')
+           'request', 'fetch', 'fetch_chunks')
 
 class FLHTTPResponse:
     '''
@@ -144,3 +144,15 @@ def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
             `no_cache=True` is a shortcut for `read_from_cache=False` and `add_to_cache=False`
     '''
     return request(url, **(({'read_from_cache': False, 'add_to_cache': False} if no_cache else {}) | kwargs)).read()
+def fetch_chunks(url: str, chunk_size: int, *, chunk_cached: bool = True, no_cache: bool = False, add_to_cache: bool = False, **kwargs) -> typing.Iterator[bytes]:
+    '''
+        Fetches bytes in chunks of `chunk_size` byte(s) each
+        See `help(request)` for additional information and `kwargs`
+            `no_cache=True` is a shortcut for `read_from_cache=False` and `add_to_cache=False`
+            Differing from `request()`, `add_to_cache` is false by default in this function, as chunk-reading is usually used for larger files
+                `read_from_cache` is still true by default
+        If `chunk_cached` is true, then cached values will be split into chunks
+    '''
+    return request(url, **(({'add_to_cache': False, 'read_from_cache': False}
+                            if no_cache else {'add_to_cache': add_to_cache}) | kwargs)) \
+               .iter_chunks(chunk_size, chunk_cached=chunk_cached)
