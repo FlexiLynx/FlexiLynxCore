@@ -64,6 +64,14 @@ class CachedHTTPResponse:
 cache = {}
 def request(url: str, *, timeout: int | None = None,
             read_from_cache: bool = True, add_to_cache: bool = True, return_as_cache: bool = True) -> CachedHTTPResponse | HTTPResponse:
+    '''
+        Requests data from the `url`, waiting for an (optional) `timeout` seconds, with caching capabilities:
+            Reads data from a module-level cache if `read_from_cache` is true
+            Writes data to the module-level cache if `add_to_cache` is true
+        Returns a `CachedHTTPResponse`, unless `return_as_cache` is false, in which case an `HTTPResponse` is returned
+            Note that an `AssertionError` is raised if attempting to read from / add to cache when `return_as_cache` is false
+                (if assertions are disabled, raises a `ValueError` at the time of the read/add instead of before doing anything)
+    '''
     if read_from_cache or add_to_cache:
         assert return_as_cache, 'Cannot read from or add to cache when return_as_cache is false'
         h = hash(url)
