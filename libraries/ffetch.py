@@ -2,21 +2,25 @@
 
 #> Imports
 import typing
+import itertools
 from http.client import HTTPResponse
 from urllib import request as urlrequest
 #</Imports
 
 #> Header >/
-__all__ = ('CachedHTTPResponse',
+__all__ = ('FLHTTPResponse',
            'hash_url', 'pop_cache', 'cachedict_to_urldict',
            'request', 'fetch')
 
-class CachedHTTPResponse:
+class FLHTTPResponse:
     '''
-        A wrapper around an `HTTPResponse` object that caches values, as well as providing some helper properties
+        A wrapper around an `HTTPResponse` object that augments various facilities, offering:
+         - Response caching
+         - Iterable chunked reading
+         - Various helpful properties
 
         Note that constructing this class leaves the original `HTTPResponse` in a dangerous state:
-         - Reading in a `CachedHTTPResponse` may break the original
+         - Reading in a `FLHTTPResponse` may break the original
          - Reading in the original *will* break this class
     '''
     __slots__ = ('data', 'original')
@@ -50,6 +54,24 @@ class CachedHTTPResponse:
         if self.completed:
             self.data = bytes(self.data)
         return chunk
+    def iter_chunks(self, chunk_size: int, *, chunk_cached: bool = False) -> typing.Generator[bytes, None, None]:
+        '''
+            Reads (and yields) the response body in chunks of `chunk_size` byte(s)
+
+            If the data has already been cached, this function yields a single value containing the entire body
+                If `chunk_cached` is true, then instead yields appropriately sized chunks of the cached data
+            Raises a RuntimeError if a chunk read is already in progress
+        '''
+        if self.completed:
+            if chunk_anyway:
+                yield from (bytes(chunk) for chunk in itertools.batched(self.data, chunksize))
+            else:
+                yield self.data
+            return
+        if self.chunk_read_in_progress:
+            raise RuntimeError('Cannot iterate chunks while a chunk-read is already in progress')
+        while not self.completed:
+            yield self.read(chunk_size)
 
     @property
     def completed(self) -> bool:
@@ -70,17 +92,17 @@ cache = {}
 def hash_url(url: str) -> typing.Hashable:
     '''Pre-hashes a `url` for placing in the cache dictionary'''
     return hash(url)
-def pop_cache(item: str | CachedHTTPResponse | None = None, *, cache_dict: dict[typing.Hashable, CachedHTTPResponse] = cache,
-              fail_on_missing: bool = True, dict_url_keys: bool = True) -> CachedHTTPResponse | dict[typing.Hashable, CachedHTTPResponse] | None:
+def pop_cache(item: str | FLHTTPResponse | None = None, *, cache_dict: dict[typing.Hashable, FLHTTPResponse] = cache,
+              fail_on_missing: bool = True, dict_url_keys: bool = True) -> FLHTTPResponse | dict[typing.Hashable, FLHTTPResponse] | None:
     '''
         Removes entries from the cache in a variety of ways:
             Pops `item` from the cache if `item` is a string (corresponding to a URL) that is contained in the cache
                 If the `item` is not in the cache, then throws `KeyError(item)` if `fail_on_missing`, otherwise returns `None`
-            Pops `item.url_hash` from the cache if `item` is a `CachedHTTPResponse`
+            Pops `item.url_hash` from the cache if `item` is a `FLHTTPResponse`
                 If `item.url_hash` is not in the cache, then throws `KeyError(item)` if `fail_on_missing`, otherwise returns `None`
             Clears the cache and returns a copy of its previous state if `item` is `None`
-                If `dict_url_keys` is true, then uses the values (`CachedHTTPResponse` instances) `url` attributes to return a dictionary of URLs and `CachedHTTPResponse`s,
-                    otherwise returning a dictionary of URL hashes and `CachedHTTPResponse`s
+                If `dict_url_keys` is true, then uses the values (`FLHTTPResponse` instances) `url` attributes to return a dictionary of URLs and `FLHTTPResponse`s,
+                    otherwise returning a dictionary of URL hashes and `FLHTTPResponse`s
         Throws `TypeError` if nothing can be done with `item`
     '''
     if url is None:
@@ -88,49 +110,37 @@ def pop_cache(item: str | CachedHTTPResponse | None = None, *, cache_dict: dict[
         cache_dict.clear()
     elif isinstance(item, str):
         popped = cache_dict.pop(hash_url(item), None)
-    elif isinstance(item, CachedHTTPResponse):
+    elif isinstance(item, FLHTTPResponse):
         popped = cache_dict.pop(item.url_hash)
     else: raise TypeError(f'Cannot pop {item!r} from the cache')
     if fail_on_missing and (popped is None):
         raise KeyError(item)
     return popped
-def cachedict_to_urldict(cache_dict: dict[typing.Hashable, CachedHTTPResponse] = cache) -> dict[str, CachedHTTPResponse]:
-    '''Helper function to convert a dictionary of URLs and `CachedHTTPResponse`s from a dictionary of URL hashes and `CachedHTTPResponse`s'''
+def cachedict_to_urldict(cache_dict: dict[typing.Hashable, ] = cache) -> dict[str, FLHTTPResponse]:
+    '''Helper function to convert a dictionary of URLs and `FLHTTPResponse`s from a dictionary of URL hashes and `FLHTTPResponse`s'''
     return {c.url: c for c in cache_dict.values()}
 
-def request(url: str, *, cache_dict: dict[typing.Hashable, CachedHTTPResponse] = cache,
-            timeout: int | None = None,
-            read_from_cache: bool = True, add_to_cache: bool = True, return_as_cache: bool = True) -> CachedHTTPResponse | HTTPResponse:
+def request(url: str, *, timeout: int | None = None,
+            cache_dict: dict[typing.Hashable, FLHTTPResponse] = cache, read_from_cache: bool = True, add_to_cache: bool = True) -> FLHTTPResponse:
     '''
         Requests data from the `url`, waiting for an (optional) `timeout` seconds, with caching capabilities:
             Reads data from a module-level cache if `read_from_cache` is true
             Writes data to the module-level cache if `add_to_cache` is true
-        Returns a `CachedHTTPResponse`, unless `return_as_cache` is false, in which case an `HTTPResponse` is returned
+        Returns a `FLHTTPResponse`, unless `return_as_cache` is false, in which case an `HTTPResponse` is returned
             Note that an `AssertionError` is raised if attempting to read from / add to cache when `return_as_cache` is false
                 (if assertions are disabled, raises a `ValueError` at the time of the read/add instead of before doing anything)
     '''
     if read_from_cache or add_to_cache:
-        assert return_as_cache, 'Cannot read from or add to cache when return_as_cache is false'
         h = hash_url(url)
         if read_from_cache:
             if (c := cache_dict.get(h, None)) is not None:
-                if not return_as_cache:
-                    raise ValueError('Cannot read CachedHTTPResponse from cache if return_as_cache is false')
                 return c
-    r = urlrequest.urlopen(url, timeout=timeout)
-    if add_to_cache:
-        if not return_as_cache:
-            raise ValueError('Cannot add CachedHTTPResponse to cache if return_as_cache is false')
-        r = CachedHTTPResponse(r)
-        cache_dict[h] = r
-    return r
+    return FLHTTPResponse(urlrequest.urlopen(url, timeout=timeout))
 
 def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
     '''
         Fetches bytes from `url`, with optional caching features
         See `help(request())` for additional information and `kwargs`
-            `no_cache=True` is a shortcut for `read_from_cache=False`, `add_to_cache=False`, and `return_as_cache=False`
+            `no_cache=True` is a shortcut for `read_from_cache=False` and `add_to_cache=False`
     '''
-    return request(url, **((
-        {'read_from_cache': False, 'add_to_cache': False, 'return_as_cache': False} if no_cache else {})
-        | kwargs)).read()
+    return request(url, **(({'read_from_cache': False, 'add_to_cache': False} if no_cache else {}) | kwargs)).read()
