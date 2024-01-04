@@ -124,11 +124,8 @@ def request(url: str, *, timeout: int | None = None,
             cache_dict: dict[typing.Hashable, FLHTTPResponse] = cache, read_from_cache: bool = True, add_to_cache: bool = True) -> FLHTTPResponse:
     '''
         Requests data from the `url`, waiting for an (optional) `timeout` seconds, with caching capabilities:
-            Reads data from a module-level cache if `read_from_cache` is true
-            Writes data to the module-level cache if `add_to_cache` is true
-        Returns a `FLHTTPResponse`, unless `return_as_cache` is false, in which case an `HTTPResponse` is returned
-            Note that an `AssertionError` is raised if attempting to read from / add to cache when `return_as_cache` is false
-                (if assertions are disabled, raises a `ValueError` at the time of the read/add instead of before doing anything)
+            Reads data from a module-level cache (or `cache_dict`) if `read_from_cache` is true
+            Writes data to the module-level cache (or `cache_dict`) if `add_to_cache` is true
     '''
     if read_from_cache or add_to_cache:
         h = hash_url(url)
