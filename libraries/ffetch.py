@@ -3,6 +3,7 @@
 #> Imports
 import typing
 import itertools
+from enum import Enum
 from http.client import HTTPResponse
 from urllib import request as urlrequest
 #</Imports
@@ -54,13 +55,20 @@ class FLHTTPResponse:
         if self.completed:
             self.data = bytes(self.data)
         return chunk
-    def iter_chunks(self, chunk_size: int, *, chunk_cached: bool = False) -> typing.Generator[bytes, None, None]:
+    ChunkContinue = Enum('ChunkContinue', ('RAISE', 'CANCEL', 'BEGINNING', 'CONTINUE'))
+    def iter_chunks(self, chunk_size: int, *, continue_whence: ChunkContinue = ChunkContinue.RAISE, chunk_cached: bool = False) -> typing.Generator[bytes, None, None]:
         '''
             Reads (and yields) the response body in chunks of `chunk_size` byte(s)
 
             If the data has already been cached, this function yields a single value containing the entire body
                 If `chunk_cached` is true, then instead yields appropriately sized chunks of the cached data
-            Raises a RuntimeError if a chunk read is already in progress
+            If a chunk read is already in progress, then the behavior depends on the value of `continue_whence`:
+                `ChunkContinue.RAISE`: raises a `RuntimeError`
+                `ChunkContinue.CANCEL`: yields nothing
+                `ChunkContinue.BEGINNING`: yields already cached data, then yields newly read chunks
+                    Yields a combination of already cached data and newly read chunks in the proper chunk size if `chunk_cached` is true, such that chunk size is consistent
+                `ChunkContinue.CONTINUE`: ignores already cached data, only yields newly read chunks
+                Any other value results in a `TypeError`
         '''
         if self.completed:
             if chunk_anyway:
@@ -69,7 +77,18 @@ class FLHTTPResponse:
                 yield self.data
             return
         if self.chunk_read_in_progress:
-            raise RuntimeError('Cannot iterate chunks while a chunk-read is already in progress')
+            match continue_whence:
+                case self.ChunkContinue.RAISE:
+                    raise RuntimeError('Cannot iterate chunks while a chunk-read is already in progress and continue_whence is ChunkContinue.RAISE')
+                case self.ChunkContinue.CANCEL: return
+                case self.ChunkContinue.BEGINNING:
+                    if chunk_cached:
+                        remaining = self.data[:len(self.data) - (len(self.data) % chunk_size)]
+                        yield from (bytes(chunk) for chunk in itertools.batched(self.data[:len(self.data)-len(remaining)], chunk_size))
+                        yield bytes(remaining) + self.read(remainder)
+                    else: yield bytes(self.data)
+                case self.ChunkContinue.CONTINUE: pass
+                case _: raise TypeError(f'Illegal value for continue_whence: {continue_whence!r}; expected ChunkContinue')
         while not self.completed:
             yield self.read(chunk_size)
 
