@@ -9,7 +9,7 @@ from urllib import request as urlrequest
 #> Header >/
 __all__ = ('CachedHTTPResponse',
            'hash_url', 'pop_cache', 'cachedict_to_urldict',
-           'request')
+           'request', 'fetch')
 
 class CachedHTTPResponse:
     '''
@@ -124,3 +124,10 @@ def request(url: str, *, cache_dict: dict[typing.Hashable, CachedHTTPResponse] =
         r = CachedHTTPResponse(r)
         cache_dict[h] = r
     return r
+
+def fetch(url: str, **kwargs) -> bytes:
+    '''
+        Fetches bytes from `url`, with optional caching features
+        See `help(request())` for additional information and `kwargs`
+    '''
+    return request(url, **kwargs).read()
