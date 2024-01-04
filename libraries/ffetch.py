@@ -7,7 +7,9 @@ from urllib import request as urlrequest
 #</Imports
 
 #> Header >/
-__all__ = ('CachedHTTPResponse', 'hash_url', 'request')
+__all__ = ('CachedHTTPResponse',
+           'hash_url', 'pop_cache', 'cachedict_to_urldict',
+           'request')
 
 class CachedHTTPResponse:
     '''
@@ -68,6 +70,33 @@ cache = {}
 def hash_url(url: str) -> typing.Hashable:
     '''Pre-hashes a `url` for placing in the cache dictionary'''
     return hash(url)
+def pop_cache(item: str | CachedHTTPResponse | None = None, *, cache_dict: dict[typing.Hashable, CachedHTTPResponse] = cache,
+              fail_on_missing: bool = True, dict_url_keys: bool = True) -> CachedHTTPResponse | dict[typing.Hashable, CachedHTTPResponse] | None:
+    '''
+        Removes entries from the cache in a variety of ways:
+            Pops `item` from the cache if `item` is a string (corresponding to a URL) that is contained in the cache
+                If the `item` is not in the cache, then throws `KeyError(item)` if `fail_on_missing`, otherwise returns `None`
+            Pops `item.url_hash` from the cache if `item` is a `CachedHTTPResponse`
+                If `item.url_hash` is not in the cache, then throws `KeyError(item)` if `fail_on_missing`, otherwise returns `None`
+            Clears the cache and returns a copy of its previous state if `item` is `None`
+                If `dict_url_keys` is true, then uses the values (`CachedHTTPResponse` instances) `url` attributes to return a dictionary of URLs and `CachedHTTPResponse`s,
+                    otherwise returning a dictionary of URL hashes and `CachedHTTPResponse`s
+        Throws `TypeError` if nothing can be done with `item`
+    '''
+    if url is None:
+        popped = cachedict_to_urldict(cache_dict) if dict_url_keys else cache_dict.copy()
+        cache_dict.clear()
+    elif isinstance(item, str):
+        popped = cache_dict.pop(hash_url(item), None)
+    elif isinstance(item, CachedHTTPResponse):
+        popped = cache_dict.pop(item.url_hash)
+    else: raise TypeError(f'Cannot pop {item!r} from the cache')
+    if fail_on_missing and (popped is None):
+        raise KeyError(item)
+    return popped
+def cachedict_to_urldict(cache_dict: dict[typing.Hashable, CachedHTTPResponse] = cache) -> dict[str, CachedHTTPResponse]:
+    '''Helper function to convert a dictionary of URLs and `CachedHTTPResponse`s from a dictionary of URL hashes and `CachedHTTPResponse`s'''
+    return {c.url: c for c in cache_dict.values()}
 
 def request(url: str, *, timeout: int | None = None,
             read_from_cache: bool = True, add_to_cache: bool = True, return_as_cache: bool = True) -> CachedHTTPResponse | HTTPResponse:
