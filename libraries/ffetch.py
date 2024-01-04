@@ -1,6 +1,7 @@
 #!/bin/python3
 
 #> Imports
+import sys
 import typing
 import itertools
 from enum import Enum
@@ -198,6 +199,9 @@ def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = Non
 @dataclass(eq=False, kw_only=True, slots=True)
 class FancyFetch:
     # Config
+    file:                sys.stderr
+    do_line_clear:       bool = True
+    line_clear_seq:      str = '\x1b[2K\r'
     max_cache_size:      int = ((2**10)**2)//2 # one tenth of a MiB
     # Chunk config
     chunk_count:         int = 10
