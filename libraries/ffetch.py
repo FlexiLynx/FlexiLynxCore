@@ -199,17 +199,17 @@ def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = Non
 @dataclass(eq=False, kw_only=True, slots=True)
 class FancyFetch:
     # Config
-    file:                sys.stderr
+    file:                typing.TextIO = sys.stderr
     do_line_clear:       bool = True
     line_clear_seq:      str = '\x1b[2K\r'
-    max_cache_size:      int = ((2**10)**2)//2 # one tenth of a MiB
+    max_cache_size:      int = ((2**10)**2)//10 # one tenth of a MiB
     # Chunk config
     chunk_count:         int = 10
     no_chunk_size:       int = (2**10)**2 # one MiB
     chunk_size_fallback: int = ((2**10)**2)//2 # half an MiB
     ## Format config
     ### Lines
-    cache_line_fmt:      str = '{url}: loaded {kib_total:.2G} KiB from cache'
+    cached_line_fmt:     str = '{url}: loaded {kib_total:.2G} KiB from cache'
     #### Size known
     ks_line_fmt:         str = '{url}: fetching {kib_total:.2G} KiB'
     ks_chunk_line_fmt:   str = '{url}: {percent_complete:04.0%} <{bar_full}{bar_empty}>  {mib_fetched:.2G}/{mib_total:.2G} MiB (chunk {chunk_fetched} of {chunk_total})'
@@ -220,6 +220,6 @@ class FancyFetch:
     bar_chunk:           str = '#'
     bar_empty:           str = '-'
     ### URL config
-    url_max_width:       int = 80
+    url_max_width:       int = 40
     url_trunc_txt:       str = '...'
 fancy_fetch = FancyFetch()
