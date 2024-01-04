@@ -4,6 +4,7 @@
 import typing
 import itertools
 from enum import Enum
+from dataclasses import dataclass
 from http.client import HTTPResponse
 from urllib import request as urlrequest
 #</Imports
@@ -11,7 +12,8 @@ from urllib import request as urlrequest
 #> Header >/
 __all__ = ('FLHTTPResponse',
            'hash_url', 'pop_cache', 'cachedict_to_urldict',
-           'request', 'fetch', 'fetch_chunks')
+           'request', 'fetch', 'fetch_chunks',
+           'FancyFetch', 'fancy_fetch')
 
 class FLHTTPResponse:
     '''
@@ -184,3 +186,8 @@ def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = Non
             raise ValueError(f'URL {url!r} did not provide a Content-Length header')
     elif chunk_size is None: raise TypeError('chunk_size may not be None if chunk_count is not provided')
     return hr.iter_chunks(chunk_size, chunk_cached=chunk_cached)
+
+@dataclass(eq=False, kw_only=True, slots=True)
+class FancyFetch:
+    ...
+fancy_fetch = FancyFetch()
