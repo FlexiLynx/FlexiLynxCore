@@ -125,9 +125,12 @@ def request(url: str, *, cache_dict: dict[typing.Hashable, CachedHTTPResponse] =
         cache_dict[h] = r
     return r
 
-def fetch(url: str, **kwargs) -> bytes:
+def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
     '''
         Fetches bytes from `url`, with optional caching features
         See `help(request())` for additional information and `kwargs`
+            `no_cache=True` is a shortcut for `read_from_cache=False`, `add_to_cache=False`, and `return_as_cache=False`
     '''
-    return request(url, **kwargs).read()
+    return request(url, **((
+        {'read_from_cache': False, 'add_to_cache': False, 'return_as_cache': False} if no_cache else {})
+        | kwargs)).read()
