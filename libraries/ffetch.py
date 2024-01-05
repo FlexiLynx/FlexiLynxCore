@@ -294,7 +294,7 @@ class FancyFetch:
         return {
             'complete': (len(r.data or b'') / r.length) if r.length else '?',
         } | self.size_format_map(config, '_fetched', len(r.data or b''))
-    def size_format_map(self, config: dict, suffix: str, size: int | None, on_unknown: str = '?') -> dict:
+    def size_format_map(self, config: dict, suffix: str, size: int | None) -> dict:
         '''Returns a format map for sizes in various formats from a size (bytes)'''
         return {f'{pfx}{suffix}': size / div for pfx,div in config['size_prefixes']}
     def format_url(self, config: dict, url: str) -> str:
