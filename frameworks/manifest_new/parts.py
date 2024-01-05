@@ -6,25 +6,45 @@
     Each part contains data, a name, and various helper methods
     Different types of manifests may use different parts
 
-    Note that, whilst `@make_part()` and `BaseManifestPart` are not in `__all__`, they are considered public symbols
+    Note that, whilst `@make_part()`, `BaseManifestPart`, and `PartAttrContainer` are not in `__all__`, they are considered public symbols
 '''
 
 #> Imports
+import types
 import typing
+import weakref
 from dataclasses import dataclass
 #</Imports
 
 #> Header >/
-class PartAttrContainer:
-    '''A no-op class that serves as a container for part-class-related values (methods, etc.)'''
+# Parts base
 class BaseManifestPart:
     '''A no-op class that serves to only tie manifest parts together and for `isinstance()` checks'''
-    __slots__ = ('part',)
-
+    __slots__ = ('_ipart',)
+class PartAttrContainer:
+    '''A class that serves as a container for part-class-related values (methods, etc.)'''
+    __slots__ = ('_instance', '__dict__')
+    _meth_pfx = '_ManifestPart_Method_'
+    def __init__(self, instance: BaseManifestPart | None = None):
+        super().__setattr__('_instance', None if instance is None else weakref.ref(instance))
+        if instance is None: return
+        for a,v in instance._cpart.__dict__.items():
+            if a.startswith(self._meth_pfx): super().__setattr__(a.removeprefix(self._meth_pfx), types.MethodType(v, instance))
+            elif f'{self._meth_pfx}{a}' in instance._cpart.__dict__: continue # don't overwrite previously bound methods with the unbound versions
+            else: super().__setattr__(a, v)
+    def __setattr__(self, attr: typing.Never, val: typing.Never): raise TypeError(f'Should not set attributes on a {type(self).__name__}')
+class _PartAttrDescriptor:
+    '''Allows redirecting to either instance or class-level `PartAttrContainer`s'''
+    __slots__ = ()
+    def __get__(self, instance: BaseManifestPart | None, type_: type[BaseManifestPart]) -> PartAttrContainer:
+        return type_._cpart if instance is None else instance._ipart
+## Sub-values for make_part
 _mutable_part_dataclass_decor = dataclass(kw_only=True, slots=True, weakref_slot=True)
 _part_dataclass_decor = dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+def _part_post_init(self: type[BaseManifestPart]): self._ipart = PartAttrContainer(self)
+## Manifest part decorator maker
 def make_part(name: str | None = None, *, mutable: bool = True, bases: tuple[type, ...] = (BaseManifestPart,),
-              dc_decor: typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]] | None = None) -> typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]]:
+              dc_decor: typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]] | None = None, post_init: typing.Callable[[type[BaseManifestPart]], None] = _part_post_init) -> typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BaseManifestPart` superclass if it isn't already added
         Moves `cls.part_...` class variables (and methods, etc.) to a `cls.part` `PartAttrContainer`
@@ -39,10 +59,16 @@ def make_part(name: str | None = None, *, mutable: bool = True, bases: tuple[typ
                                                     f'{", this function should be called to construct a decorator (`@make_part(...)`), not as a decorator (`@make_part`)" if isinstance(name, type) else ""}'
     def part_maker(cls: type[BaseManifestPart]) -> type[BaseManifestPart]:
         part = PartAttrContainer()
-        return ((_mutable_part_dataclass_decor if mutable else _part_dataclass_decor) if dc_decor is None else dc_decor)(
-            type((cls.__name__ if name is None else name), bases, {
-                'part': part,
-                '__annotations__': cls.__annotations__ | {'part': typing.ClassVar[PartAttrContainer]},
-            } | {a: v for a,v in cls.__dict__.items() if (not a.startswith('part_')) or (setattr(part, a.removeprefix('part_'), v))})
-        )
+        cdict = {'part': _PartAttrDescriptor(), '_cpart': part,
+                 '__annotations__': cls.__annotations__ | {'part': typing.ClassVar[PartAttrContainer]},
+                 '__post_init__': _part_post_init} | {a: v for a,v in cls.__dict__.items() if not a.startswith('part_')}
+        partcls = ((_mutable_part_dataclass_decor if mutable else _part_dataclass_decor) if dc_decor is None else dc_decor)(
+            type((cls.__name__ if name is None else name), bases, cdict))
+        for a,v in cls.__dict__.items():
+            if not a.startswith('part_'): continue
+            if isinstance(v, types.FunctionType): # instance methods are bound later
+                object.__setattr__(part, f'{PartAttrContainer._meth_pfx}{a.removeprefix("part_")}', staticmethod(v))
+            elif isinstance(v, classmethod): v = v.__get__(None, partcls) # bind the classmethod
+            object.__setattr__(part, a.removeprefix('part_'), v)
+        return partcls
     return part_maker
