@@ -66,6 +66,7 @@ Note: completed elements should have no modifiers
 |:-:| :--------: | :----------: | :----------
 |+ ^| 2024-01-03 |  2024-01-03  | Implement installation
 | + | 2024-01-03 |  2024-01-03  | - Implement content diffs
+|+ !| 2024-01-05 |  2024-01-05  | Write manifest documentation / specification
 |+ v| 2024-01-03 |  2024-01-03  | Implement store
 | x | 2024-01-03 |  2024-01-03  | - Implement base store features (file discovery and manifest download by id)
 |= .| 2024-01-03 |  2024-01-05  | Traditional post-implementation major rethink / refactor
