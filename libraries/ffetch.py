@@ -252,7 +252,7 @@ class FancyFetch:
         '''Fetches chunked data of a known size'''
         self.on_chunk_known_size(config, staticfmt, r, 0)
         for chunk,_ in enumerate(r.iter_chunks(r.calc_chunksize(config['chunk_count']))):
-            self.on_chunk_known_size(config, staticfmt, r, chunk)
+            self.on_chunk_known_size(config, staticfmt, r, chunk+1)
         return r.read()
     def fetch_unknown_size(self, config: dict, r: FLHTTPResponse) -> bytes:
         '''Fetches data of an unknown size, delegating to `chunked_fetch_unknown_size()` when the size reaches a certain threshold'''
@@ -266,9 +266,7 @@ class FancyFetch:
         '''Fetches chunked data of an unknown size'''
         chunk = 1
         chunk_size = config['chunk_size_fallback']
-        self.on_chunk_unknown_size(config, staticfmt, r, chunk, chunk_size)
         while not r.completed:
-            self.on_chunk_unknown_size(config, staticfmt, r, chunk+1, chunk_size)
             citer = r.iter_chunks(chunk_size, continue_whence=r.ChunkContinue.CONTINUE)
             for _ in range(config['chunk_fallback_scale']):
                 next(citer)
@@ -333,9 +331,9 @@ class FancyFetch:
     def chunk_format_map(self, config: dict, chunk: int, known_total: bool = True) -> dict:
         '''Returns a format map for chunk-related entries'''
         return {
-            'chunk_fetched': chunk+1, 'chunk_total': config['chunk_count'] if known_total else None,
-            'bar_full': config['bar_chunk'] * (chunk+1),
-            'bar_empty': (config['bar_empty'] * (config['chunk_count']-chunk-1)) if known_total else None,
+            'chunk_fetched': chunk, 'chunk_total': config['chunk_count'] if known_total else None,
+            'bar_full': config['bar_chunk'] * chunk,
+            'bar_empty': (config['bar_empty'] * (config['chunk_count']-chunk)) if known_total else None,
         }
     def unknown_chunk_format_map(self, config: dict, r: FLHTTPResponse, chunk_size: int) -> dict:
         '''Returns a format map for chunk-related entries when the total size is unknown'''
