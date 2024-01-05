@@ -59,5 +59,3 @@ class IDManifestPart:
 
 # Finalize __all__
 __all__ = tuple(__all__)
-
-class test(UnstructuredBasePart): pass
