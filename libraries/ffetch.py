@@ -243,7 +243,7 @@ class FancyFetch:
         '''Fetches chunked data of a known size'''
         total = r.calc_chunksize(config['chunk_count'])
         for chunk,_ in enumerate(r.iter_chunks(total)):
-            self.on_chunk_known_size(config, staticfmt, r, chunk, total)
+            self.on_chunk_known_size(config, staticfmt, r, chunk)
         return r.read()
     def fetch_unknown_size(self, config: dict, r: FLHTTPResponse) -> bytes:
         ...
@@ -256,9 +256,9 @@ class FancyFetch:
     def on_fetch_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that unchunked data is being read of a known size'''
         self.print(config, config['ks_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)))
-    def on_chunk_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse, chunk: int, total: int):
+    def on_chunk_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse, chunk: int):
         '''Writes a message for each read chunk of a known size'''
-        self.print_clear(config, config['ks_chunk_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r) | self.chunk_format_map(config, chunk, total)))
+        self.print_clear(config, config['ks_chunk_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r) | self.chunk_format_map(config, chunk)))
 
     def print(self, config: dict, text: str):
         '''Called to print text without any end'''
@@ -279,12 +279,12 @@ class FancyFetch:
         return config | {
             'url': self.format_url(config, r.url),
         } | self.size_format_map(config, '_total', r.length or None)
-    def chunk_format_map(self, config: dict, chunk: int, total: int | None) -> dict:
+    def chunk_format_map(self, config: dict, chunk: int, known_total: bool = True) -> dict:
         '''Returns a format map for chunk-related entries'''
         return {
-            'chunk_fetched': chunk, 'chunk_total': total,
+            'chunk_fetched': chunk, 'chunk_total': config['chunk_count'] if known_total else None,
             'bar_full': config['bar_chunk'] * chunk,
-            'bar_empty': (config['bar_empty'] * (total-chunk)) if total else None,
+            'bar_empty': (config['bar_empty'] * (config['chunk_count']-chunk)) if known_total else None,
         }
     def dynamic_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
         '''
