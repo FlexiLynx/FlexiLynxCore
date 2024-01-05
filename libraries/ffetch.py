@@ -369,7 +369,7 @@ class FancyFetch:
         } | self.size_format_map(config, '_fetched', len(r.data or b''))
     def size_format_map(self, config: dict, suffix: str, size: int | None) -> dict:
         '''Returns a format map for sizes in various formats from a size (bytes)'''
-        return {f'{pfx}{suffix}': size / div for pfx,div in config['size_prefixes']}
+        return {f'{pfx}{suffix}': '?' if size is None else (size / div) for pfx,div in config['size_prefixes']}
     def format_url(self, config: dict, url: str) -> str:
         '''Preprocesses a URL for `format_map()`'''
         prot,url = url.split('://', 1)
