@@ -224,7 +224,7 @@ class FancyFetch:
     ### URL config
     url_max_width:        int = 60
     url_trunc_txt:        str = '...'
-    url_protocols:        dict = tuple({'http': '[ ]', 'https': '[S]'}.items())
+    url_protocols:        dict = tuple({'http': '[ ]', 'https': '[S]', 'ftp': '[F]'}.items())
     url_protocol_unknown: str = '[?]'
 
     def chunk_format_map(self, config: dict, chunk: int, total: int | None) -> dict:
