@@ -14,7 +14,7 @@ import types
 import typing
 import weakref
 from functools import partial
-from dataclasses import dataclass
+from dataclasses import dataclass, field, asdict
 #</Imports
 
 #> Header >/
@@ -80,6 +80,11 @@ __all__ = ['make_part', 'BaseManifestPart']
 _make_part = partial(make_part, add_to_all=__all__)
 
 # Parts classes
+@make_part('!id') # use special characters to delimit most important parts
+class IDManifestPart:
+    who:  str = field(kw_only=False)
+    when: int = field(kw_only=False)
+    what: str | None = None
 
 # Finalize __all__
 __all__ = tuple(__all__)
