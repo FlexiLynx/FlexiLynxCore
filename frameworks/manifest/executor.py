@@ -17,6 +17,7 @@ from .core import Manifest
 from .exceptions import *
 
 from FlexiLynx import logger
+from FlexiLynx.core.ffetch import fancy_fetch
 #</Imports
 
 #> Header >/
@@ -123,12 +124,12 @@ def try_load_manifest(data: bytes, methods: tuple[typing.Callable[[bytes], Manif
 class _DiffBase:
     __slots__ = ()
     @classmethod
-    def dict_diff(cls, a: dict, b: dict) -> typing.Generator[str, None, None]:
+    def dict_diff(cls, a: dict, b: dict, show_value: bool = True) -> typing.Generator[str, None, None]:
         '''Yields a string diff of two dicts'''
         for add in (b.keys() - a.keys()): yield f' + {cls.render_item(add)}'
         for rem in (a.keys() - b.keys()): yield f' - {cls.render_item(rem)}'
         for chg in (k for k,v in a.items() if (k in b) and (b[k] != v)):
-            yield f'   {cls.render_item(chg)}: {cls.render_item(a[chg])} -> {cls.render_item(b[chg])}'
+            yield f'   {cls.render_item(chg)}: {f"{cls.render_item(a[chg])} -> {cls.render_item(b[chg])}" if show_value else "<changed>"}'
     @classmethod
     def set_diff(cls, a: set, b: set) -> typing.Generator[str, None, None]:
         '''Yields a string diff of two sets'''
@@ -211,17 +212,19 @@ class ContentDiff(_DiffBase):
     def __init__(self, man: Manifest):
         self.man = man
 
-    def diff(self, root: Path = Path('.'), pack: str | None = None) -> str:
-        c = dict(get_content(self.man, root, pack))
-        return '\n'.join(self.dict_diff(self.hash_files(self.man.crypt.hash_algorithm,
-                                                        tuple(f for f in c.keys() if f.is_file())), c))
+    def __str__(self) -> str:
+        return self.diff[0]
+    def diff(self, root: Path = Path('.'), pack: str | None = None, *, content: dict[Path, bytes] | None = None, local: dict[Path, bytes] | None = None) -> tuple[str, tuple[Path, ...], tuple[Path, ...]]:
+        c = dict(get_content(self.man, root, pack)) if content is None else content
+        l = self.hash_files(self.man.crypt.hash_algorithm, tuple(f for f in c.keys() if f.is_file())) if local is None else local
+        return ('\n'.join(self.dict_diff(l, c)), tuple(c.keys()-l.keys()), tuple(f for f,h in l.items() if h != c[f]))
     __str__ = diff
 
     @staticmethod
-    def _hash_file(algorithm: typing.Literal[*hashlib.algorithms_available], file: Path) -> tuple[Path, bytes]:
-        return (file, hashlib.new(algorithm, file.read_bytes()).digest())
+    def _hash_file(algorithm: typing.Literal[*hashlib.algorithms_available], file: Path | bytes) -> tuple[Path | bytes, bytes]:
+        return (file, hashlib.new(algorithm, file.read_bytes()).digest() if isinstance(file, Path) else file)
     @classmethod
-    def hash_files(cls, algorithm: typing.Literal[*hashlib.algorithms_available], files: tuple[Path, ...], *, max_processes: int = multiprocessing.cpu_count() * 2) -> dict[Path, bytes]:
+    def hash_files(cls, algorithm: typing.Literal[*hashlib.algorithms_available], files: tuple[Path | bytes, ...], *, max_processes: int = multiprocessing.cpu_count() * 2) -> dict[Path | bytes, bytes]:
         '''Hashes a tuple of files'''
         h = partial(cls._hash_file, algorithm)
         processes = min(len(files), max_processes)
@@ -231,13 +234,32 @@ class ContentDiff(_DiffBase):
             return dict(mp.map(h, files))
 
 # [un]Installation
-def install(man: Manifest, root: Path = Path.cwd(), *, pack: str | None = None, dry_run: bool = False):
+def install(man: Manifest, root: Path = Path.cwd(), *, pack: str | None = None, dry_run: bool = False, interactive: bool = True) -> bool | None:
     '''
         Installs a given manifest
 
         Note that if `pack` is given, the "root" (not part of a pack) content is not installed
     '''
-    ...
+    content = dict(get_content(man))
+    local = ContentDiff.hash_files(man.crypt.hash_algorithm, tuple(f for f in content.keys() if f.is_file()))
+    strdiff, new, updated = ContentDiff(man).diff(root, pack, content=content, local=local)
+    print(strdiff)
+    if interactive and input(f'Fetch specified files{f" ({len(updated)} replaced files)" if updated else ""}? (Y/n) >').lower().startswith('n'):
+        return False
+    mhashes = {f: content[f] for f in new+updated}
+    files = {f: fancy_fetch(f'{man.upstream.files}/{f}') for f in mhashes.keys()}
+    if not files:
+        print('Nothing to do')
+        return None
+    print(f'Checking hashes of {len(files)} file(s)')
+    rfiles = {c: f for f,c in files.items()}
+    fhashes = {rfiles[c]: h for c,h in ContentDiff.hash_files(man.crypt.hash_algorithm, rfiles.keys()).items()}
+    if mhashes == fhashes: print('Fetched files\' hashes match manifest content')
+    else:
+        print(f'Hashes mismatch manifest\'s content:\n{"\n".join(ContentDiff.dict_diff(mhashes, fhashes, show_value=False))}')
+        raise ValueError('Fetched content differs from manifest content')
+    return True if interactive else None
+    
 def uninstall(man: Manifest, root: Path = Path.cwd(), *,
               pack: str | None = None, interactive: bool = True, ensure_all_installed: bool = True,
               dry_run: bool = False):
