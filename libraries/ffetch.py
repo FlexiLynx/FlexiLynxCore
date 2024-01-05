@@ -380,8 +380,12 @@ class FancyFetch:
         '''Preprocesses a URL for `format_map()`'''
         prot,url = url.split('://', 1)
         url = f'{dict(config["url_protocols"]).get(prot, config["url_protocol_unknown"])}{url}'
-        if len(url) > config['url_max_width']:
-            return f'{url[:config["url_max_width"]-len(config["url_trunc_txt"])]}{config["url_trunc_txt"]}'
-        return url
-
+        if len(url) <= config['url_max_width']: return url # no truncation needed
+        if (len(parts := url.rsplit('/', 1)) == 2) and parts[1]:
+            if len(parts[1]) > config['url_max_width'] // 2:
+                parts[0] += parts[1][:(config['url_max_width']//2)]
+                parts[1] = parts[1][(config['url_max_width']//2):]
+            return f'{parts[0][:config["url_max_width"]-len(config["url_trunc_txt"])-len(parts[1])-1]}' \
+                   f'{config["url_trunc_txt"]}/{parts[1]}'
+        return f'{url[:config["url_max_width"]-len(config["url_trunc_txt"])]}{config["url_trunc_txt"]}'
 fancy_fetch = FancyFetch()
