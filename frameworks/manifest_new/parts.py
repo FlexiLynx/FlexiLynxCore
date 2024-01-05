@@ -5,8 +5,6 @@
 
     Each part contains data, a name, and various helper methods
     Different types of manifests may use different parts
-
-    Note that, whilst `PartAttrContainer` is not in `__all__`, it is still considered a public symbol
 '''
 
 #> Imports
@@ -18,8 +16,6 @@ from dataclasses import dataclass, field, asdict
 
 #> Header >/
 # Parts base
-class PartAttrContainer:
-    '''A no-op class that simply serves to hold `.part` attributes in manifest parts'''
 class BasePart:
     '''A no-op class that serves to only tie manifest parts together and for `isinstance()` checks'''
 class UnstructuredBasePart[*ContentTypes](BasePart):
@@ -34,18 +30,14 @@ def make_struct_part(name: str | None = None, add_to_all: list[str] | None = Non
                      dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[BasePart]], None] | None = None) -> typing.Callable[[type[BasePart]], type[BasePart]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BasePart` superclass if it isn't already added
-        Moves `cls.part_...` class variables (and methods, etc.) to a `cls.part` `PartAttrContainer`
 
         If `dc_decor` is specified, then `mutable` is ignored
     '''
     assert (name is None) or isinstance(name, str), f'Field "name" must be a string or None' \
                                                     f'{", this function should be called to construct a decorator (`@make_struct_part(...)`), not as a decorator (`@make_struct_part`)" if isinstance(name, type) else ""}'
     def part_maker(cls: type[BasePart] | type) -> type[BasePart]:
-        cdict = {'__annotations__': cls.__annotations__ | {'part': typing.ClassVar[PartAttrContainer]}}
-        if post_init is not None: cdict['__post_init__'] = post_init
-        cdict |= {a: v for a,v in cls.__dict__.items() if not a.startswith('part_')}
         partcls = ((_mutable_part_dataclass_decor if mutable else _part_dataclass_decor) if dc_decor is None else dc_decor)(
-            type((cls.__name__ if name is None else name), (cls,)+bases, cdict))
+            type((cls.__name__ if name is None else name), (cls,)+bases, cls.__dict__ | ({} if post_init is None else {'__post__init__': post_unit})))
         if add_to_all is not None: add_to_all.append(cls.__name__)
         return partcls
     return part_maker
