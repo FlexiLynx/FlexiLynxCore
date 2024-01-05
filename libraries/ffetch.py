@@ -300,7 +300,7 @@ class FancyFetch:
     def format_url(self, config: dict, url: str) -> str:
         '''Preprocesses a URL for `format_map()`'''
         prot,url = url.split('://', 1)
-        url = f'{config["url_protocols"].get(prot, config["url_protocol_unknown"])}{url}'
+        url = f'{dict(config["url_protocols"]).get(prot, config["url_protocol_unknown"])}{url}'
         if len(url) > config['url_max_width']:
             return f'{url[:config["url_max_width"]-len(config["url_trunc_txt"])]}{config["url_trunc_txt"]}'
         return url
