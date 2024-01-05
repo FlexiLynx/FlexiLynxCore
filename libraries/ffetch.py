@@ -247,7 +247,7 @@ class FancyFetch:
         return r.read()
     def chunked_fetch_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse) -> bytes:
         '''Fetches chunked data of a known size'''
-        self.on_chunk_known_size(config, staticfmt, r, chunk)
+        self.on_chunk_known_size(config, staticfmt, r, 0)
         for chunk,_ in enumerate(r.iter_chunks(r.calc_chunksize(config['chunk_count']))):
             self.on_chunk_known_size(config, staticfmt, r, chunk)
         return r.read()
