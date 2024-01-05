@@ -218,6 +218,8 @@ class FancyFetch:
     chunk_count:          int = 10
     no_chunk_size:        int = (2**10)**2 # one MiB
     chunk_size_fallback:  int = ((2**10)**2)//2 # half an MiB
+    chunk_fallback_scale: int = 10
+    chunk_fallback_mult:  int = 2
     ## Format config
     ### Lines
     complete_line_fmt:    str = '{url}: downloaded {kib_fetched:.2} KiB'
@@ -226,9 +228,10 @@ class FancyFetch:
     ks_line_fmt:          str = '{url}: fetching {kib_total:.2} KiB'
     ks_chunk_line_fmt:    str = '{url}: {complete:04.0%} <{bar_full}{bar_empty}>  {mib_fetched:.2}/{mib_total:.2} MiB (chunk {chunk_fetched} of {chunk_total})'
     #### Size unknown
-    us_line_fmt:          str = '{url}: fetching up to {mib_max_size:.2} MiB'
-    us_line_exceeded_fmt: str = '{url}: read data exceeded {mib_max_size:.2} MiB, swapping to chunked reading'
+    us_line_fmt:          str = '{url}: fetching up to {mib_chunk_size_fallback:.2} MiB'
+    us_line_exceeded_fmt: str = '{url}: read data exceeded {mib_chunk_size_fallback:.2} MiB, swapping to chunked reading'
     us_chunk_line_fmt:    str = '{url}: {mib_fetched:.2G} MiB fetched (chunk {chunk_fetched})'
+    us_scaled_line_fmt:   str = '{url}: fetched {chunk_fallback_scale} chunks without end, scaling chunk size by a factor of {chunk_fallback_mult} to {mib_chunk_size:.2} MiB'
     ### Symbols
     bar_chunk:            str = '#'
     bar_empty:            str = '-'
@@ -253,7 +256,7 @@ class FancyFetch:
         return r.read()
     def fetch_unknown_size(self, config: dict, r: FLHTTPResponse) -> bytes:
         '''Fetches data of an unknown size, delegating to `chunked_fetch_unknown_size()` when the size reaches a certain threshold'''
-        staticfmt = self.static_format_map(config, r) | self.unknown_static_format_map(config, r)
+        staticfmt = self.static_format_map(config, r)
         self.on_fetch_unknown_size(config, staticfmt, r)
         data = r.read(config['chunk_size_fallback'])
         if r.completed: return data
@@ -261,9 +264,20 @@ class FancyFetch:
         return self.chunked_fetch_unknown_size(config, staticfmt, r)
     def chunked_fetch_unknown_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse) -> bytes:
         '''Fetches chunked data of an unknown size'''
-        self.on_chunk_unknown_size(config, staticfmt, r, 1)
-        for chunk,_ in enumerate(r.iter_chunks(config['chunk_size_fallback'], continue_whence=r.ChunkContinue.CONTINUE)):
-            self.on_chunk_unknown_size(config, staticfmt, r, chunk+1)
+        chunk = 1
+        chunk_size = config['chunk_size_fallback']
+        self.on_chunk_unknown_size(config, staticfmt, r, chunk, chunk_size)
+        while not r.completed:
+            self.on_chunk_unknown_size(config, staticfmt, r, chunk+1, chunk_size)
+            citer = r.iter_chunks(chunk_size, continue_whence=r.ChunkContinue.CONTINUE)
+            for _ in range(config['chunk_fallback_scale']):
+                next(citer)
+                chunk += 1
+                self.on_chunk_unknown_size(config, staticfmt, r, chunk, chunk_size)
+                if r.completed: break
+            else:
+                chunk_size *= config['chunk_fallback_mult']
+                self.on_chunk_unknown_scale(config, staticfmt, r, chunk, chunk_size)
         return r.read()
 
     def on_complete(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
@@ -281,9 +295,14 @@ class FancyFetch:
     def on_swap_unknown_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that enough data was read, with the total count being unknown, to swap to chunked mode'''
         self.print_end(config, config['us_line_exceeded_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)))
-    def on_chunk_unknown_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse, chunk: int):
+    def on_chunk_unknown_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse, chunk: int, chunk_size: int):
         '''Writes a message for each read chunk of an unknown size'''
-        self.print_clear(config, config['us_chunk_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r) | self.chunk_format_map(config, chunk)))
+        self.print_clear(config, config['us_chunk_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)
+                                                                        | self.chunk_format_map(config, chunk) | self.unknown_chunk_format_map(config, r, chunk_size)))
+    def on_chunk_unknown_scale(self, config: dict, staticfmt: dict, r: FLHTTPResponse, chunk: int, chunk_size: int):
+        '''Writes a message that enough chunks were read to scale the chunk size'''
+        self.print_end(config, config['us_scaled_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)
+                                                                    | self.chunk_format_map(config, chunk) | self.unknown_chunk_format_map(config, r, chunk_size)), True)
 
     def print(self, config: dict, text: str):
         '''Called to print text without any end'''
@@ -304,12 +323,13 @@ class FancyFetch:
             Converts a `FLHTTPResponse` into *most* of the format values used in line formats that should not change over time
                 Does not include chunk-related format values
         '''
-        return config | {
+        fmap = config | {
             'url': self.format_url(config, r.url),
-        } | self.size_format_map(config, '_total', r.length or None)
-    def unknown_static_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
-        '''Returns a format map for values that don't change relating to unknown-sized requests'''
-        return self.size_format_map(config, '_max_size', config['chunk_size_fallback'])
+        }
+        fmap |= self.size_format_map(config, '_total', r.length or None)
+        for size in ('max_cache_size', 'no_chunk_size', 'chunk_size_fallback'):
+            fmap |= self.size_format_map(config, f'_{size}', config[size])
+        return fmap
     def chunk_format_map(self, config: dict, chunk: int, known_total: bool = True) -> dict:
         '''Returns a format map for chunk-related entries'''
         return {
@@ -317,6 +337,9 @@ class FancyFetch:
             'bar_full': config['bar_chunk'] * (chunk+1),
             'bar_empty': (config['bar_empty'] * (config['chunk_count']-chunk-1)) if known_total else None,
         }
+    def unknown_chunk_format_map(self, config: dict, r: FLHTTPResponse, chunk_size: int) -> dict:
+        '''Returns a format map for chunk-related entries when the total size is unknown'''
+        return self.size_format_map(config, '_chunk_size', chunk_size)
     def dynamic_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
         '''
             Converts a `FLHTTPResponse` into *most* of the format values used in line formats that change over time
