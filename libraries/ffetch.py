@@ -220,14 +220,14 @@ class FancyFetch:
     chunk_size_fallback:  int = ((2**10)**2)//2 # half an MiB
     ## Format config
     ### Lines
-    complete_line_fmt:    str = '{url}: downloaded {kib_fetched:.2G} KiB'
-    cached_line_fmt:      str = '{url}: loaded {kib_total:.2G} KiB from cache'
+    complete_line_fmt:    str = '{url}: downloaded {kib_fetched:.2} KiB'
+    cached_line_fmt:      str = '{url}: loaded {kib_total:.2} KiB from cache'
     #### Size known
-    ks_line_fmt:          str = '{url}: fetching {kib_total:.2G} KiB'
-    ks_chunk_line_fmt:    str = '{url}: {complete:04.0%} <{bar_full}{bar_empty}>  {mib_fetched:.2G}/{mib_total:.2G} MiB (chunk {chunk_fetched} of {chunk_total})'
+    ks_line_fmt:          str = '{url}: fetching {kib_total:.2} KiB'
+    ks_chunk_line_fmt:    str = '{url}: {complete:04.0%} <{bar_full}{bar_empty}>  {mib_fetched:.2}/{mib_total:.2} MiB (chunk {chunk_fetched} of {chunk_total})'
     #### Size unknown
-    us_line_fmt:          str = '{url}: fetching up to {mib_max_size:.2G} MiB'
-    us_line_exceeded_fmt: str = '{url}: read data exceeded {mib_max_size:.2G} MiB, swapping to chunked reading'
+    us_line_fmt:          str = '{url}: fetching up to {mib_max_size:.2} MiB'
+    us_line_exceeded_fmt: str = '{url}: read data exceeded {mib_max_size:.2} MiB, swapping to chunked reading'
     us_chunk_line_fmt:    str = '{url}: {mib_fetched:.2G} MiB fetched (chunk {chunk_fetched})'
     ### Symbols
     bar_chunk:            str = '#'
