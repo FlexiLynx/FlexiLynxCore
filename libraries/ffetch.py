@@ -275,6 +275,7 @@ class FancyFetch:
     def print_clear(self, config: dict, text: str):
         '''Called to clear and reprint the current line'''
         config['file'].write(config['line_clear_seq'] if config['do_line_clear'] else config['line_end_char'])
+        config['file'].flush()
         config['file'].write(text)
         config['file'].flush()
 
