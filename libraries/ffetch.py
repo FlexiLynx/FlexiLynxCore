@@ -215,7 +215,7 @@ class FancyFetch:
     size_prefixes:        tuple[tuple[int, str], ...] = tuple((pfx, 1024**(mag)) for mag,pfx in enumerate(('b', 'kib', 'mib', 'gib'))) \
                                                         + tuple((pfx, 1000**(mag+1)) for mag,pfx in enumerate(('kb', 'mb', 'gb')))
     # Chunk config
-    chunk_count:          int = 10
+    chunk_count:          int = 16
     no_chunk_size:        int = (2**10)**2 # one MiB
     chunk_size_fallback:  int = ((2**10)**2)//2 # half an MiB
     chunk_fallback_scale: int = 10
