@@ -43,7 +43,7 @@ _mutable_part_dataclass_decor = dataclass(kw_only=True, slots=True, weakref_slot
 _part_dataclass_decor = dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 def _part_post_init(self: type[BaseManifestPart]): self._ipart = PartAttrContainer(self)
 ## Manifest part decorator maker
-def make_part(name: str | None = None, *, mutable: bool = True, bases: tuple[type, ...] = (BaseManifestPart,),
+def make_part(name: str | None = None, add_to_all: list[str] | None = None, *, mutable: bool = True, bases: tuple[type, ...] = (BaseManifestPart,),
               dc_decor: typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]] | None = None, post_init: typing.Callable[[type[BaseManifestPart]], None] = _part_post_init) -> typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BaseManifestPart` superclass if it isn't already added
@@ -70,5 +70,6 @@ def make_part(name: str | None = None, *, mutable: bool = True, bases: tuple[typ
                 object.__setattr__(part, f'{PartAttrContainer._meth_pfx}{a.removeprefix("part_")}', staticmethod(v))
             elif isinstance(v, classmethod): v = v.__get__(None, partcls) # bind the classmethod
             object.__setattr__(part, a.removeprefix('part_'), v)
+        if add_to_all is not None: add_to_all.append(cls.__name__)
         return partcls
     return part_maker
