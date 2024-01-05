@@ -199,27 +199,59 @@ def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = Non
 @dataclass(eq=False, kw_only=True, slots=True)
 class FancyFetch:
     # Config
-    file:                typing.TextIO = sys.stderr
-    do_line_clear:       bool = True
-    line_clear_seq:      str = '\x1b[2K\r'
-    max_cache_size:      int = ((2**10)**2)//10 # one tenth of a MiB
+    file:                 typing.TextIO = sys.stderr
+    do_line_clear:        bool = True
+    line_clear_seq:       str = '\x1b[2K\r'
+    max_cache_size:       int = ((2**10)**2)//10 # one tenth of a MiB
+    size_prefixes:        tuple[tuple[int, str], ...] = tuple((pfx, 1024**(mag)) for mag,pfx in enumerate(('b', 'kib', 'mib', 'gib'))) \
+                                                       + tuple((pfx, 1000**(mag+1)) for mag,pfx in enumerate(('kb', 'mb', 'gb')))
     # Chunk config
-    chunk_count:         int = 10
-    no_chunk_size:       int = (2**10)**2 # one MiB
-    chunk_size_fallback: int = ((2**10)**2)//2 # half an MiB
+    chunk_count:          int = 10
+    no_chunk_size:        int = (2**10)**2 # one MiB
+    chunk_size_fallback:  int = ((2**10)**2)//2 # half an MiB
     ## Format config
     ### Lines
-    cached_line_fmt:     str = '{url}: loaded {kib_total:.2G} KiB from cache'
+    cached_line_fmt:      str = '{url}: loaded {kib_total:.2G} KiB from cache'
     #### Size known
-    ks_line_fmt:         str = '{url}: fetching {kib_total:.2G} KiB'
-    ks_chunk_line_fmt:   str = '{url}: {percent_complete:04.0%} <{bar_full}{bar_empty}>  {mib_fetched:.2G}/{mib_total:.2G} MiB (chunk {chunk_fetched} of {chunk_total})'
+    ks_line_fmt:          str = '{url}: fetching {kib_total:.2G} KiB'
+    ks_chunk_line_fmt:    str = '{url}: {complete:04.0%} <{bar_full}{bar_empty}>  {mib_fetched:.2G}/{mib_total:.2G} MiB (chunk {chunk_fetched} of {chunk_total})'
     #### Size unknown
-    us_line_fmt:         str = '{url}: fetching up to {mib_total:.2G} MiB'
-    us_chunk_line_fmt:   str = '{url}: {bytes_fetched} byte(s) fetched (chunk {chunk_fetched} of ?)'
+    us_line_fmt:          str = '{url}: fetching up to {mib_total:.2G} MiB'
+    us_chunk_line_fmt:    str = '{url}: {bytes_fetched} byte(s) fetched (chunk {chunk_fetched} of ?)'
     ### Symbols
-    bar_chunk:           str = '#'
-    bar_empty:           str = '-'
+    bar_chunk:            str = '#'
+    bar_empty:            str = '-'
     ### URL config
-    url_max_width:       int = 40
-    url_trunc_txt:       str = '...'
+    url_max_width:        int = 60
+    url_trunc_txt:        str = '...'
+    url_protocols:        dict = tuple({'http': '[ ]', 'https': '[S]'}.items())
+    url_protocol_unknown: str = '[?]'
+
+    def chunk_format_map(self, config: dict, chunk: int, total: int | None) -> dict:
+        '''Returns a format map for chunk-related entries'''
+        return {
+            'chunk_fetched': chunk, 'chunk_total': total,
+            'bar_full': config['bar_chunk'] * chunk,
+            'bar_empty': (config['bar_empty'] * total-chunk) if total else None,
+        }
+    def format_map(self, config: dict, r: FLHTTPResponse) -> dict:
+        '''
+            Converts a `FLHTTPResponse` into *most* of the format values used in line formats
+                Does not include chunk-related format values
+        '''
+        return {
+            'url': self.format_url(config, r.url),
+            'complete': (len(r.data or b'') / r.length) if r.length else '?',
+        } | self.size_format_map(config, '_fetched', len(r.data or b'')) | self.size_format_map(config, '_total', r.length or None)
+    def size_format_map(self, config: dict, suffix: str, size: int | None, on_unknown: str = '?') -> dict:
+        '''Returns a format map for sizes in various formats from a size (bytes)'''
+        return {f'{pfx}{suffix}': size / div for size,div in config['size_prefixes'].items()}
+    def format_url(self, config: dict, url: str) -> str:
+        '''Preprocesses a URL for `format_map()`'''
+        prot,url = url.split('://', 1)
+        url = f'{config["url_protocols"].get(prot, config["url_protocol_unknown"])}{url}'
+        if len(url) > config['url_max_width']:
+            return f'{url[:config["url_max_width"]-len(config["url_trunc_txt"])]}{config["url_trunc_txt"]}'
+        return url
+
 fancy_fetch = FancyFetch()
