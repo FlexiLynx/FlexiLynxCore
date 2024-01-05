@@ -104,6 +104,11 @@ class FLHTTPResponse:
         if self.length is None: return None
         return int((self.length / chunks) + 0.5) or self.length
 
+    # override length
+    @property
+    def length(self) -> int | None:
+        return int(cl) if (cl := self.headers.get('Content-Length')) is not None else None
+
     @property
     def completed(self) -> bool:
         return self.isclosed()
