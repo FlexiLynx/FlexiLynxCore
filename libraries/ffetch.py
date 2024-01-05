@@ -243,7 +243,7 @@ class FancyFetch:
         '''Fetches chunked data of a known size'''
         total = r.calc_chunksize(config['chunk_count'])
         for chunk,_ in enumerate(r.iter_chunks(total)):
-            self.on_chunk_known_size(config, staticfmt, r, chunk)
+            self.on_chunk_known_size(config, staticfmt, r, chunk, total)
         return r.read()
     def fetch_unknown_size(self, config: dict, r: FLHTTPResponse) -> bytes:
         ...
@@ -252,13 +252,13 @@ class FancyFetch:
 
     def on_complete(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that the fetching has completed'''
-        self.print_end(config, config['completed_line_fmt'].format(staticfmt | self.dynamic_format_map(config, r)), True)
+        self.print_end(config, config['completed_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)), True)
     def on_fetch_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that unchunked data is being read of a known size'''
         self.print(config, config['ks_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)))
     def on_chunk_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse, chunk: int, total: int):
         '''Writes a message for each read chunk of a known size'''
-        self.print_clear(config, config['ks_chunk_line_fmt'].format(staticfmt | self.dynamic_format_map(config, r) | self.chunk_format_map(config, chunk, total)))
+        self.print_clear(config, config['ks_chunk_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r) | self.chunk_format_map(config, chunk, total)))
 
     def print(self, config: dict, text: str):
         '''Called to print text without any end'''
@@ -269,7 +269,7 @@ class FancyFetch:
         print(text, end=config['line_end_char'], file=config['file'])
     def print_clear(self, config: dict, text: str):
         '''Called to clear and reprint the current line'''
-        print(text, end=(config['line_clear_char'] if config['do_line_clear'] else config['line_end_char']), file=config['file'])
+        print(text, end=(config['line_clear_seq'] if config['do_line_clear'] else config['line_end_char']), file=config['file'])
 
     def static_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
         '''
@@ -284,7 +284,7 @@ class FancyFetch:
         return {
             'chunk_fetched': chunk, 'chunk_total': total,
             'bar_full': config['bar_chunk'] * chunk,
-            'bar_empty': (config['bar_empty'] * total-chunk) if total else None,
+            'bar_empty': (config['bar_empty'] * (total-chunk)) if total else None,
         }
     def dynamic_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
         '''
@@ -296,7 +296,7 @@ class FancyFetch:
         } | self.size_format_map(config, '_fetched', len(r.data or b''))
     def size_format_map(self, config: dict, suffix: str, size: int | None, on_unknown: str = '?') -> dict:
         '''Returns a format map for sizes in various formats from a size (bytes)'''
-        return {f'{pfx}{suffix}': size / div for size,div in config['size_prefixes'].items()}
+        return {f'{pfx}{suffix}': size / div for pfx,div in config['size_prefixes']}
     def format_url(self, config: dict, url: str) -> str:
         '''Preprocesses a URL for `format_map()`'''
         prot,url = url.split('://', 1)
