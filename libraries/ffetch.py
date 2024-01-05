@@ -274,7 +274,9 @@ class FancyFetch:
         print(text, end=config['line_end_char'], file=config['file'])
     def print_clear(self, config: dict, text: str):
         '''Called to clear and reprint the current line'''
-        print(text, end=(config['line_clear_seq'] if config['do_line_clear'] else config['line_end_char']), file=config['file'])
+        config['file'].write(config['line_clear_seq'] if config['do_line_clear'] else config['line_end_char'])
+        config['file'].write(text)
+        config['file'].flush()
 
     def static_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
         '''
