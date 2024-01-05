@@ -220,14 +220,14 @@ class FancyFetch:
     chunk_size_fallback:  int = ((2**10)**2)//2 # half an MiB
     ## Format config
     ### Lines
-    complete_line_fmt:    str = '{url}: downloaded {kib_fetched:.2G} KiB{line_end_char}'
+    complete_line_fmt:    str = '{url}: downloaded {kib_fetched:.2G} KiB'
     cached_line_fmt:      str = '{url}: loaded {kib_total:.2G} KiB from cache'
     #### Size known
     ks_line_fmt:          str = '{url}: fetching {kib_total:.2G} KiB'
     ks_chunk_line_fmt:    str = '{url}: {complete:04.0%} <{bar_full}{bar_empty}>  {mib_fetched:.2G}/{mib_total:.2G} MiB (chunk {chunk_fetched} of {chunk_total})'
     #### Size unknown
     us_line_fmt:          str = '{url}: fetching up to {mib_total:.2G} MiB'
-    us_chunk_line_fmt:    str = '{url}: {bytes_fetched} byte(s) fetched (chunk {chunk_fetched} of ?)'
+    us_chunk_line_fmt:    str = '{url}: {b_fetched} byte(s) fetched (chunk {chunk_fetched} of ?)'
     ### Symbols
     bar_chunk:            str = '#'
     bar_empty:            str = '-'
