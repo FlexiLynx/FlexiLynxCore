@@ -151,30 +151,33 @@ def cachedict_to_urldict(cache_dict: dict[typing.Hashable, ] = cache) -> dict[st
     '''Helper function to convert a dictionary of URLs and `FLHTTPResponse`s from a dictionary of URL hashes and `FLHTTPResponse`s'''
     return {c.url: c for c in cache_dict.values()}
 
-def request(url: str, *, timeout: int | None = None,
+def request(url: str | urlrequest.Request, *, timeout: int | None = None, user_agent: str = 'Mozilla/5.0',
             cache_dict: dict[typing.Hashable, FLHTTPResponse] = cache, read_from_cache: bool = True, add_to_cache: bool = True) -> FLHTTPResponse:
     '''
         Requests data from the `url`, waiting for an (optional) `timeout` seconds, with caching capabilities:
             Reads data from a module-level cache (or `cache_dict`) if `read_from_cache` is true
             Writes data to the module-level cache (or `cache_dict`) if `add_to_cache` is true
+        `user_agent` is only set if `url` is a string and not a `urllib.request.Request`
     '''
     if read_from_cache or add_to_cache:
-        h = hash_url(url)
+        h = hash_url(url.url if isinstance(url, urlrequest.Request) else url)
         if read_from_cache:
             if (c := cache_dict.get(h, None)) is not None:
                 return c
+    if isinstance(url, str):
+        url = urlrequest.Request(url, headers={'User-Agent': user_agent})
     hr = FLHTTPResponse(urlrequest.urlopen(url, timeout=timeout))
     if add_to_cache: cache_dict[h] = hr
     return hr
 
-def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
+def fetch(url: str | urlrequest.Request, no_cache: bool = False, **kwargs) -> bytes:
     '''
         Fetches bytes from `url`, with optional caching features
         See `help(request)` for additional information and `kwargs`
             `no_cache=True` is a shortcut for `read_from_cache=False` and `add_to_cache=False`
     '''
     return request(url, **(({'read_from_cache': False, 'add_to_cache': False} if no_cache else {}) | kwargs)).read()
-def fetch_chunks(url: str, chunk_size: int | None, chunk_count: int | None = None, *, chunk_cached: bool = True, no_cache: bool = False, add_to_cache: bool = False, **kwargs) -> typing.Iterator[bytes]:
+def fetch_chunks(url: str | urlrequest.Request, chunk_size: int | None, chunk_count: int | None = None, *, chunk_cached: bool = True, no_cache: bool = False, add_to_cache: bool = False, **kwargs) -> typing.Iterator[bytes]:
     '''
         Fetches bytes in chunks of `chunk_size` byte(s) each
             If `chunk_count` is given, then `chunk_size` is set so that the amount of chunks is (roughly) equivelant to `chunk_count`
