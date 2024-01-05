@@ -249,7 +249,7 @@ class FancyFetch:
             `kwargs` are used as `config`, with the base `config` being supplied by the instance's attributes
         '''
         if not isinstance(target, FLHTTPResponse):
-            target = request(target, **request_kwargs)
+            target = request(target, **request_kwargs, add_to_cache=False)
         config = {a: getattr(self, a) for a in self.__slots__} | kwargs
         staticfmt = self.static_format_map(config, target)
         if target.length is None:
@@ -257,6 +257,7 @@ class FancyFetch:
         else:
             data = self.fetch_known_size(config, staticfmt, target)
         self.on_complete(config, staticfmt, target)
+        if len(data) < self.max_cache_size: cache[data.url_hash] = data
         return data
     __call__ = fetch
 
@@ -298,6 +299,9 @@ class FancyFetch:
     def on_complete(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that the fetching has completed'''
         self.print_end(config, config['complete_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)), True)
+    def on_cache_read(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
+        '''Writes a message that the fetching was skipped and a cached value returned'''
+        self.print_end(config, config['cached_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)))
     def on_fetch_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that unchunked data is being read of a known size'''
         self.print(config, config['ks_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)))
