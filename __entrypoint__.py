@@ -32,6 +32,7 @@ def __init__():
     FlexiLynx.core.loglib = _resolve_import('libraries.loglib')
     FlexiLynx.logger = FlexiLynx.core.loglib.mklogger()
     ### Add other libraries
+    _core.ffetch = _resolve_import('libraries.ffetch')
     _core.flexispacelib = flexispacelib
     _core.packlib = _resolve_import('libraries.packlib')
     ### Add framewarks
