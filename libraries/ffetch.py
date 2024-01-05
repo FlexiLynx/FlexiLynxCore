@@ -27,9 +27,10 @@ class FLHTTPResponse:
          - Reading in a `FLHTTPResponse` may break the original
          - Reading in the original *will* break this class
     '''
-    __slots__ = ('data', 'original')
+    __slots__ = ('original_url', 'data', 'original')
 
-    def __init__(self, original: HTTPResponse):
+    def __init__(self, url: str, original: HTTPResponse):
+        self.original_url = url
         self.data = None
         self.original = original
     def __getattr__(self, attr: str) -> typing.Any:
@@ -122,7 +123,7 @@ class FLHTTPResponse:
         return isinstance(self.data, bytearray)
     @property
     def url_hash(self) -> typing.Hashable:
-        return hash_url(self.url)
+        return hash_url(self.original_url)
 
 cache = {}
 def hash_url(url: str) -> typing.Hashable:
@@ -154,7 +155,7 @@ def pop_cache(item: str | FLHTTPResponse | None = None, *, cache_dict: dict[typi
     return popped
 def cachedict_to_urldict(cache_dict: dict[typing.Hashable, ] = cache) -> dict[str, FLHTTPResponse]:
     '''Helper function to convert a dictionary of URLs and `FLHTTPResponse`s from a dictionary of URL hashes and `FLHTTPResponse`s'''
-    return {c.url: c for c in cache_dict.values()}
+    return {c.original_url: c for c in cache_dict.values()}
 
 def request(url: str | urlrequest.Request, *, timeout: int | None = None, user_agent: str = 'Mozilla/5.0',
             cache_dict: dict[typing.Hashable, FLHTTPResponse] = cache, read_from_cache: bool = True, add_to_cache: bool = True) -> FLHTTPResponse:
@@ -164,14 +165,15 @@ def request(url: str | urlrequest.Request, *, timeout: int | None = None, user_a
             Writes data to the module-level cache (or `cache_dict`) if `add_to_cache` is true
         `user_agent` is only set if `url` is a string and not a `urllib.request.Request`
     '''
+    rurl = url.original_url if isinstance(url, urlrequest.Request) else url
     if read_from_cache or add_to_cache:
-        h = hash_url(url.url if isinstance(url, urlrequest.Request) else url)
+        h = hash_url(rurl)
         if read_from_cache:
             if (c := cache_dict.get(h, None)) is not None:
                 return c
     if isinstance(url, str):
         url = urlrequest.Request(url, headers={'User-Agent': user_agent})
-    hr = FLHTTPResponse(urlrequest.urlopen(url, timeout=timeout))
+    hr = FLHTTPResponse(rurl, urlrequest.urlopen(url, timeout=timeout))
     if add_to_cache: cache_dict[h] = hr
     return hr
 
@@ -252,12 +254,15 @@ class FancyFetch:
             target = request(target, **request_kwargs, add_to_cache=False)
         config = {a: getattr(self, a) for a in self.__slots__} | kwargs
         staticfmt = self.static_format_map(config, target)
+        if target.has_read:
+            self.on_cache_read(config, staticfmt, target)
+            return target.data
         if target.length is None:
             data = self.fetch_unknown_size(config, staticfmt, target)
         else:
             data = self.fetch_known_size(config, staticfmt, target)
         self.on_complete(config, staticfmt, target)
-        if len(data) < self.max_cache_size: cache[data.url_hash] = data
+        if len(data) < self.max_cache_size: cache[target.url_hash] = target
         return data
     __call__ = fetch
 
@@ -345,7 +350,7 @@ class FancyFetch:
         fmap = config | {
             'url': self.format_url(config, r.url),
         }
-        fmap |= self.size_format_map(config, '_total', r.length or None)
+        fmap |= self.size_format_map(config, '_total', len(r.data) if r.has_read else (r.length or None))
         for size in ('max_cache_size', 'no_chunk_size', 'chunk_size_fallback'):
             fmap |= self.size_format_map(config, f'_{size}', config[size])
         return fmap
