@@ -241,9 +241,27 @@ class FancyFetch:
     url_protocols:        dict = tuple({'http': '[ ]', 'https': '[S]', 'ftp': '[F]'}.items())
     url_protocol_unknown: str = '[?]'
 
-    def fetch_known_size(self, config: dict, r: FLHTTPResponse):
+    def fetch(self, target: str | urlrequest.Request | FLHTTPResponse, *, request_kwargs: dict[str, typing.Any] = {}, **kwargs) -> bytes:
+        '''
+            Fetches data from `target`, printing out various helpful messages
+            `request()` is used to convert `target` if it isn't already a `FLHTTPResponse`
+                `request_kwargs` are passed to `request()` for this conversion
+            `kwargs` are used as `config`, with the base `config` being supplied by the instance's attributes
+        '''
+        if not isinstance(target, FLHTTPResponse):
+            target = request(target, **request_kwargs)
+        config = {a: getattr(self, a) for a in self.__slots__} | kwargs
+        staticfmt = self.static_format_map(config, target)
+        if target.length is None:
+            data = self.fetch_unknown_size(config, staticfmt, target)
+        else:
+            data = self.fetch_known_size(config, staticfmt, target)
+        self.on_complete(config, staticfmt, target)
+        return data
+    __call__ = fetch
+
+    def fetch_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse) -> bytes:
         '''Fetches data of a known size, delegating to `chunked_fetch_known_size()` if the data is large enough'''
-        staticfmt = self.static_format_map(config, r)
         if r.length > config['no_chunk_size']:
             return self.chunked_fetch_known_size(config, staticfmt, r)
         self.on_fetch_known_size(config, staticfmt, r)
@@ -254,9 +272,8 @@ class FancyFetch:
         for chunk,_ in enumerate(r.iter_chunks(r.calc_chunksize(config['chunk_count']))):
             self.on_chunk_known_size(config, staticfmt, r, chunk+1)
         return r.read()
-    def fetch_unknown_size(self, config: dict, r: FLHTTPResponse) -> bytes:
+    def fetch_unknown_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse) -> bytes:
         '''Fetches data of an unknown size, delegating to `chunked_fetch_unknown_size()` when the size reaches a certain threshold'''
-        staticfmt = self.static_format_map(config, r)
         self.on_fetch_unknown_size(config, staticfmt, r)
         data = r.read(config['chunk_size_fallback'])
         if r.completed: return data
@@ -280,7 +297,7 @@ class FancyFetch:
 
     def on_complete(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that the fetching has completed'''
-        self.print_end(config, config['completed_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)), True)
+        self.print_end(config, config['complete_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)), True)
     def on_fetch_known_size(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that unchunked data is being read of a known size'''
         self.print(config, config['ks_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)))
