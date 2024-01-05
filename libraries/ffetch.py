@@ -290,9 +290,9 @@ class FancyFetch:
     def chunk_format_map(self, config: dict, chunk: int, known_total: bool = True) -> dict:
         '''Returns a format map for chunk-related entries'''
         return {
-            'chunk_fetched': chunk, 'chunk_total': config['chunk_count'] if known_total else None,
-            'bar_full': config['bar_chunk'] * chunk,
-            'bar_empty': (config['bar_empty'] * (config['chunk_count']-chunk)) if known_total else None,
+            'chunk_fetched': chunk+1, 'chunk_total': config['chunk_count'] if known_total else None,
+            'bar_full': config['bar_chunk'] * (chunk+1),
+            'bar_empty': (config['bar_empty'] * (config['chunk_count']-chunk-1)) if known_total else None,
         }
     def dynamic_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
         '''
