@@ -330,7 +330,7 @@ class FancyFetch:
 
     def print(self, config: dict, text: str):
         '''Called to print text without any end'''
-        print(text, end=None, file=config['file'])
+        print(text, end='', file=config['file'])
     def print_end(self, config: dict, text: str, prefix_end: bool = False):
         '''Called to print and add the line ending char (prints the line ending char before as well if `prefix_end` is true)'''
         if prefix_end: print(end=config['line_end_char'], file=config['file'])
