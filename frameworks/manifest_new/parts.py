@@ -6,13 +6,14 @@
     Each part contains data, a name, and various helper methods
     Different types of manifests may use different parts
 
-    Note that, whilst `@make_part()`, `BaseManifestPart`, and `PartAttrContainer` are not in `__all__`, they are considered public symbols
+    Note that, whilst `PartAttrContainer` is not in `__all__`, it is still considered a public symbol
 '''
 
 #> Imports
 import types
 import typing
 import weakref
+from functools import partial
 from dataclasses import dataclass
 #</Imports
 
@@ -73,3 +74,12 @@ def make_part(name: str | None = None, add_to_all: list[str] | None = None, *, m
         if add_to_all is not None: add_to_all.append(cls.__name__)
         return partcls
     return part_maker
+
+# Setup __all__
+__all__ = ['make_part', 'BaseManifestPart']
+_make_part = partial(make_part, add_to_all=__all__)
+
+# Parts classes
+
+# Finalize __all__
+__all__ = tuple(__all__)
