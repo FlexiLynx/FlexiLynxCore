@@ -23,7 +23,8 @@ class BaseManifestPart:
 
 _mutable_part_dataclass_decor = dataclass(kw_only=True, slots=True, weakref_slot=True)
 _part_dataclass_decor = dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-def make_part(name: str | None = None, *, mutable: bool = True, dc_decor: typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]] | None = None) -> typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]]:
+def make_part(name: str | None = None, *, mutable: bool = True, bases: tuple[type, ...] = (BaseManifestPart,),
+              dc_decor: typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]] | None = None) -> typing.Callable[[type[BaseManifestPart]], type[BaseManifestPart]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BaseManifestPart` superclass if it isn't already added
         Moves `cls.part_...` class variables (and methods, etc.) to a `cls.part` `PartAttrContainer`
@@ -31,6 +32,7 @@ def make_part(name: str | None = None, *, mutable: bool = True, dc_decor: typing
         If `dc_decor` is specified, then `mutable` is ignored
 
         Note that the decorator's returned class does *not* inherit from the original class, rather extracting data from its `__dict__`
+            (if needed, bases can be set in the `bases` parameter, but ensure that `BaseManifestPart` is in there!)
         Note that the decorator should not be used on a class that has any bases, as the returned class only subclasses `BaseManifestPart`
     '''
     assert (name is None) or isinstance(name, str), f'Field "name" must be a string or None' \
@@ -38,7 +40,7 @@ def make_part(name: str | None = None, *, mutable: bool = True, dc_decor: typing
     def part_maker(cls: type[BaseManifestPart]) -> type[BaseManifestPart]:
         part = PartAttrContainer()
         return ((_mutable_part_dataclass_decor if mutable else _part_dataclass_decor) if dc_decor is None else dc_decor)(
-            type((cls.__name__ if name is None else name), (BaseManifestPart,), {
+            type((cls.__name__ if name is None else name), bases, {
                 'part': part,
                 '__annotations__': cls.__annotations__ | {'part': typing.ClassVar[PartAttrContainer]},
             } | {a: v for a,v in cls.__dict__.items() if (not a.startswith('part_')) or (setattr(part, a.removeprefix('part_'), v))})
