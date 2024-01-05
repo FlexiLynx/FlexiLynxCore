@@ -19,7 +19,7 @@ class PartAttrContainer:
     '''A no-op class that serves as a container for part-class-related values (methods, etc.)'''
 class BaseManifestPart:
     '''A no-op class that serves to only tie manifest parts together and for `isinstance()` checks'''
-    __slots__ = ()
+    __slots__ = ('part',)
 
 _mutable_part_dataclass_decor = dataclass(kw_only=True, slots=True, weakref_slot=True)
 _part_dataclass_decor = dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
