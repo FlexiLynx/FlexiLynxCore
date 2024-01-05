@@ -303,7 +303,7 @@ class FancyFetch:
 
     def on_complete(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that the fetching has completed'''
-        self.print_end(config, config['complete_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)), True)
+        self.print_clear(config, config['complete_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)), True)
     def on_cache_read(self, config: dict, staticfmt: dict, r: FLHTTPResponse):
         '''Writes a message that the fetching was skipped and a cached value returned'''
         self.print_end(config, config['cached_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)))
@@ -326,7 +326,7 @@ class FancyFetch:
     def on_chunk_unknown_scale(self, config: dict, staticfmt: dict, r: FLHTTPResponse, chunk: int, chunk_size: int):
         '''Writes a message that enough chunks were read to scale the chunk size'''
         self.print_end(config, config['us_scaled_line_fmt'].format_map(staticfmt | self.dynamic_format_map(config, r)
-                                                                    | self.chunk_format_map(config, chunk) | self.unknown_chunk_format_map(config, r, chunk_size)), True)
+                                                                    | self.chunk_format_map(config, chunk) | self.unknown_chunk_format_map(config, r, chunk_size)), config['do_line_clear'])
 
     def print(self, config: dict, text: str):
         '''Called to print text without any end'''
@@ -335,11 +335,12 @@ class FancyFetch:
         '''Called to print and add the line ending char (prints the line ending char before as well if `prefix_end` is true)'''
         if prefix_end: print(end=config['line_end_char'], file=config['file'])
         print(text, end=config['line_end_char'], file=config['file'])
-    def print_clear(self, config: dict, text: str):
+    def print_clear(self, config: dict, text: str, end: bool = False):
         '''Called to clear and reprint the current line'''
         config['file'].write(config['line_clear_seq'] if config['do_line_clear'] else config['line_end_char'])
         config['file'].flush()
         config['file'].write(text)
+        if end: config['file'].write(config['line_end_char'])
         config['file'].flush()
 
     def static_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
