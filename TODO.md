@@ -39,7 +39,7 @@ Note: completed elements should have no modifiers
 |- v| 2024-01-03 |  2024-01-03  | Refactor libraries
 | - | 2024-01-03 |  2024-01-03  | - Refactor `libraries/flexispacelib.py`
 | - | 2024-01-03 |  2024-01-03  | - Refactor `libraries/loglib.py`
-| - | 2024-01-03 |  2024-01-03  | Refactor manifest framework
+|^ =| 2024-01-03 |  2024-01-05  | Refactor manifest framework
 ## Fix docstrings
 <details>
 |   | Date added | Date updated | Description
@@ -68,7 +68,7 @@ Note: completed elements should have no modifiers
 | + | 2024-01-03 |  2024-01-03  | - Implement content diffs
 |+ v| 2024-01-03 |  2024-01-03  | Implement store
 | x | 2024-01-03 |  2024-01-03  | - Implement base store features (file discovery and manifest download by id)
-|- .| 2024-01-03 |  2024-01-03  | Traditional post-implementation major rethink / refactor
+|= .| 2024-01-03 |  2024-01-05  | Traditional post-implementation major rethink / refactor
 | x | 2024-01-03 |  2024-01-03  | Implement basic structure and formats
 | x | 2024-01-03 |  2024-01-03  | Implement signing
 | x | 2024-01-03 |  2024-01-03  | - Implement key remap cascades
