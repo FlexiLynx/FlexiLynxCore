@@ -257,31 +257,43 @@ class _PartUnion_Compose(_PartUnion):
                f'{", ".join(f"{s!r}" for s in self.p_structs.values())}' \
                f'{"" if self.p_unstruct is None else f"""\
                    {" | " if self.p_structs else ""}*{repr(self.p_unstruct)}"""})'
-    def __getattr__(self, attr: str) -> typing.Any:
-        for p in self.p_structs.values():
-            if hasattr(p, attr): return getattr(p, attr)
-        if (self.p_unstruct is not None) and hasattr(self.p_unstruct, attr):
-            return getattr(self.p_unstruct, attr)
-        raise AttributeError(attr)
-    def __setattr__(self, attr: str, val: typing.Any):
-        if (attr == '_p_union_initted') or not super().__getattribute__('_p_union_initted'):
-            return super().__setattr__(attr, val)
-        if hasattr(super(), attr): return super().__setattr__(attr, val)
-        for p in self.p_structs.values():
-            if hasattr(p, attr): return setattr(p, attr, val)
-        if self.p_unstruct is not None:
-            return setattr(p, attr, val)
-        raise AttributeError(attr)
 class _PartUnion_ComposeMeta(type):
+    @staticmethod
+    def _make_property(s: StructuredBasePart, n: str):
+        return property(lambda self: getattr(self.p_structs[s], n), lambda self,v: setattr(self.p_structs[s], n, v))
+    @staticmethod
+    def _make_unstruct___getattr_____setattr__(properties: dict[str, property]) -> dict[typing.Literal['__getattr__', '__setattr__'], typing.Callable[[_PartUnion_Compose, str, ...], ...]]:
+        funcs = {}
+        def _unstruct__getattr__(self, attr: str) -> typing.Any:
+            if attr.startswith('P_') or attr.startswith('p_') or attr.startswith('_'):
+                raise AttributeError(attr)
+            if (prop := properties.get(attr, None)) is not None:
+                return prop.fget(self, attr, val)
+            if hasattr(self.p_unstruct, attr):
+                return getattr(self.p_unstruct, attr)
+            raise AttributeError(attr)
+        funcs['__getattr__'] = _unstruct__getattr__
+        def _unstruct__setattr__(self, attr: str, val: typing.Any):
+            if attr.startswith('P_') or attr.startswith('p_') or attr.startswith('_'):
+                return super(type(self), self).__setattr__(attr, val)
+            if (prop := properties.get(attr, None)) is not None:
+                return prop.fset(self, attr, val)
+            setattr(self.p_unstruct, attr, val)
+        funcs['__setattr__'] = _unstruct__setattr__
+        return funcs
     def __call__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> _PartUnion_Compose:
         p_unstructs = tuple(p for p in parts if issubclass(p, UnstructuredBasePart))
         p_structs = tuple(p for p in parts if issubclass(p, StructuredBasePart))
         assert len(p_unstructs) + len(p_structs) == len(parts), 'Some parts were of illegal type'
         assert len(p_unstructs) < 2, f'Cannot have more than one unstructured type in {cls.__name__}'
-        annotations = {}; args = ['self',]; dargs = []; kwargs = []
+        base.logger.debug(f'_PartUnion_ComposeMeta: Creating {cls.__name__}({name!r}, {parts!r}) parameters'
+                          f'\n{len(p_structs)} structured part(s), contains unstructured part: {bool(p_unstructs)!r}')
+        annotations = {}; params = ['self',]; dargs = []; kwargs = []
         defaults = []; kwdefaults = {}
+        properties = {}; extras = {}
         for s in p_structs:
             for n,f in s.__dataclass_fields__.items():
+                properties[n] = _PartUnion_ComposeMeta._make_property(s, n)
                 if f.kw_only:
                     kwargs.append(n)
                     annotations[n] = f.type
@@ -290,27 +302,27 @@ class _PartUnion_ComposeMeta(type):
                 else:
                     annotations[n] = f.type
                     if f.default is MISSING:
-                        args.append(n)
+                        params.append(n)
                     else:
                         dargs.append(n)
                         defaults.append(f.default)
-        args.extend(dargs)
+        params.extend(dargs)
+        args = tuple(params)
         if kwargs:
-            params = tuple(args) + tuple(f'{p}={p}' for p in kwargs)
-            args.append('*')
-            args.extend(kwargs)
-            if p_unstructs:
-                args.append('**kwargs')
-                params += ('**kwargs',)
-        elif p_unstructs:
-            params = tuple(args)+('**kwargs',)
-            args.append('**kwargs')
-        else: params = tuple(args)
+            base.logger.debug(f'_PartUnion_ComposeMeta: Adding keyword-args: {kwargs}')
+            args += tuple(f'{p}={p}' for p in kwargs)
+            params.append('*')
+            params.extend(kwargs)
+        if p_unstructs:
+            base.logger.debug(f'_PartUnion_ComposeMeta: Adding parameters and special __getattr__() and __setattr__() for unstructured part')
+            args += ('**kwargs',)
+            params.append('**kwargs')
+            extras |= _PartUnion_ComposeMeta._make_unstruct___getattr_____setattr__(properties)
         defaults = tuple(defaults)
         contain = {}
         base.logger.debug(f'_PartUnion_ComposeMeta: Creating {cls.__name__}({name!r}, {parts!r}).__init__():\n'
-                          f'def __init__({", ".join(args)}): _PartUnion_Compose.__init__({", ".join(params)})')
-        exec(f'def __init__({", ".join(args)}): _PartUnion_Compose.__init__({", ".join(params)})', globals(), contain)
+                          f'def __init__({", ".join(params)}): _PartUnion_Compose.__init__({", ".join(args)})')
+        exec(f'def __init__({", ".join(params)}): _PartUnion_Compose.__init__({", ".join(args)})', globals(), contain)
         __init__ = contain['__init__']
         base.logger.debug(f'_PartUnion_ComposeMeta: Created {cls.__name__} __init__: {__init__}, assigning extra:\n'
                           f'Annotations: {annotations!r}\n'
@@ -319,7 +331,7 @@ class _PartUnion_ComposeMeta(type):
         __init__.__annotations__ = annotations
         __init__.__defaults__ = defaults
         __init__.__kwdefaults__ = kwdefaults
-        return type(name, (_PartUnion_Compose,), {'__slots__': (), '__init__': __init__,
+        return type(name, (_PartUnion_Compose,), extras | properties | {'__slots__': (), '__init__': __init__,
             'p_unstruct_cls': p_unstructs[0] if p_unstructs else None, 'p_struct_cls': p_structs})
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Compose)
