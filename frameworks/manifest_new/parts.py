@@ -112,7 +112,7 @@ class BasePart:
                 A value is converted into a sub-part if `p_subparts` exists and is not `None` and contains `k` (and `p_subparts[k]` is not `None`)
                     with the equivalent of `p_subparts[k].import(v)`
         '''
-        if (cls.p_subparts is not None) and ((sp := cls.p_subparts.get(k, None)) is not None):
+        if isinstance(v, cabc.Mapping) and (cls.p_subparts is not None) and ((sp := cls.p_subparts.get(k, None)) is not None):
             return sp.p_import(v)
         return v
     @classmethod
