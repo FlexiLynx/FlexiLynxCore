@@ -216,9 +216,10 @@ class _PartUnion_Compose(_PartUnion):
         Doesn't support non-keyword-only default values, and is clunky and hacky when compared to `PartUnion_New`,
             but supports containing a single instance of `UnstructuredBasePart`
     '''
-    __slots__ = ('p_unstruct', 'p_structs')
+    __slots__ = ('_p_union_initted', 'p_unstruct', 'p_structs')
 
     def __init__(self, *args, **kwargs):
+        self._p_union_initted = False
         i = 0
         self.p_structs = {}
         for p in self.p_struct_cls:
@@ -239,6 +240,8 @@ class _PartUnion_Compose(_PartUnion):
             raise TypeError(f'Left with extraneous {"positional ({len(args)-i})" if len(args) > i else ""}'
                             f'{" and " if (len(args) > i) and kwargs else ""}{f"keyword {len(kwargs)}" if kwargs else ""}'
                             ' arguments after composing union')
+        self._p_union_initted = True
+
     def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''Concatenates and returns the exports of all unionized parts'''
         return types.MappingProxyType(dict(
@@ -248,11 +251,27 @@ class _PartUnion_Compose(_PartUnion):
     def p_import(cls, export: typing.Mapping[str, [bool | int | float | complex | bytes | str | typing.Sequence | typing.Set | typing.Mapping | None]]) -> typing.Self:
         '''Constructs a new instance of this class with `**export`'''
         return cls(**export)
+
     def __repr__(self) -> str:
         return f'{type(self).__name__}(' \
                f'{", ".join(f"{s!r}" for s in self.p_structs.values())}' \
                f'{"" if self.p_unstruct is None else f"""\
                    {" | " if self.p_structs else ""}*{repr(self.p_unstruct)}"""})'
+    def __getattr__(self, attr: str) -> typing.Any:
+        for p in self.p_structs.values():
+            if hasattr(p, attr): return getattr(p, attr)
+        if (self.p_unstruct is not None) and hasattr(self.p_unstruct, attr):
+            return getattr(self.p_unstruct, attr)
+        raise AttributeError(attr)
+    def __setattr__(self, attr: str, val: typing.Any):
+        if (attr == '_p_union_initted') or not super().__getattribute__('_p_union_initted'):
+            return super().__setattr__(attr, val)
+        if hasattr(super(), attr): return super().__setattr__(attr, val)
+        for p in self.p_structs.values():
+            if hasattr(p, attr): return setattr(p, attr, val)
+        if self.p_unstruct is not None:
+            return setattr(p, attr, val)
+        raise AttributeError(attr)
 class _PartUnion_ComposeMeta(type):
     def __call__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> _PartUnion_Compose:
         p_unstructs = tuple(p for p in parts if issubclass(p, UnstructuredBasePart))
