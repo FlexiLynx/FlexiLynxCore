@@ -227,6 +227,9 @@ class _PartUnion_Compose(_PartUnion):
             Supports one unstructured part
             Supports any number of regular and keyword-only defaults
             Has type-hinting in `__init__()`
+            Supports extracting the unionized parts into a mapping (`p_union_extract()`), and creating a new instance from that mapping (`p_union_import()`)
+        Note that `PartUnion_Compose.p_union_import()` constructs a new union type and then calls that new type's `p_union_import()`;
+            an already existing union can use `p_union_import()` to fill in its own attributes and will not create a new type
     '''
     __slots__ = ('_p_union_initted', 'p_unstruct', 'p_structs')
 
@@ -253,6 +256,26 @@ class _PartUnion_Compose(_PartUnion):
                             f'{" and " if (len(args) > i) and kwargs else ""}{f"keyword {len(kwargs)}" if kwargs else ""}'
                             ' arguments after composing union')
         self._p_union_initted = True
+    @classmethod
+    def p_union_import(cls, extract: typing.Mapping[type[StructuredBasePart] | type[UnstructuredBasePart], StructuredBasePart | UnstructuredBasePart]) -> typing.Self:
+        '''
+            Creates an instance of this union from a mapping of `{type(<part>): <part>}`
+
+            Note that verification checks are made using assertions and are not available if assertions are disabled
+        '''
+        self = object.__new__(cls)
+        self._p_union_initted = False
+        self.p_structs = {c: i for c,i in extract.items() if issubclass(c, StructuredBasePart)}
+        assert self.p_structs.keys() == frozenset(self.p_struct_cls), 'Disjoint found between structured union clasess and imported classes'
+        p_unstructs = set(extract)-self.p_structs.keys()
+        assert len(p_unstructs) < 2
+        self.p_unstruct = extract[p_unstructs.pop()] if p_unstructs else None
+        assert isinstance(self.p_unstruct, self.p_unstruct_cls), 'Unstructured type in export does not match unstructured type in union'
+        self._p_union_initted = True
+        return self
+    def p_union_extract(self) -> types.MappingProxyType[type[StructuredBasePart] | type[UnstructuredBasePart], StructuredBasePart | UnstructuredBasePart]:
+        '''Extracts the union into a mapping of `{type(<part>): <part>}`'''
+        return types.MappingProxyType(self.p_structs | ({} if self.p_unstruct_cls is None else {self.p_unstruct_cls: self.p_unstruct}))
 
     def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''Concatenates and returns the exports of all unionized parts'''
@@ -352,6 +375,11 @@ class _PartUnion_ComposeMeta(type):
 class PartUnion_Compose(_PartUnion, metaclass=_PartUnion_ComposeMeta):
     __slots__ = ()
     __doc__ = _PartUnion_Compose.__doc__
+
+    @classmethod
+    def p_union_import(cls, extract: typing.Mapping[type[StructuredBasePart] | type[UnstructuredBasePart], StructuredBasePart | UnstructuredBasePart], name: str = '<imported union>') -> _PartUnion_Compose:
+        '''Constructs a new `PartUnion_Compose` from all the part-types in `extract`, then uses that new class' `p_union_import()`'''
+        return cls(name, *extract.keys()).p_union_import(extract)
 ## "New" method
 class _PartUnion_New(_PartUnion):
     '''
