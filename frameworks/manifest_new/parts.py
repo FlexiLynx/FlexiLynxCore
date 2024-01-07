@@ -8,8 +8,10 @@
 '''
 
 #> Imports
+import typing
 from functools import partial
 from dataclasses import field
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from .parts_base import *
 from . import parts_base as base # re-exposed as base
@@ -21,11 +23,28 @@ __all__ = ['base',]
 _make_part = partial(make_struct_part, add_to_all=__all__)
 
 # Parts classes
-@_make_part('!id') # use special characters to delimit most important parts
+## Core parts
+@_make_part('!id')
 class IDManifestPart:
     id:   str = field(kw_only=False)
     rel:  int = field(kw_only=False)
     type: str | None = None
+@_make_part('!crypt')
+class CryptManifestPart:
+    sig: bytes
+    key: EdPubK
+
+    @classmethod
+    def _p_export_unknown(cls, v: typing.Any):
+        if isinstance(v, EdPubK): return v.public_bytes_raw()
+        raise TypeError
+    @classmethod
+    def _p_import_val(cls, k: str, v: typing.Any) -> typing.Any:
+        if isinstance(v, EdPubK): pass
+        if k == 'key':
+            if isinstance(v, bytes): return EdPubK.from_public_bytes(v)
+            raise TypeError('Field "key" must be of type "bytes", not {type(v).__qualname__!r}')
+        return super()._p_import_val(k, v)
 
 # Finalize __all__
 __all__ = tuple(__all__)
