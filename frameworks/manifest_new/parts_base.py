@@ -8,8 +8,8 @@
 #> Imports
 import types
 import typing
+from dataclasses import dataclass
 from collections import abc as cabc
-from dataclasses import dataclass, asdict
 #</Imports
 
 #> Header >/
@@ -99,7 +99,8 @@ class BasePart:
                         and `return tuple(_p_export_iterable(v))` for otherwise unhandled sequences
             Note that structured parts should have immutable values anyway (`dict`s are an exception as there is no built-in frozen version)
         '''
-        return types.MappingProxyType(dict(self._p_export_dict(asdict(self))))
+        return types.MappingProxyType(dict(self._p_export_dict(
+            {a: getattr(self, a) for a in getattr(self, '__slots__', getattr(self, '__dict__', None))})))
 
     @classmethod
     def _p_import_val(cls, k: str, v: typing.Any) -> typing.Any:
