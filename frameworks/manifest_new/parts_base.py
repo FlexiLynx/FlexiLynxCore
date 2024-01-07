@@ -18,7 +18,7 @@ from . import base
 #> Header >/
 __all__ = ('BasePart', 'UnstructuredBasePart', 'StructuredBasePart',
            'make_struct_part', 'make_unstruct_part',
-           'PartUnionType', 'PartUnion_Compose', 'PartUnion_New')
+           'PartUnion', 'PartUnion_Compose', 'PartUnion_New')
 
 # Parts base
 class BasePart:
@@ -188,7 +188,7 @@ def make_unstruct_part(name: str, add_to_all: list[str] | None = None, type_para
     return cls
 
 # Parts union
-class PartUnionType(BasePart):
+class PartUnion(BasePart):
     '''
         For two purposes:
           - Type-hints any type of part union
@@ -203,16 +203,16 @@ class PartUnionType(BasePart):
         else:
             raise TypeError(f'Cannot construct a union of 2 or more unstructured parts {ustruct}')
 
-class _PartUnionType(PartUnionType):
+class _PartUnion(PartUnion):
     __slots__  = ()
     def __new__(cls, *args, **kwargs):
         self = object.__new__(cls)
         self.__init__(*args, **kwargs)
         return self
 ## "Compose" method
-class _PartUnion_Compose(_PartUnionType):
+class _PartUnion_Compose(_PartUnion):
     '''
-        Constructs a `PartUnionType` of multiple parts
+        Constructs a `PartUnion` of multiple parts
         Doesn't support non-keyword-only default values, and is clunky and hacky when compared to `PartUnion_New`,
             but supports containing a single instance of `UnstructuredBasePart`
     '''
@@ -306,13 +306,13 @@ class _PartUnion_ComposeMeta(type):
         return isinstance(other, _PartUnion_Compose)
     def __subclasscheck__(cls, other: type) -> bool:
         return issubclass(other, _PartUnion_Compose) or issubclass(other, PartUnion_Compose)
-class PartUnion_Compose(_PartUnionType, metaclass=_PartUnion_ComposeMeta):
+class PartUnion_Compose(_PartUnion, metaclass=_PartUnion_ComposeMeta):
     __slots__ = ()
     __doc__ = _PartUnion_Compose.__doc__
 ## "New" method
-class _PartUnion_New(_PartUnionType):
+class _PartUnion_New(_PartUnion):
     '''
-        Constructs a `PartUnionType` of multiple parts
+        Constructs a `PartUnion` of multiple parts
         Has type-hints for `__init__()`, supports default values, and is much cleaner and less hacky when compared to `PartUnion_Compose`,
             but doesn't support `UnstructuredBasePart`s
     '''
@@ -326,6 +326,6 @@ class _PartUnion_NewMeta(type):
         return isinstance(other, _PartUnion_New)
     def __subclasscheck__(cls, other: type) -> bool:
         return issubclass(other, _PartUnion_New) or issubclass(other, PartUnion_New)
-class PartUnion_New(_PartUnionType, metaclass=_PartUnion_NewMeta):
+class PartUnion_New(_PartUnion, metaclass=_PartUnion_NewMeta):
     __Slots__ = ()
     __doc__ = _PartUnion_New.__doc__
