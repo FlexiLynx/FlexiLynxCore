@@ -222,8 +222,11 @@ class _PartUnion(PartUnion):
 class _PartUnion_Compose(_PartUnion):
     '''
         Constructs a `PartUnion` of multiple parts
-        Doesn't support non-keyword-only default values, and is clunky and hacky when compared to `PartUnion_New`,
-            but supports containing a single instance of `UnstructuredBasePart`
+        Uses the "compose" method:
+            Supports any number of structured parts
+            Supports one unstructured part
+            Supports any number of regular and keyword-only defaults
+            Has type-hinting in `__init__()`
     '''
     __slots__ = ('_p_union_initted', 'p_unstruct', 'p_structs')
 
@@ -353,8 +356,13 @@ class PartUnion_Compose(_PartUnion, metaclass=_PartUnion_ComposeMeta):
 class _PartUnion_New(_PartUnion):
     '''
         Constructs a `PartUnion` of multiple parts
-        Has type-hints for `__init__()`, supports default values, and is much cleaner and less hacky when compared to `PartUnion_Compose`,
-            but doesn't support `UnstructuredBasePart`s
+        Uses the "new" method:
+            Creates a new dataclass using the fields of all the given structured parts
+            Supports any number of structured parts
+            Does not support unstructured parts
+            Supports any number of regular and keyword-only defaults
+            Has type-hinting in `__init__()`
+            Seamlessly created with `dataclasses.make_dataclass()`, and is faster and cleaner than the "compose" method
     '''
     __slots__ = ()
 class _PartUnion_NewMeta(type):
