@@ -139,18 +139,38 @@ class UnstructuredBasePart[*ContentTypes](BasePart):
 _mutable_part_dataclass_decor = dataclass(kw_only=True, slots=True)
 _part_dataclass_decor = dataclass(frozen=True, kw_only=True, slots=True)
 ## Manifest part decorator maker
-def make_struct_part(name: str | None = None, add_to_all: list[str] | None = None, *, mutable: bool = True, bases: tuple[type, ...] = (BasePart,),
-                     dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[BasePart]], None] | None = None) -> typing.Callable[[type[BasePart]], type[BasePart]]:
+def make_struct_part(name: str | None = None, add_to_all: list[str] | None = None, *, mutable: bool = True, auto_subparts: bool = True,
+                     bases: tuple[type, ...] = (BasePart,), dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[BasePart]], None] | None = None) -> typing.Callable[[type[BasePart]], type[BasePart]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BasePart` superclass if it isn't already added
+            Also generates the `p_subparts` mapping (as a `mappingproxy`) if `auto_subparts` is true
+                Subparts are added to (copied) existing `p_subparts` mappings
+                Subparts are discovered via annotations, although detection is limited:
+                    it will only check if an annotation is a subpart,
+                    or has an `__args__` attribute that contains a subpart class (A.E. `<subpart class> | None`),
+                        but only if its `__origin__` is not `typing.ClassVar` (so, ignores class variable types),
+                        (asserts that only one subpart is in `__args__`)
 
         If `dc_decor` is specified, then `mutable` is ignored
     '''
     assert (name is None) or isinstance(name, str), f'Field "name" must be a string or None' \
                                                     f'{", this function should be called to construct a decorator (`@make_struct_part(...)`), not as a decorator (`@make_struct_part`)" if isinstance(name, type) else ""}'
     def part_maker(cls: type[BasePart] | type) -> type[BasePart]:
+        cdict = cls.__dict__.copy()
+        if post_init is not None: cdict['__post_init__'] = post_init
+        if auto_subparts:
+            cdict['p_subparts'] = dict(cdict.get('p_subparts', ()))
+            for n,a in cls.__annotations__.items():
+                if getattr(a, '__origin__', None) is typing.ClassVar: continue # skip ClassVars
+                if isinstance(a, type) and issubclass(a, BasePart): cdict['p_subparts'][n] = a # base annotation, <name>: <partcls>
+                elif not hasattr(a, '__args__'): continue
+                else: # nested in an annotation
+                    if not (ps := tuple(i for i,av in enumerate(a.__args__) if isinstance(av, type) and issubclass(av, BasePart))): continue
+                    assert len(ps) == 1, f'Cannot specify multiple `BasePart` subclasses in a single type: saw {tuple(p.__qualname__ for p in ps)} in annotation {a!r}'
+                    cdict['p_subparts'][n] = a.__args__[ps[0]]
+            cdict['p_subparts'] = types.MappingProxyType(cdict['p_subparts'])
         partcls = ((_mutable_part_dataclass_decor if mutable else _part_dataclass_decor) if dc_decor is None else dc_decor)(
-            type((cls.__name__ if name is None else name), (cls,)+bases, cls.__dict__ | ({} if post_init is None else {'__post__init__': post_unit})))
+            type((cls.__name__ if name is None else name), (cls,)+bases, cdict))
         if add_to_all is not None: add_to_all.append(cls.__name__)
         return partcls
     return part_maker
@@ -159,6 +179,7 @@ def make_unstruct_part(name: str, add_to_all: list[str] | None = None, type_para
     cls = types.new_class(name, (base[*type_params],), {} if mutable else {'__setattr__': None})
     if add_to_all is not None: add_to_all.append(name if all_name is None else all_name)
     return cls
+
 # Setup __all__
 __all__ = ['make_struct_part', 'make_unstruct_part', 'BasePart', 'UnstructuredBasePart']
 _make_part = partial(make_struct_part, add_to_all=__all__)
