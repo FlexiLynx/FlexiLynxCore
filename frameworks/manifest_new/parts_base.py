@@ -193,13 +193,22 @@ class PartUnion(BasePart):
         For two purposes:
           - Type-hints any type of part union
           - Constructs the best part union type for the given parts
+              Note that, if only one part is given, a new subclass of it with name `name` is returned
+              Note that, if no parts are given, a new subclass of `BasePart` with name `name` is returned
         See `help(PartUnion_New)` and `help(PartUnion_Compose)`
     '''
     __slots__ = ()
-    def __new__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> typing.Union['PartUnion_Compose', 'PartUnion_New']:
-        ustruct = sum(1 for p in parts if issubclass(p, UnstructuredBasePart))
-        if ustruct == 0:    return PartUnion_New(name, *parts)
-        elif unstruct == 1: return PartUnion_Compose(name, *parts)
+    def __new__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> typing.Union['PartUnion_Compose', 'PartUnion_New'] | UnstructuredBasePart | StructuredBasePart | BasePart:
+        if not len(parts): return type(name, (BasePart,), {})
+        elif len(parts) == 1: return type(name, (parts[0]), {})
+        struct = ustruct = 0
+        for p in parts:
+            if issubclass(p, UnstructuredBasePart): ustruct += 1
+            elif issubclass(p, StructuredBasePart): struct += 1
+            else:
+                raise TypeError('Unknown type {type(p).__qualname__} of {p!r}')
+        if ustruct == 0:   return PartUnion_New(name, *parts)
+        elif ustruct == 1: return PartUnion_Compose(name, *parts)
         else:
             raise TypeError(f'Cannot construct a union of 2 or more unstructured parts {ustruct}')
 
