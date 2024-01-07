@@ -8,13 +8,18 @@
 #> Imports
 import types
 import typing
-from dataclasses import dataclass
+from collections import deque
 from collections import abc as cabc
+from dataclasses import dataclass, make_dataclass, MISSING
+
+from . import base
 #</Imports
 
 #> Header >/
 __all__ = ('BasePart', 'UnstructuredBasePart', 'StructuredBasePart',
-           'make_struct_part', 'make_unstruct_part')
+           'make_struct_part', 'make_unstruct_part',
+           'PartUnionType', 'PartUnion_Compose', 'PartUnion_New')
+
 # Parts base
 class BasePart:
     '''A base class for all manifest parts'''
@@ -100,7 +105,7 @@ class BasePart:
             Note that structured parts should have immutable values anyway (`dict`s are an exception as there is no built-in frozen version)
         '''
         return types.MappingProxyType(dict(self._p_export_dict(
-            {a: getattr(self, a) for a in getattr(self, '__slots__', getattr(self, '__dict__', None))})))
+            {a: getattr(self, a) for a in tuple(getattr(self, '__slots__', ()) + tuple(getattr(self, '__dict__', {}).keys()))})))
 
     @classmethod
     def _p_import_val(cls, k: str, v: typing.Any) -> typing.Any:
@@ -181,3 +186,146 @@ def make_unstruct_part(name: str, add_to_all: list[str] | None = None, type_para
     cls = types.new_class(name, (base[*type_params],), {} if mutable else {'__setattr__': None})
     if add_to_all is not None: add_to_all.append(name if all_name is None else all_name)
     return cls
+
+# Parts union
+class PartUnionType(BasePart):
+    '''
+        For two purposes:
+          - Type-hints any type of part union
+          - Constructs the best part union type for the given parts
+        See `help(PartUnion_New)` and `help(PartUnion_Compose)`
+    '''
+    __slots__ = ()
+    def __new__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> typing.Union['PartUnion_Compose', 'PartUnion_New']:
+        ustruct = sum(1 for p in parts if issubclass(p, UnstructuredBasePart))
+        if ustruct == 0:    return PartUnion_New(name, *parts)
+        elif unstruct == 1: return PartUnion_Compose(name, *parts)
+        else:
+            raise TypeError(f'Cannot construct a union of 2 or more unstructured parts {ustruct}')
+
+class _PartUnionType(PartUnionType):
+    __slots__  = ()
+    def __new__(cls, *args, **kwargs):
+        self = object.__new__(cls)
+        self.__init__(*args, **kwargs)
+        return self
+## "Compose" method
+class _PartUnion_Compose(_PartUnionType):
+    '''
+        Constructs a `PartUnionType` of multiple parts
+        Doesn't support non-keyword-only default values, and is clunky and hacky when compared to `PartUnion_New`,
+            but supports containing a single instance of `UnstructuredBasePart`
+    '''
+    __slots__ = ('p_unstruct', 'p_structs')
+
+    def __init__(self, *args, **kwargs):
+        i = 0
+        self.p_structs = {}
+        for p in self.p_struct_cls:
+            pargs = 0; pkwargs = {}
+            for fn,f in p.__dataclass_fields__.items():
+                if fn in kwargs:
+                    pkwargs[fn] = kwargs.pop(fn)
+                    continue
+                if f.kw_only: continue # let dataclasses handle it with an error or a default
+                pargs += 1
+            self.p_structs[p] = p(*args[i:i+pargs], **pkwargs)
+            i += pargs
+        if self.p_unstruct_cls is not None:
+            self.p_unstruct = self.p_unstruct_cls(*args[i:], **kwargs)
+            return
+        else: self.p_unstruct = None
+        if (len(args) > i) or kwargs:
+            raise TypeError(f'Left with extraneous {"positional ({len(args)-i})" if len(args) > i else ""}'
+                            f'{" and " if (len(args) > i) and kwargs else ""}{f"keyword {len(kwargs)}" if kwargs else ""}'
+                            ' arguments after composing union')
+    def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+        '''Concatenates and returns the exports of all unionized parts'''
+        return types.MappingProxyType(dict(
+            tuple(() if self.p_unstruct is None else tuple(self.p_unstruct.p_export().items())
+            + tuple(p.p_export() for p in self.p_structs))))
+    @classmethod
+    def p_import(cls, export: typing.Mapping[str, [bool | int | float | complex | bytes | str | typing.Sequence | typing.Set | typing.Mapping | None]]) -> typing.Self:
+        '''Constructs a new instance of this class with `**export`'''
+        return cls(**export)
+    def __repr__(self) -> str:
+        return f'{type(self).__name__}(' \
+               f'{", ".join(f"{s!r}" for s in self.p_structs.values())}' \
+               f'{"" if self.p_unstruct is None else f"""\
+                   {" | " if self.p_structs else ""}*{repr(self.p_unstruct)}"""})'
+class _PartUnion_ComposeMeta(type):
+    def __call__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> _PartUnion_Compose:
+        p_unstructs = tuple(p for p in parts if issubclass(p, UnstructuredBasePart))
+        p_structs = tuple(p for p in parts if issubclass(p, StructuredBasePart))
+        assert len(p_unstructs) + len(p_structs) == len(parts), 'Some parts were of illegal type'
+        assert len(p_unstructs) < 2, f'Cannot have more than one unstructured type in {cls.__name__}'
+        annotations = {}; args = ['self',]; dargs = []; kwargs = []
+        defaults = []; kwdefaults = {}
+        for s in p_structs:
+            for n,f in s.__dataclass_fields__.items():
+                if f.kw_only:
+                    kwargs.append(n)
+                    annotations[n] = f.type
+                    if f.default is not MISSING:
+                        kwdefaults[n] = f.default
+                else:
+                    annotations[n] = f.type
+                    if f.default is MISSING:
+                        args.append(n)
+                    else:
+                        dargs.append(n)
+                        defaults.append(f.default)
+        args.extend(dargs)
+        if kwargs:
+            params = tuple(args) + tuple(f'{p}={p}' for p in kwargs)
+            args.append('*')
+            args.extend(kwargs)
+            if p_unstructs:
+                args.append('**kwargs')
+                params += ('**kwargs',)
+        elif p_unstructs:
+            params = tuple(args)+('**kwargs',)
+            args.append('**kwargs')
+        else: params = tuple(args)
+        defaults = tuple(defaults)
+        contain = {}
+        base.logger.debug(f'_PartUnion_ComposeMeta: Creating {cls.__name__}({name!r}, {parts!r}).__init__():\n'
+                          f'def __init__({", ".join(args)}): _PartUnion_Compose.__init__({", ".join(params)})')
+        exec(f'def __init__({", ".join(args)}): _PartUnion_Compose.__init__({", ".join(params)})', globals(), contain)
+        __init__ = contain['__init__']
+        base.logger.debug(f'_PartUnion_ComposeMeta: Created {cls.__name__} __init__: {__init__}, assigning extra:\n'
+                          f'Annotations: {annotations!r}\n'
+                          f'Defaults: {defaults!r}\n'
+                          f'Keyword Defaults: {kwdefaults}')
+        __init__.__annotations__ = annotations
+        __init__.__defaults__ = defaults
+        __init__.__kwdefaults__ = kwdefaults
+        return type(name, (_PartUnion_Compose,), {'__slots__': (), '__init__': __init__,
+            'p_unstruct_cls': p_unstructs[0] if p_unstructs else None, 'p_struct_cls': p_structs})
+    def __instancecheck__(cls, other: typing.Any) -> bool:
+        return isinstance(other, _PartUnion_Compose)
+    def __subclasscheck__(cls, other: type) -> bool:
+        return issubclass(other, _PartUnion_Compose) or issubclass(other, PartUnion_Compose)
+class PartUnion_Compose(_PartUnionType, metaclass=_PartUnion_ComposeMeta):
+    __slots__ = ()
+    __doc__ = _PartUnion_Compose.__doc__
+## "New" method
+class _PartUnion_New(_PartUnionType):
+    '''
+        Constructs a `PartUnionType` of multiple parts
+        Has type-hints for `__init__()`, supports default values, and is much cleaner and less hacky when compared to `PartUnion_Compose`,
+            but doesn't support `UnstructuredBasePart`s
+    '''
+    __slots__ = ()
+class _PartUnion_NewMeta(type):
+    def __call__(cls, name: str, *parts: StructuredBasePart, mutable: bool = True) -> _PartUnion_New:
+        assert all(issubclass(p, StructuredBasePart) for p in parts), 'Parts must all be StructuredBaseParts'
+        return make_dataclass(name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in parts), start=()),
+                              bases=(_PartUnion_New,), frozen=not mutable, namespace={'p_struct_cls': parts})
+    def __instancecheck__(cls, other: typing.Any) -> bool:
+        return isinstance(other, _PartUnion_New)
+    def __subclasscheck__(cls, other: type) -> bool:
+        return issubclass(other, _PartUnion_New) or issubclass(other, PartUnion_New)
+class PartUnion_New(_PartUnionType, metaclass=_PartUnion_NewMeta):
+    __Slots__ = ()
+    __doc__ = _PartUnion_New.__doc__
