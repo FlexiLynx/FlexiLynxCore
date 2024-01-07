@@ -13,7 +13,7 @@ from collections import abc as cabc
 #</Imports
 
 #> Header >/
-__all__ = ('BasePart', 'UnstructuredBasePart',
+__all__ = ('BasePart', 'UnstructuredBasePart', 'StructuredBasePart',
            'make_struct_part', 'make_unstruct_part')
 # Parts base
 class BasePart:
@@ -134,12 +134,15 @@ class UnstructuredBasePart[*ContentTypes](BasePart):
     '''A base part for allowing a manifest part to contain variable data'''
     def __init__(self, **kwargs: typing.Union[*ContentTypes]):
         self.__dict__.update(kwargs)
+class StructuredBasePart(BasePart):
+    '''A no-op base part for structured parts; use `make_struct_part()`'''
+    __slots__ = ()
 ## Sub-values for make_part
 _mutable_part_dataclass_decor = dataclass(kw_only=True, slots=True)
 _part_dataclass_decor = dataclass(frozen=True, kw_only=True, slots=True)
 ## Manifest part decorator maker
 def make_struct_part(name: str | None = None, add_to_all: list[str] | None = None, *, mutable: bool = True, auto_subparts: bool = True,
-                     bases: tuple[type, ...] = (BasePart,), dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[BasePart]], None] | None = None) -> typing.Callable[[type[BasePart]], type[BasePart]]:
+                     bases: tuple[type, ...] = (StructuredBasePart,), dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[StructuredBasePart]], None] | None = None) -> typing.Callable[[type[BasePart]], type[StructuredBasePart]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BasePart` superclass if it isn't already added
             Also generates the `p_subparts` mapping (as a `mappingproxy`) if `auto_subparts` is true
