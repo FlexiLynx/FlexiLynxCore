@@ -20,6 +20,9 @@ from collections.abc import Iterable, Iterator, Set, Mapping
 # Parts base
 class BasePart:
     '''A base class for all manifest parts'''
+    __slots__ = ()
+
+    p_subparts: typing.ClassVar[typing.Mapping | None] = None
 
     @classmethod
     def _p_export_val(cls, v: typing.Any) -> bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None:
@@ -99,6 +102,35 @@ class BasePart:
             Note that structured parts should have immutable values anyway (`dict`s are an exception as there is no built-in frozen version)
         '''
         return types.MappingProxyType(dict(self._p_export_dict(asdict(self))))
+
+    @classmethod
+    def _p_import_val(cls, k: str, v: typing.Any) -> typing.Any:
+        '''
+            Converts values for importing
+
+            In `BasePart`, this either converts sub-part mappings to sub-parts, or returns `v` with no changes
+                A value is converted into a sub-part if `p_subparts` exists and is not `None` and contains `k` (and `p_subparts[k]` is not `None`)
+                    with the equivalent of `p_subparts[k].import(v)`
+        '''
+        if (cls.p_subparts is not None) and ((sp := cls.p_subparts.get(k, None)) is not None):
+            return sp.p_import(v)
+        return v
+    @classmethod
+    def _p_import_map(cls, d: typing.Mapping) -> typing.Self:
+        '''Creates an instance of this part-class using a mapping, translating values with `_p_import_val(key, val)`'''
+        return cls(**{k: cls._p_import_val(k, v) for k,v in d.items()})
+    @classmethod
+    def p_import(cls, export: typing.Mapping[str, [bool | int | float | complex | bytes | str | typing.Sequence | typing.Set | typing.Mapping | None]]) -> typing.Self:
+        '''
+            Converts an exported mapping into an instance of this part-class
+            Creates sub-parts using the `p_subparts` mapping if it exists
+            The following methods are used:
+              - The top-level part is created with `_p_import_map(export)`
+              - Values are translated with `_p_import_val(key, val)`
+              - Sub-parts are created with `<SubPartClass>.p_import(sub_part_map)`
+        '''
+        return cls._p_import_map(export)
+
 class UnstructuredBasePart[*ContentTypes](BasePart):
     '''A base part for allowing a manifest part to contain variable data'''
     def __init__(self, **kwargs: typing.Union[*ContentTypes]):
