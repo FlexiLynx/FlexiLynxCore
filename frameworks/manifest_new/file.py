@@ -76,7 +76,7 @@ def ini_extract(data: bytes | Path) -> ManifestType:
 # JSON stream
 def json_preprocess(man: ManifestType) -> dict:
     '''Convert the manifest into JSON-encodable Python types'''
-    return dict(_reduce(man.p_export(), bytearray_convert=False, encode_bytes='b85', set_convert=True))
+    return dict(_reduce(man.m_export(), bytearray_convert=False, encode_bytes='b85', set_convert=True))
 def json_render(man: ManifestType, compact: typing.Literal[0, 1, 2] = 0) -> bytes:
     '''Render the manifest in JSON format'''
     return SIG_JSON + json.dumps(json_preprocess(man), indent=None if compact > 0 else 4,
@@ -87,7 +87,7 @@ def json_postprocess(data: bytes) -> str:
 def json_extract(data: bytes | Path) -> typing.Mapping:
     '''
         Extracts a manifest from JSON
-            Returns `None` on a file without a `JSON_SIG`
+            Returns `None` on a file without a `SIG_JSON`
     '''
     if isinstance(data, Path): data = data.read_bytes()
     if not data.startswith(SIG_JSON): return None
