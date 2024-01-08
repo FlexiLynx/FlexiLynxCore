@@ -46,5 +46,9 @@ class CryptManifestPart:
             raise TypeError('Field "key" must be of type "bytes", not {type(v).__qualname__!r}')
         return super()._p_import_val(k, v)
 
+# Part unions
+CoreManifestParts = PartUnion('CoreManifestParts', IDManifestPart, CryptManifestPart)
+__all__.append('CoreManifestParts')
+
 # Finalize __all__
 __all__ = tuple(__all__)
