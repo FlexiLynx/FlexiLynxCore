@@ -451,11 +451,11 @@ class _PartUnion_Hybrid(_PartUnion_New, _PartUnion_Nest):
     p_export_flat = None
 class _PartUnion_HybridMeta(type): # also used for `ManifestType`
     def __call__(cls, p_name: str, *new_parts: type[DataclassPartType], _bases: tuple[type, ...] = (_PartUnion_New, _PartUnion_Nest), _namespace: typing.Mapping | None = None,
-                 p_nest_defaults: typing.Mapping[str, BasePart] = {}, **nest_parts: type[BasePart]):
+                 p_mutable: bool = False, p_nest_defaults: typing.Mapping[str, BasePart] = {}, **nest_parts: type[BasePart]):
         assert all(isinstance(p, DataclassPartType) for p in new_parts), 'Parts for "new" method must all be DataclassPartTypes'
         return make_dataclass(p_name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in new_parts), start=()) \
                               + tuple((n, p, field(default=p_nest_defaults.get(n, MISSING))) for n,p in nest_parts.items()),
-                              bases=_bases, frozen=True, namespace={'p_parts_cls_new': new_parts, 'p_subparts': nest_parts} if _namespace is None else _namespace)
+                              bases=_bases, frozen=not p_mutable, namespace={'p_parts_cls_new': new_parts, 'p_subparts': nest_parts} if _namespace is None else _namespace)
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Hybrid)
     def __subclasscheck__(cls, other: type) -> bool:

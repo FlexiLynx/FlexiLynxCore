@@ -66,9 +66,9 @@ class _ManifestType:
         '''Compile this manifest for signing'''
         return self.M_packer.pack(self)
 class _ManifestTypeMeta(type):
-    def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, m_register: bool = True, **parts: base.BasePart) -> type[_ManifestType]:
+    def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, m_register: bool = True, m_top_mutable: bool = True, **parts: base.BasePart) -> type[_ManifestType]:
         c = (base._PartUnion_HybridMeta if parts else base._PartUnion_NewMeta).__call__(cls,
-            m_name, *CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace={'m_parts': parts}, **parts)
+            m_name, *CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace={'m_parts': parts}, p_mutable=m_top_mutable, **parts)
         c.type = m_name
         if m_register: c.m_register()
         return c
