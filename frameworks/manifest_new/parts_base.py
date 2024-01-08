@@ -302,7 +302,7 @@ class _PartUnion_Compose(_PartUnion):
                f'{"" if self.p_unstruct is None else f"""{", " if self.p_structs else ""}{repr(self.p_unstruct)}"""})'
 class _PartUnion_ComposeMeta(type):
     @staticmethod
-    def _make_property(s: StructuredBasePart, n: str):
+    def _make_property(s: type[StructuredBasePart], n: str):
         return property(lambda self: getattr(self.p_structs[s], n), lambda self,v: setattr(self.p_structs[s], n, v))
     @staticmethod
     def _make_unstruct___getattr_____setattr__(properties: dict[str, property]) -> dict[typing.Literal['__getattr__', '__setattr__'], typing.Callable[[_PartUnion_Compose, str, ...], ...]]:
@@ -324,7 +324,7 @@ class _PartUnion_ComposeMeta(type):
             setattr(self.p_unstruct, attr, val)
         funcs['__setattr__'] = _unstruct__setattr__
         return funcs
-    def __call__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> _PartUnion_Compose:
+    def __call__(cls, name: str, *parts: type[UnstructuredBasePart] | type[StructuredBasePart]) -> type[_PartUnion_Compose]:
         p_unstructs = tuple(p for p in parts if issubclass(p, UnstructuredBasePart))
         p_structs = tuple(p for p in parts if issubclass(p, StructuredBasePart))
         assert len(p_unstructs) + len(p_structs) == len(parts), 'Some parts were of illegal type'
@@ -402,7 +402,7 @@ class _PartUnion_New(_PartUnion):
     '''
     __slots__ = ()
 class _PartUnion_NewMeta(type):
-    def __call__(cls, name: str, *parts: StructuredBasePart, mutable: bool = True) -> _PartUnion_New:
+    def __call__(cls, name: str, *parts: type[StructuredBasePart], mutable: bool = True) -> type[_PartUnion_New]:
         assert all(issubclass(p, StructuredBasePart) for p in parts), 'Parts must all be StructuredBaseParts'
         return make_dataclass(name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in parts), start=()),
                               bases=(_PartUnion_New,), frozen=not mutable, namespace={'p_struct_cls': parts})
