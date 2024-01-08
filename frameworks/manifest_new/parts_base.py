@@ -18,7 +18,7 @@ from . import base
 #> Header >/
 __all__ = ('BasePart', 'UnstructuredBasePart', 'StructuredBasePart',
            'make_struct_part', 'make_unstruct_part',
-           'PartUnion', 'PartUnion_Compose', 'PartUnion_New')
+           'PartUnion', 'PartUnion_Compose', 'PartUnion_New', 'PartUnion_Nest')
 
 # Parts base
 class BasePart:
@@ -413,3 +413,22 @@ class _PartUnion_NewMeta(type):
 class PartUnion_New(_PartUnion, metaclass=_PartUnion_NewMeta):
     __Slots__ = ()
     __doc__ = _PartUnion_New.__doc__
+## "Nest" method
+class _PartUnion_Nest(_PartUnion):
+    '''
+        Constructs a `PartUnion` of multiple parts
+        Uses the "nest" method:
+            Much simpler compared to the "compose" method, and somewhat simpler than the "new" method
+            Sub-parts are nested inside of the union as attributes
+            These sub-parts are combined in functions like `p_export()`, but note that `p_import()` expects a mapping of names
+                So, `p_import(p_export(...))` is no longer valid
+                `p_union_export()` exports the type of mapping that `p_import()` expects
+            Can support any number of structured or unstructured parts, as well as default values and even parts with overlapping keys
+    '''
+    __slots__ = ()
+class _PartUnion_NestMeta(type):
+    def __call__(cls, name: str, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
+        ...
+class _PartUnion_Nest(_PartUnion, metaclass=_PartUnion_NestMeta):
+    __slots__ = ()
+    __doc__ = _PartUnion_Nest.__doc__
