@@ -420,12 +420,15 @@ class _PartUnion_Nest(_PartUnion):
         Uses the "nest" method:
             Much simpler compared to the "compose" method, and somewhat simpler than the "new" method
             Sub-parts are nested inside of the union as attributes
-            These sub-parts are combined in functions like `p_export()`, but note that `p_import()` expects a mapping of names
-                So, `p_import(p_export(...))` is no longer valid
-                `p_union_export()` exports the type of mapping that `p_import()` expects
+            These sub-parts are combined in `p_export_flat()`, whilst `p_export()` exports a nested map
+                `p_import()` cannot import flattened parts
             Can support any number of structured or unstructured parts, as well as default values and even parts with overlapping keys
     '''
     __slots__ = ()
+
+    def p_export_flat(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+        '''Returns a union of every contained parts' exports'''
+        return types.MappingProxyType(dict(sum(map(tuple, map(cabc.Mapping.items, self.p_export().values())), start=())))
 class _PartUnion_NestMeta(type):
     def __call__(cls, p_name: str, p_defaults: typing.Mapping[str, UnstructuredBasePart | StructuredBasePart] = {},
                  p_allow_nested_replace: bool = False, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
