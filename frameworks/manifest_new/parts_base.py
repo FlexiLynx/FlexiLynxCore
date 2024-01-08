@@ -13,6 +13,8 @@ from collections import abc as cabc
 from dataclasses import dataclass, field, make_dataclass, MISSING
 
 from . import base
+
+from FlexiLynx.core.util import concat_mappings, dictdir
 #</Imports
 
 #> Header >/
@@ -32,7 +34,7 @@ class BasePart:
         '''
             Exports values into immutable primitives and/or collections in the following order:
                 (note that the number next to each item groups items where order is non-important in an implementation
-                (for instance, in any implementation, handing exporting to `v.[_]p_export()` should always be done first)
+                (typing.Callable[[tuple[tuple[typing.Any, typing.Any], ...]], typing.Any] instance, in any implementation, handing exporting to `v.[_]p_export()` should always be done first)
              1) Hands the work of exporting over to `v._p_export()` or `v.p_export()` if `v` has either of those methods
              2) Returns (non-`bool`) constants (`None`, `NotImplemented`, and `Ellipsis`/`...`) directly
              2) Returns primitives (`bool`, `int`, `float`, `complex`, `str`, and `bytes`)
@@ -104,8 +106,7 @@ class BasePart:
                         and `return tuple(_p_export_iterable(v))` for otherwise unhandled sequences
             Note that structured parts should have immutable values anyway (`dict`s are an exception as there is no built-in frozen version)
         '''
-        return types.MappingProxyType(dict(self._p_export_dict(
-            {a: getattr(self, a) for a in tuple(getattr(self, '__slots__', ()) + tuple(getattr(self, '__dict__', {}).keys()))})))
+        return types.MappingProxyType(self._p_export_dict(dictdir(self)))
 
     @classmethod
     def _p_import_val(cls, k: str, v: typing.Any) -> typing.Any:
@@ -137,10 +138,7 @@ class BasePart:
 
     def __repr__(self) -> str:
         return f'({", ".join( \
-            f"{a}={v}" for a,v in ( \
-                {a: getattr(self, a) for a in self.__slots__} \
-                | getattr(self, '__dict__', {}) \
-            ).items() if not (a.startswith("P_") or a.startswith("p_") or a.startswith("_")))})'
+            f"{a}={v}" for a,v in dictdir(self).items() if not (a.startswith("P_") or a.startswith("p_") or a.startswith("_")))})'
 
 class UnstructuredBasePart[*ContentTypes](BasePart):
     '''A base part for allowing a manifest part to contain variable data'''
@@ -428,7 +426,7 @@ class _PartUnion_Nest(_PartUnion):
 
     def p_export_flat(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''Returns a union of every contained parts' exports'''
-        return types.MappingProxyType(dict(sum(map(tuple, map(cabc.Mapping.items, self.p_export().values())), start=())))
+        return types.MappingProxyType(concat_mappings(*self.p_export().values()))
 class _PartUnion_NestMeta(type):
     def __call__(cls, p_name: str, p_defaults: typing.Mapping[str, UnstructuredBasePart | StructuredBasePart] = {},
                  p_allow_nested_replace: bool = False, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
