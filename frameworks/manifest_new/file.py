@@ -16,7 +16,7 @@ from collections import abc as cabc
 
 from .base import ManifestType
 
-from FlexiLynx.core import encodings
+from FlexiLynx.core import packlib, encodings
 #</Imports
 
 #> Header >/
@@ -93,11 +93,27 @@ def json_extract(data: bytes | Path) -> typing.Mapping:
     if not data.startswith(SIG_JSON): return None
     return ManifestType.m_from_map(json.loads(json_postprocess(data)))
 # Pakd stream
-def pakd_preprocess(man: ManifestType, printable: bool = False) -> typing.Any:
-    ...
+def pakd_preprocess(man: ManifestType) -> typing.Any:
+    '''Simply returns `man.m_export()`'''
+    return man.m_export()
 def pakd_render(man: ManifestType, printable: bool = False) -> bytes:
-    ...
-def pakd_postprocess(data: bytes) -> bytes:
-    ...
-def pakd_extract(data: bytes) -> ManifestType:
-    ...
+    '''Render the manifest into PacLib-packed bytes'''
+    return (SIG_PAKD_P if printable else SIG_PAKD) + packlib.pack(pakd_preprocess(man))
+def pakd_postprocess(data: bytes, printable: bool) -> bytes:
+    '''Decodes (base85) printable bytes if necessary and strips `SIG_PAKD`/`SIG_PAKD_P`'''
+    if printable: data = encodings.decode('b85', data.decode())
+    return data[len(SIG_PAKD_P if printable else SIG_PAKD):]
+def pakd_extract(data: bytes | Path, printable: bool | None = None) -> ManifestType | None:
+    '''
+        Extracts a manifest from PackLib-packed bytes
+            Returns `None` on a file without a `SIG_PAKD` or `SIG_PAKD_P` (depending on `printable`)
+    '''
+    if isinstance(data, Path): data = data.read_bytes()
+    if data.startswith(SIG_PAKD):
+        if printable is True: return None
+        printable = False
+    elif data.startswith(SIG_PAKD_P):
+        if printable is False: return None
+        printable = True
+    else: return None
+    return ManifestType.m_from_map(packlib.unpack(pakd_postprocess(data, printable))[0])
