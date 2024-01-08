@@ -10,7 +10,7 @@ import types
 import typing
 from collections import deque
 from collections import abc as cabc
-from dataclasses import dataclass, make_dataclass, MISSING
+from dataclasses import dataclass, field, make_dataclass, MISSING
 
 from . import base
 #</Imports
@@ -427,8 +427,10 @@ class _PartUnion_Nest(_PartUnion):
     '''
     __slots__ = ()
 class _PartUnion_NestMeta(type):
-    def __call__(cls, name: str, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
-        ...
+    def __call__(cls, p_name: str, p_defaults: typing.Mapping[str, UnstructuredBasePart | StructuredBasePart] = {},
+                 p_allow_nested_replace: bool = False, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
+        return make_dataclass(p_name, ((n, p, field(default=p_defaults.get(n, MISSING))) for n,p in parts.items()),
+                              bases=(_PartUnion_Nest,), frozen=not p_allow_nested_replace, slots=True, kw_only=True)
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Nest)
     def __subclasscheck__(cls, other: type) -> bool:
