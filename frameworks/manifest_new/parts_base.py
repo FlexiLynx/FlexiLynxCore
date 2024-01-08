@@ -18,7 +18,7 @@ from FlexiLynx.core.util import concat_mappings, dictdir
 #</Imports
 
 #> Header >/
-__all__ = ('BasePart', 'UnstructuredBasePart', 'StructuredBasePart',
+__all__ = ('BasePart', 'DataclassPartType', 'UnstructuredPart', 'StructuredPartType',
            'make_struct_part', 'make_unstruct_part',
            'PartUnion', 'PartUnion_Compose', 'PartUnion_New', 'PartUnion_Nest',
            'PartUnion_Hybrid')
@@ -140,14 +140,17 @@ class BasePart:
     def __repr__(self) -> str:
         return f'({", ".join( \
             f"{a}={v}" for a,v in dictdir(self).items() if not (a.startswith("P_") or a.startswith("p_") or a.startswith("_")))})'
+class DataclassPartType(BasePart):
+    '''A no-op base part that signifies that its subclasses should be dataclasses'''
+    __slots__ = ()
 
-class UnstructuredBasePart[*ContentTypes](BasePart):
+class UnstructuredPart[*ContentTypes](BasePart):
     '''A base part for allowing a manifest part to contain variable data'''
     def __init__(self, **kwargs: typing.Union[*ContentTypes]):
         self.__dict__.update(kwargs)
     def __repr__(self) -> str:
         return f'*{type(self).__name__}{super().__repr__()}'
-class StructuredBasePart(BasePart):
+class StructuredPartType(DataclassPartType):
     '''A no-op base part for structured parts; use `make_struct_part()`'''
     __slots__ = ()
 ## Sub-values for make_part
@@ -155,7 +158,7 @@ _mutable_part_dataclass_decor = dataclass(kw_only=True, slots=True)
 _part_dataclass_decor = dataclass(frozen=True, kw_only=True, slots=True)
 ## Manifest part decorator maker
 def make_struct_part(name: str | None = None, add_to_all: list[str] | None = None, *, mutable: bool = True, auto_subparts: bool = True,
-                     bases: tuple[type, ...] = (StructuredBasePart,), dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[StructuredBasePart]], None] | None = None) -> typing.Callable[[type[BasePart]], type[StructuredBasePart]]:
+                     bases: tuple[type, ...] = (StructuredPartType,), dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[StructuredPartType]], None] | None = None) -> typing.Callable[[type[BasePart]], type[StructuredPartType]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BasePart` superclass if it isn't already added
             Also generates the `p_subparts` mapping (as a `mappingproxy`) if `auto_subparts` is true
@@ -189,7 +192,7 @@ def make_struct_part(name: str | None = None, add_to_all: list[str] | None = Non
         if add_to_all is not None: add_to_all.append(cls.__name__)
         return partcls
     return part_maker
-def make_unstruct_part(name: str, add_to_all: list[str] | None = None, type_params: type = (typing.Any,), *, all_name: str | None = None, mutable: bool = True, base: type = UnstructuredBasePart) -> type[UnstructuredBasePart]:
+def make_unstruct_part(name: str, add_to_all: list[str] | None = None, type_params: type = (typing.Any,), *, all_name: str | None = None, mutable: bool = True, base: type = UnstructuredPart) -> type[UnstructuredPart]:
     '''Makes a new type that inherits from `base[*type_params]`'''
     cls = types.new_class(name, (base[*type_params],), {} if mutable else {'__setattr__': None})
     if add_to_all is not None: add_to_all.append(name if all_name is None else all_name)
@@ -206,13 +209,13 @@ class PartUnion(BasePart):
         See `help(PartUnion_New)` and `help(PartUnion_Compose)`
     '''
     __slots__ = ()
-    def __new__(cls, name: str, *parts: UnstructuredBasePart | StructuredBasePart) -> typing.Union['PartUnion_Compose', 'PartUnion_New'] | UnstructuredBasePart | StructuredBasePart | BasePart:
+    def __new__(cls, name: str, *parts: UnstructuredPart | StructuredPartType) -> typing.Union['PartUnion_Compose', 'PartUnion_New'] | UnstructuredPart | StructuredPartType | BasePart:
         if not len(parts): return type(name, (BasePart,), {})
         elif len(parts) == 1: return type(name, (parts[0]), {})
         struct = ustruct = 0
         for p in parts:
-            if issubclass(p, UnstructuredBasePart): ustruct += 1
-            elif issubclass(p, StructuredBasePart): struct += 1
+            if issubclass(p, UnstructuredPart): ustruct += 1
+            elif issubclass(p, StructuredPartType): struct += 1
             else:
                 raise TypeError('Unknown type {type(p).__qualname__} of {p!r}')
         if ustruct == 0:   return PartUnion_New(name, *parts)
@@ -265,7 +268,7 @@ class _PartUnion_Compose(_PartUnion):
                             ' arguments after composing union')
         self._p_union_initted = True
     @classmethod
-    def p_union_import(cls, extract: typing.Mapping[type[StructuredBasePart] | type[UnstructuredBasePart], StructuredBasePart | UnstructuredBasePart]) -> typing.Self:
+    def p_union_import(cls, extract: typing.Mapping[type[StructuredPartType] | type[UnstructuredPart], StructuredPartType | UnstructuredPart]) -> typing.Self:
         '''
             Creates an instance of this union from a mapping of `{type(<part>): <part>}`
 
@@ -273,7 +276,7 @@ class _PartUnion_Compose(_PartUnion):
         '''
         self = object.__new__(cls)
         self._p_union_initted = False
-        self.p_structs = {c: i for c,i in extract.items() if issubclass(c, StructuredBasePart)}
+        self.p_structs = {c: i for c,i in extract.items() if issubclass(c, StructuredPartType)}
         assert self.p_structs.keys() == frozenset(self.p_struct_cls), 'Disjoint found between structured union clasess and imported classes'
         p_unstructs = set(extract)-self.p_structs.keys()
         assert len(p_unstructs) < 2
@@ -281,7 +284,7 @@ class _PartUnion_Compose(_PartUnion):
         assert isinstance(self.p_unstruct, self.p_unstruct_cls), 'Unstructured type in export does not match unstructured type in union'
         self._p_union_initted = True
         return self
-    def p_union_extract(self) -> types.MappingProxyType[type[StructuredBasePart] | type[UnstructuredBasePart], StructuredBasePart | UnstructuredBasePart]:
+    def p_union_extract(self) -> types.MappingProxyType[type[StructuredPartType] | type[UnstructuredPart], StructuredPartType | UnstructuredPart]:
         '''Extracts the union into a mapping of `{type(<part>): <part>}`'''
         return types.MappingProxyType(self.p_structs | ({} if self.p_unstruct_cls is None else {self.p_unstruct_cls: self.p_unstruct}))
 
@@ -301,7 +304,7 @@ class _PartUnion_Compose(_PartUnion):
                f'{"" if self.p_unstruct is None else f"""{", " if self.p_structs else ""}{repr(self.p_unstruct)}"""})'
 class _PartUnion_ComposeMeta(type):
     @staticmethod
-    def _make_property(s: type[StructuredBasePart], n: str):
+    def _make_property(s: type[StructuredPartType], n: str):
         return property(lambda self: getattr(self.p_structs[s], n), lambda self,v: setattr(self.p_structs[s], n, v))
     @staticmethod
     def _make_unstruct___getattr_____setattr__(properties: dict[str, property]) -> dict[typing.Literal['__getattr__', '__setattr__'], typing.Callable[[_PartUnion_Compose, str, ...], ...]]:
@@ -323,9 +326,9 @@ class _PartUnion_ComposeMeta(type):
             setattr(self.p_unstruct, attr, val)
         funcs['__setattr__'] = _unstruct__setattr__
         return funcs
-    def __call__(cls, name: str, *parts: type[UnstructuredBasePart] | type[StructuredBasePart]) -> type[_PartUnion_Compose]:
-        p_unstructs = tuple(filter(UnstructuredBasePart.__subclasscheck__, parts))
-        p_structs = tuple(filter(StructuredBasePart.__subclasscheck__, parts))
+    def __call__(cls, name: str, *parts: type[UnstructuredPart] | type[DataclassPartType]) -> type[_PartUnion_Compose]:
+        p_unstructs = tuple(filter(UnstructuredPart.__subclasscheck__, parts))
+        p_structs = tuple(filter(DataclassPartType.__subclasscheck__, parts))
         assert len(p_unstructs) + len(p_structs) == len(parts), 'Some parts were of illegal type'
         assert len(p_unstructs) < 2, f'Cannot have more than one unstructured type in {cls.__name__}'
         base.logger.debug(f'_PartUnion_ComposeMeta: Creating {cls.__name__}({name!r}, {parts!r}) parameters'
@@ -384,11 +387,11 @@ class PartUnion_Compose(_PartUnion, metaclass=_PartUnion_ComposeMeta):
     __doc__ = _PartUnion_Compose.__doc__
 
     @classmethod
-    def p_union_import(cls, extract: typing.Mapping[type[StructuredBasePart] | type[UnstructuredBasePart], StructuredBasePart | UnstructuredBasePart], name: str = '<imported union>') -> _PartUnion_Compose:
+    def p_union_import(cls, extract: typing.Mapping[type[DataclassPartType], DataclassPartType], name: str = '<imported union>') -> _PartUnion_Compose:
         '''Constructs a new `PartUnion_Compose` from all the part-types in `extract`, then uses that new class' `p_union_import()`'''
         return cls(name, *extract.keys()).p_union_import(extract)
 ## "New" method
-class _PartUnion_New(_PartUnion):
+class _PartUnion_New(_PartUnion, DataclassPartType):
     '''
         Constructs a `PartUnion` of multiple parts
         Uses the "new" method:
@@ -401,8 +404,8 @@ class _PartUnion_New(_PartUnion):
     '''
     __slots__ = ()
 class _PartUnion_NewMeta(type):
-    def __call__(cls, name: str, *parts: type[StructuredBasePart], mutable: bool = True) -> type[_PartUnion_New]:
-        assert all(map(StructuredBasePart.__subclasscheck__,  parts)), 'Parts must all be StructuredBaseParts'
+    def __call__(cls, name: str, *parts: type[DataclassPartType], mutable: bool = True) -> type[_PartUnion_New]:
+        assert all(issubclass(p, DataclassPartType) for p in parts), 'Parts must all be DataclassPartTypes'
         return make_dataclass(name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in parts), start=()),
                               bases=(_PartUnion_New,), frozen=not mutable, namespace={'p_struct_cls': parts})
     def __instancecheck__(cls, other: typing.Any) -> bool:
@@ -413,7 +416,7 @@ class PartUnion_New(_PartUnion, metaclass=_PartUnion_NewMeta):
     __Slots__ = ()
     __doc__ = _PartUnion_New.__doc__
 ## "Nest" method
-class _PartUnion_Nest(_PartUnion):
+class _PartUnion_Nest(_PartUnion, DataclassPartType):
     '''
         Constructs a `PartUnion` of multiple parts
         Uses the "nest" method:
@@ -429,8 +432,8 @@ class _PartUnion_Nest(_PartUnion):
         '''Returns a union of every contained parts' exports'''
         return types.MappingProxyType(concat_mappings(*self.p_export().values()))
 class _PartUnion_NestMeta(type):
-    def __call__(cls, p_name: str, p_defaults: typing.Mapping[str, UnstructuredBasePart | StructuredBasePart] = {},
-                 p_allow_nested_replace: bool = False, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
+    def __call__(cls, p_name: str, p_defaults: typing.Mapping[str, BasePart] = {},
+                 p_allow_nested_replace: bool = False, **parts: type[BasePart]):
         return make_dataclass(p_name, ((n, p, field(default=p_defaults.get(n, MISSING))) for n,p in parts.items()),
                               bases=(_PartUnion_Nest,), frozen=not p_allow_nested_replace, slots=True, kw_only=True, namespace={'p_subparts': parts})
     def __instancecheck__(cls, other: typing.Any) -> bool:
@@ -446,9 +449,9 @@ class _PartUnion_Hybrid(_PartUnion_New, _PartUnion_Nest):
     __slots__ = ()
     p_export_flat = None
 class _PartUnion_HybridMeta(type):
-    def __call__(cls, p_name: str, *new_parts: type[StructuredBasePart], _bases=(_PartUnion_New, _PartUnion_Nest),
-                 p_nest_defaults: typing.Mapping[str, type[UnstructuredBasePart | StructuredBasePart]] = {}, **nest_parts: type[UnstructuredBasePart | StructuredBasePart]):
-        assert all(map(StructuredBasePart.__subclasscheck__,  new_parts)), 'Parts for "new" method must all be StructuredBaseParts'
+    def __call__(cls, p_name: str, *new_parts: type[DataclassPartType], _bases=(_PartUnion_New, _PartUnion_Nest),
+                 p_nest_defaults: typing.Mapping[str, BasePart] = {}, **nest_parts: type[BasePart]):
+        assert all(isinstance(p, DataclassPartType) for p in new_parts), 'Parts for "new" method must all be DataclassPartTypes'
         return make_dataclass(p_name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in new_parts), start=()) \
                               + tuple((n, p, field(default=p_nest_defaults.get(n, MISSING))) for n,p in nest_parts.items()),
                               bases=_bases, frozen=True, namespace={'p_parts_cls_new': new_parts, 'p_subparts': nest_parts})
