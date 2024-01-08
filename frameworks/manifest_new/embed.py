@@ -26,9 +26,9 @@ embed_str = "__EMBEDDED_MANIFEST__ = ('{type}', '{pack}')"
 pack_patt = f'(?P<pack>{encodings.char_patts["b85"].pattern}+)'
 type_patt = r'(?P<type>[!#-&(-\[\]-~])'
 embed_patt = re.compile(fr'''^{embed_str.format(type=type_patt, pack=pack_patt)}(?:\n|$)''')
-def embed_manifest(contents: str, man: ManifestType, type_key: str | None = None) -> str:
+def embed_manifest(contents: str, man: ManifestType) -> str:
     '''Embeds a manifest object into a Python file'''
-    return embed_manifest_dict(contents, man.p_export(), man.type if type_key is None else type_key)
+    return embed_manifest_dict(contents, man.p_export(), man.type)
 def embed_manifest_dict(contents: str, man: dict, type_key: str) -> str:
     '''Embeds a dictionary into a Python file'''
     return embed_packed_manifest_dict(contents, packlib.pack(man), type_key)
@@ -40,7 +40,7 @@ def strip_manifest(contents: str) -> str:
     return embed_patt.sub('', contents)
 def extract_manifest(contents: str) -> ManifestType | None:
     '''Extracts an embedded manifest from a Python file'''
-    raise NotImplementedError
+    return ManifestType.m_from_map(d) if (d := extract_manifest_dict(contents)) is not None else None
 def extract_manifest_dict(contents: str) -> tuple[str, dict] | None:
     '''Extracts a manifest type-key and manifest dictionary from a Python file'''
     if (p := extract_packed_manifest_dict(contents)) is not None:
