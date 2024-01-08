@@ -31,8 +31,8 @@ class IDManifestPart:
     type: typing.ClassVar[str]
 @_make_part('!crypt')
 class CryptManifestPart:
-    sig: bytes
-    key: EdPubK
+    sig: bytes | None = None
+    key: EdPubK | None = None
 
     @classmethod
     def _p_export_unknown(cls, v: typing.Any):
