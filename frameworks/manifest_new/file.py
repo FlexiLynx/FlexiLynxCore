@@ -12,11 +12,14 @@
 import json
 import typing
 from pathlib import Path
+from ast import literal_eval
+from configparser import ConfigParser
 from collections import abc as cabc
 
 from .base import ManifestType
 
 from FlexiLynx.core import packlib, encodings
+from FlexiLynx.core.util import concat_mappings
 #</Imports
 
 #> Header >/
@@ -30,7 +33,7 @@ SIG_JSON   = b'{"FLMAN_SIG": null,\n'
 SIG_PAKD   = b'\xFFFLMAN\xFF'
 SIG_PAKD_P = b'FLMAN_P\n'
 
-def _reduce(s: typing.Sequence | typing.Mapping, *, bytearray_convert: bool, encode_bytes: None | str, set_convert: bool,) -> typing.Iterator:
+def _reduce(s: typing.Sequence | typing.Mapping, *, bytearray_convert: bool, encode_bytes: None | str, set_convert: bool) -> typing.Iterator:
     '''Converts `s` into primitive Python types`'''
     assert not bytearray_convert and encode_bytes, 'Cannot both convert bytearrays to tuples and encode them at once'
     if isinstance(s, cabc.Mapping):
@@ -65,8 +68,24 @@ def extract(data: bytes | Path) -> ManifestType | None:
     return None
 
 # INI stream
-def ini_preprocess(man: ManifestType) -> typing.Any:
-    ...
+def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iterator[tuple[str, str | dict]]:
+    m = {}
+    for k,v in d.items():
+        assert ('.' not in k) and (':' not in k), f'{k} contains illegal character(s) ("." and/or ":")'
+        if isinstance(v, cabc.Mapping):
+            yield from _ini_preprocess(v, _kl+(k,))
+            continue
+        try: literal_eval(repr(v))
+        except Exception:
+            raise TypeError(f'Could not convert key {(".".join(_kl+(k,)))!r} (val={v!r}) to a literal')
+        m[repr(k)] = repr(v)
+    if m: yield ('.'.join(_kl), m)
+def ini_preprocess(man: ManifestType) -> dict:
+    '''Convert `man.m_export()` into a suitable format to be read by `ConfigParser`'''
+    mexp = man.m_export()
+    procd = {'!': {k: repr(v) for k,v in mexp.items() if not isinstance(v, cabc.Mapping)},
+             **concat_mappings(*(dict(_ini_preprocess(v, (k,))) for k,v in mexp.items() if isinstance(v, cabc.Mapping)))}
+    return procd
 def ini_render(man: ManifestType) -> bytes:
     ...
 def ini_postprocess(data: bytes) -> bytes:
