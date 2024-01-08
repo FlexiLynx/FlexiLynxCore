@@ -25,6 +25,12 @@ class _ManifestType(base._PartUnion_Hybrid):
         assert name not in self.m_types, f'{name!r} was already registered by {self.m_types[name].__qualname__}'
         assert cls not in self.m_types.values(), f'{self.__qualname__} was already registered under name(s) {", ".join((n for n,c in self.m_types.items() if c is self))}'
         self.m_types[name] = self
+    @classmethod
+    def m_from_map(cls, m: typing.Mapping) -> typing.Self:
+        '''Converts a mapping to a manifest, guessing the type with `m["type"]`'''
+        if (c := cls.m_types[m['type']]) is not None:
+            return c(**m['type'])
+        raise TypeError(f'Unknown manifest type {m["type"]!r}')
 class _ManifestTypeMeta(base._PartUnion_HybridMeta):
     def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, **parts: base.BasePart) -> type[_ManifestType]:
         if not parts: return type(m_name, (CoreManifestParts, _ManifestType,), {})
@@ -39,3 +45,4 @@ class ManifestType(metaclass=_ManifestTypeMeta):
 
     m_types = _ManifestType.m_types
     m_register = _ManifestType.m_register
+    m_from_map = _ManifestType.m_from_map
