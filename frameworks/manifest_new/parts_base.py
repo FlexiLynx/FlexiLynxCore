@@ -404,11 +404,11 @@ class _PartUnion_New(_PartUnion, DataclassPartType):
     '''
     __slots__ = ()
 class _PartUnion_NewMeta(type): # also used for `ManifestType`
-    def __call__(cls, name: str, *parts: type[DataclassPartType], mutable: bool = True,
+    def __call__(cls, name: str, *parts: type[DataclassPartType], p_mutable: bool = True,
                  _bases: tuple[type, ...] = (_PartUnion_New,), _namespace: typing.Mapping | None = None) -> type[_PartUnion_New]:
         assert all(issubclass(p, DataclassPartType) for p in parts), 'Parts must all be DataclassPartTypes'
         return make_dataclass(name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in parts), start=()),
-                              bases=_bases, frozen=not mutable, namespace={'p_struct_cls': parts} if _namespace is None else _namespace)
+                              bases=_bases, frozen=not p_mutable, namespace={'p_struct_cls': parts} if _namespace is None else _namespace)
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_New)
     def __subclasscheck__(cls, other: type) -> bool:
