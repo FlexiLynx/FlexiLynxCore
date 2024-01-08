@@ -4,6 +4,8 @@
     Code relating to manifest files themselves
 
     Manifest files are often INI (.ini) files, but can also be JSON (.json) and PackLib-packed (.pakd) files
+
+    Note that, while not being in `__all__` due to probable lack of use, the `*_preprocess()` and `*_postprocess()` symbols are considered public
 '''
 
 #> Imports
@@ -19,9 +21,9 @@ from FlexiLynx.core import encodings
 
 #> Header >/
 __all__ = ('SIG_INI', 'SIG_JSON', 'SIG_PAKD', 'SIG_PAKD_P', 'extract',
-           'ini_preprocess', 'ini_render', 'ini_postprocess', 'ini_extract',
-           'json_preprocess', 'json_render', 'json_postprocess', 'json_extract',
-           'pakd_preprocess', 'pakd_render', 'pakd_postprocess', 'pakd_extract')
+           'ini_render', 'ini_extract',
+           'json_render', 'json_extract',
+           'pakd_render', 'pakd_extract')
 
 SIG_INI    = b';FLMAN\n'
 SIG_JSON   = b'{"FLMAN_SIG": null,\n'
