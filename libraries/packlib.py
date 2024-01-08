@@ -8,7 +8,7 @@ import weakref
 import typing
 import dataclasses
 from ast import literal_eval
-from collections import namedtuple
+from collections import abc, namedtuple
 #</Imports
 
 #> Header >/
@@ -121,7 +121,7 @@ class Packer:
             case str():
                 return (str, o.encode(self.STR_ENCODING))
             ## Recursive
-            case tuple() | list():
+            case abc.Sequence():
                 if hasattr(o, '_asdict') and (self.reduce_namedtuple is not tuple):
                     # if it's a namedtuple and we don't treat namedtuples as regular tuples
                     if self.reduce_namedtuple is False:
@@ -132,9 +132,9 @@ class Packer:
                         return (namedtuple, self.pack(o.__class__.__name__, o.__module__, *sum(tuple(o._asdict().items()), start=())))
                     raise ValueError(f'reduce_namedtuple is an illegal value: {self.reduce_namedtuple!r}')
                 return (tuple, self.pack(*(so for so in o)))
-            case frozenset() | set():
+            case abc.Set():
                 return (frozenset, self.pack(*(so for so in o)))
-            case dict():
+            case abc.Mapping():
                 return (dict, self.pack(*sum(tuple(o.items()), start=())))
             # Others
             case (None):
