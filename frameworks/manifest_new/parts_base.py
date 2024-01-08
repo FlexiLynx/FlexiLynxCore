@@ -135,10 +135,19 @@ class BasePart:
         '''
         return cls._p_import_map(export)
 
+    def __repr__(self) -> str:
+        return f'({", ".join( \
+            f"{a}={v}" for a,v in ( \
+                {a: getattr(self, a) for a in self.__slots__} \
+                | getattr(self, '__dict__', {}) \
+            ).items() if not (a.startswith("P_") or a.startswith("p_") or a.startswith("_")))})'
+
 class UnstructuredBasePart[*ContentTypes](BasePart):
     '''A base part for allowing a manifest part to contain variable data'''
     def __init__(self, **kwargs: typing.Union[*ContentTypes]):
         self.__dict__.update(kwargs)
+    def __repr__(self) -> str:
+        return f'*{type(self).__name__}{super().__repr__()}'
 class StructuredBasePart(BasePart):
     '''A no-op base part for structured parts; use `make_struct_part()`'''
     __slots__ = ()
