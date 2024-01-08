@@ -28,7 +28,7 @@ _make_part = partial(make_struct_part, add_to_all=__all__)
 class IDManifestPart:
     id:   str = field(kw_only=False)
     rel:  int = field(kw_only=False)
-    type: str | None = None
+    type: typing.ClassVar[str]
 @_make_part('!crypt')
 class CryptManifestPart:
     sig: bytes
