@@ -27,6 +27,7 @@ class _ManifestType(base._PartUnion_Hybrid):
         self.m_types[name] = self
 class _ManifestTypeMeta(base._PartUnion_HybridMeta):
     def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, **parts: base.BasePart) -> type[_ManifestType]:
+        if not parts: return type(m_name, (CoreManifestParts, _ManifestType,), {})
         return super().__call__(m_name, *CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), **parts)
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _ManifestType)
