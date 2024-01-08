@@ -429,6 +429,10 @@ class _PartUnion_Nest(_PartUnion):
 class _PartUnion_NestMeta(type):
     def __call__(cls, name: str, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
         ...
-class _PartUnion_Nest(_PartUnion, metaclass=_PartUnion_NestMeta):
+    def __instancecheck__(cls, other: typing.Any) -> bool:
+        return isinstance(other, _PartUnion_Nest)
+    def __subclasscheck__(cls, other: type) -> bool:
+        return issubclass(other, _PartUnion_Nest) or issubclass(other, PartUnion_Nest)
+class PartUnion_Nest(_PartUnion, metaclass=_PartUnion_NestMeta):
     __slots__ = ()
     __doc__ = _PartUnion_Nest.__doc__
