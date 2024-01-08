@@ -81,7 +81,7 @@ class BasePart:
                 as exporting a partially completed iterator could cause hard-to-find issues
         '''
         assert not isinstance(v, cabc.Iterator), 'Refusing to export an iterator as it may lead to unpredictable results'
-        return (cls._p_export_val(vv) for vv in v)
+        return map(cls._p_export_val, v)
     @classmethod
     def _p_export_dict(cls, d: dict) -> typing.Iterable[tuple[str, bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''
@@ -325,8 +325,8 @@ class _PartUnion_ComposeMeta(type):
         funcs['__setattr__'] = _unstruct__setattr__
         return funcs
     def __call__(cls, name: str, *parts: type[UnstructuredBasePart] | type[StructuredBasePart]) -> type[_PartUnion_Compose]:
-        p_unstructs = tuple(p for p in parts if issubclass(p, UnstructuredBasePart))
-        p_structs = tuple(p for p in parts if issubclass(p, StructuredBasePart))
+        p_unstructs = tuple(filter(UnstructuredBasePart.__subclasscheck__, parts))
+        p_structs = tuple(filter(StructuredBasePart.__subclasscheck__, parts))
         assert len(p_unstructs) + len(p_structs) == len(parts), 'Some parts were of illegal type'
         assert len(p_unstructs) < 2, f'Cannot have more than one unstructured type in {cls.__name__}'
         base.logger.debug(f'_PartUnion_ComposeMeta: Creating {cls.__name__}({name!r}, {parts!r}) parameters'
@@ -403,7 +403,7 @@ class _PartUnion_New(_PartUnion):
     __slots__ = ()
 class _PartUnion_NewMeta(type):
     def __call__(cls, name: str, *parts: type[StructuredBasePart], mutable: bool = True) -> type[_PartUnion_New]:
-        assert all(issubclass(p, StructuredBasePart) for p in parts), 'Parts must all be StructuredBaseParts'
+        assert all(map(StructuredBasePart.__subclasscheck__,  parts)), 'Parts must all be StructuredBaseParts'
         return make_dataclass(name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in parts), start=()),
                               bases=(_PartUnion_New,), frozen=not mutable, namespace={'p_struct_cls': parts})
     def __instancecheck__(cls, other: typing.Any) -> bool:
