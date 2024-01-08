@@ -8,6 +8,7 @@ from .parts import *
 
 import FlexiLynx
 from FlexiLynx.core.util import concat_mappings
+from FlexiLynx.core.packlib import Packer
 #</Imports
 
 #> Header >/
@@ -59,6 +60,11 @@ class _ManifestType:
             CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key}),
             {n: (v.p_export() if ((v := getattr(self, n, None)) is not None) else None) for n in self.m_parts.keys()},
         ))
+
+    M_packer = Packer(try_reduce_objects=True)
+    def m_compile(self) -> bytes:
+        '''Compile this manifest for signing'''
+        return self.M_packer.pack(self)
 class _ManifestTypeMeta(type):
     def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, m_register: bool = True, **parts: base.BasePart) -> type[_ManifestType]:
         c = (base._PartUnion_HybridMeta if parts else base._PartUnion_NewMeta).__call__(cls,
