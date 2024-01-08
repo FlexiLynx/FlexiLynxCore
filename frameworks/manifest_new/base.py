@@ -3,11 +3,12 @@
 #> Imports
 import types
 import typing
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from .parts import *
 
 import FlexiLynx
-from FlexiLynx.core.util import concat_mappings
+from FlexiLynx.core.util import concat_mappings, filter_keys
 from FlexiLynx.core.packlib import pack
 #</Imports
 
@@ -47,9 +48,9 @@ class _ManifestType:
                 Raises `TypeError` if `m['type'] != cls.type`
             Note that this is different compared to `m_from_map()` in that it only works on its own type of manifest
         '''
-        if m['type'] != cls['type']:
-            raise TypeError(f'Type mismatch: this class expects {cls["type"]}, but the manifest-to-import reports itself as a {m["type"]}')
-        return cls(**filter_keys(lambda k: k != 'type'))
+        if m['type'] != cls.type:
+            raise TypeError(f'Type mismatch: this class expects {cls.type}, but the manifest-to-import reports itself as a {m["type"]}')
+        return cls(key=None if m['key'] is None else EdPubK.from_public_bytes(m['key']), **filter_keys(lambda k: k not in {'type', 'key'}, m))
     def m_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''
             Converts this manifest into a dictionary (`mappingproxy`) of primitive and immutable types
