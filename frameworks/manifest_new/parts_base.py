@@ -107,7 +107,7 @@ class BasePart:
                         and `return tuple(_p_export_iterable(v))` for otherwise unhandled sequences
             Note that structured parts should have immutable values anyway (`dict`s are an exception as there is no built-in frozen version)
         '''
-        return types.MappingProxyType(self._p_export_dict(dictdir(self)))
+        return types.MappingProxyType(dict(self._p_export_dict(dictdir(self))))
 
     @classmethod
     def _p_import_val(cls, k: str, v: typing.Any) -> typing.Any:
