@@ -17,11 +17,21 @@ def sign(m: ManifestType, key: EdPrivK) -> ManifestType:
     m.key = key.public_key()
     m.sig = key.sign(m.m_compile())
     return m
-def verify(m: ManifestType, key: EdPubK | None = None) -> bool:
+def verify(m: ManifestType, key: EdPubK | None = None, fail_on_missing: bool = False) -> bool | None:
     '''
         Checks if the manifest's signature is valid
-        Checks against `key` if it isn't none, otherwise against `m.key`
+        Checks `m.sig` and `m.compile()` against `key` (if supplied) or `m.key`
+
+        When necessary attributes are missing, raises `AttributeError` if `fail_on_missing`, otherwise returns `None`
     '''
-    try: (m.key if key is None else key).verify(m.sig, m.compile())
+    if key is None:
+        key = m.key
+        if key is None:
+            if not fail_on_missing: return None
+            raise AttributeError('Manifest is not a keyholder')
+    if m.sig is None:
+        if not fail_on_missing: return None
+        raise AttributeError('Manifest is not signed')
+    try: key.verify(m.sig, m.m_compile())
     except InvalidSignature: return False
     return True
