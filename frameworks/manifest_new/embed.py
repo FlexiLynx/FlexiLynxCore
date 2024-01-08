@@ -13,7 +13,7 @@
 #> Imports
 import re
 
-from .base import Manifest
+from .base import ManifestType
 
 from FlexiLynx.core import encodings, packlib
 #</Imports
@@ -26,7 +26,7 @@ embed_str = "__EMBEDDED_MANIFEST__ = ('{type}', '{pack}')"
 pack_patt = f'(?P<pack>{encodings.char_patts["b85"].pattern}+)'
 type_patt = r'(?P<type>[!#-&(-\[\]-~])'
 embed_patt = re.compile(fr'''^{embed_str.format(type=type_patt, pack=pack_patt)}(?:\n|$)''')
-def embed_manifest(contents: str, man: Manifest, type_key: str | None = None) -> str:
+def embed_manifest(contents: str, man: ManifestType, type_key: str | None = None) -> str:
     '''Embeds a manifest object into a Python file'''
     return embed_manifest_dict(contents, man.p_export(), man.type if type_key is None else type_key)
 def embed_manifest_dict(contents: str, man: dict, type_key: str) -> str:
@@ -38,7 +38,7 @@ def embed_packed_manifest_dict(contents: str, packed: bytes, type_key: str) -> s
 def strip_manifest(contents: str) -> str:
     '''Strips an embedded manifest rom a Python file'''
     return embed_patt.sub('', contents)
-def extract_manifest(contents: str) -> Manifest | None:
+def extract_manifest(contents: str) -> ManifestType | None:
     '''Extracts an embedded manifest from a Python file'''
     raise NotImplementedError
 def extract_manifest_dict(contents: str) -> tuple[str, dict] | None:
