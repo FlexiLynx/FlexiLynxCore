@@ -59,11 +59,11 @@ class _ManifestType:
             CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key}),
             {n: (v.p_export() if ((v := getattr(self, n, None)) is not None) else None) for n in self.m_parts.keys()},
         ))
-class _ManifestTypeMeta(base._PartUnion_HybridMeta):
+class _ManifestTypeMeta(type):
     def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, m_register: bool = True, **parts: base.BasePart) -> type[_ManifestType]:
-        namespace = {'type': m_name, 'm_parts': parts}
-        c = super().__call__(m_name, *CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace=namespace, **parts) \
-            if parts else type(m_name, (_ManifestType,), namespace)
+        c = (base._PartUnion_HybridMeta if parts else base._PartUnion_NewMeta).__call__(cls,
+            m_name, *CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace={'m_parts': parts}, **parts)
+        c.type = m_name
         if m_register: c.m_register()
         return c
     def __instancecheck__(cls, other: typing.Any) -> bool:

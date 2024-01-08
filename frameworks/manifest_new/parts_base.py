@@ -403,11 +403,12 @@ class _PartUnion_New(_PartUnion, DataclassPartType):
             Seamlessly created with `dataclasses.make_dataclass()`, and is faster and cleaner than the "compose" method
     '''
     __slots__ = ()
-class _PartUnion_NewMeta(type):
-    def __call__(cls, name: str, *parts: type[DataclassPartType], mutable: bool = True) -> type[_PartUnion_New]:
+class _PartUnion_NewMeta(type): # also used for `ManifestType`
+    def __call__(cls, name: str, *parts: type[DataclassPartType], mutable: bool = True,
+                 _bases: tuple[type, ...] = (_PartUnion_New,), _namespace: typing.Mapping | None = None) -> type[_PartUnion_New]:
         assert all(issubclass(p, DataclassPartType) for p in parts), 'Parts must all be DataclassPartTypes'
         return make_dataclass(name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in parts), start=()),
-                              bases=(_PartUnion_New,), frozen=not mutable, namespace={'p_struct_cls': parts})
+                              bases=_bases, frozen=not mutable, namespace={'p_struct_cls': parts} if _namespace is None else _namespace)
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_New)
     def __subclasscheck__(cls, other: type) -> bool:
@@ -449,7 +450,7 @@ class _PartUnion_Hybrid(_PartUnion_New, _PartUnion_Nest):
     __slots__ = ()
     p_export_flat = None
 class _PartUnion_HybridMeta(type): # also used for `ManifestType`
-    def __call__(cls, p_name: str, *new_parts: type[DataclassPartType], _bases=(_PartUnion_New, _PartUnion_Nest), _namespace: typing.Mapping | None = None,
+    def __call__(cls, p_name: str, *new_parts: type[DataclassPartType], _bases: tuple[type, ...] = (_PartUnion_New, _PartUnion_Nest), _namespace: typing.Mapping | None = None,
                  p_nest_defaults: typing.Mapping[str, BasePart] = {}, **nest_parts: type[BasePart]):
         assert all(isinstance(p, DataclassPartType) for p in new_parts), 'Parts for "new" method must all be DataclassPartTypes'
         return make_dataclass(p_name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in new_parts), start=()) \
