@@ -299,8 +299,7 @@ class _PartUnion_Compose(_PartUnion):
     def __repr__(self) -> str:
         return f'{type(self).__name__}(' \
                f'{", ".join(f"{s!r}" for s in self.p_structs.values())}' \
-               f'{"" if self.p_unstruct is None else f"""\
-                   {" | " if self.p_structs else ""}*{repr(self.p_unstruct)}"""})'
+               f'{"" if self.p_unstruct is None else f"""{", " if self.p_structs else ""}{repr(self.p_unstruct)}"""})'
 class _PartUnion_ComposeMeta(type):
     @staticmethod
     def _make_property(s: StructuredBasePart, n: str):
