@@ -432,7 +432,7 @@ class _PartUnion_NestMeta(type):
     def __call__(cls, p_name: str, p_defaults: typing.Mapping[str, UnstructuredBasePart | StructuredBasePart] = {},
                  p_allow_nested_replace: bool = False, **parts: type[UnstructuredBasePart] | type[StructuredBasePart]):
         return make_dataclass(p_name, ((n, p, field(default=p_defaults.get(n, MISSING))) for n,p in parts.items()),
-                              bases=(_PartUnion_Nest,), frozen=not p_allow_nested_replace, slots=True, kw_only=True)
+                              bases=(_PartUnion_Nest,), frozen=not p_allow_nested_replace, slots=True, kw_only=True, namespace={'p_subparts': parts})
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Nest)
     def __subclasscheck__(cls, other: type) -> bool:
@@ -451,7 +451,7 @@ class _PartUnion_HybridMeta(type):
         assert all(map(StructuredBasePart.__subclasscheck__,  new_parts)), 'Parts for "new" method must all be StructuredBaseParts'
         return make_dataclass(p_name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in new_parts), start=()) \
                               + tuple((n, p, field(default=p_nest_defaults.get(n, MISSING))) for n,p in nest_parts.items()),
-                              bases=_bases, frozen=True, namespace={'p_parts_cls_new': new_parts, 'p_parts_cls_nest': nest_parts})
+                              bases=_bases, frozen=True, namespace={'p_parts_cls_new': new_parts, 'p_subparts': nest_parts})
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Hybrid)
     def __subclasscheck__(cls, other: type) -> bool:
