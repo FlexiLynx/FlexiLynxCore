@@ -24,8 +24,17 @@ SIG_JSON   = b'{"FLMAN_SIG": null,\n'
 SIG_PAKD   = b'\xFFFLMAN\xFF'
 SIG_PAKD_P = b'FLMAN_P\n'
 
-def extract(data: bytes) -> ManifestType | None:
-    ...
+def extract(data: bytes | Path) -> ManifestType | None:
+    '''
+        Automatically chooses the method to extract `data` from its signature
+            Returns `None` on a file without a signature
+    '''
+    if isinstance(data, Path): data = data.read_bytes()
+    if data.startswith(SIG_INI): return ini_extract(data)
+    if data.startswith(SIG_JSON): return json_extract(data)
+    if data.startswith(SIG_PAKD) or data.startswith(SIG_PAKD_P):
+        return pakd_extract(data)
+    return None
 
 # INI stream
 def ini_preprocess(man: ManifestType) -> typing.Any:
