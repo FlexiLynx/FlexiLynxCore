@@ -35,10 +35,11 @@ def __init__():
     _core.ffetch = _resolve_import('libraries.ffetch')
     _core.flexispacelib = flexispacelib
     _core.packlib = _resolve_import('libraries.packlib')
+    _core.util = _resolve_import('libraries.util')
     ### Add framewarks
     _core/'frameworks'
     #### "manifest" framework
-    _core.frameworks.manifest = _resolve_import('frameworks.manifest')
+    _core.frameworks.manifest = _resolve_import('frameworks.manifest_new')
 def __setup__():
     ...
 #</Header
@@ -47,19 +48,26 @@ def __setup__():
 # Testing code
 if __name__ == '__main__':
     __init__()
+    from FlexiLynx.core.frameworks.manifest import parts
+    test = parts.base.PartUnion_New('test', parts.IDManifestPart, parts.CryptManifestPart)
+    testi = test('test', 0, type='yay', sig=b'', key=None)
+    test2 = parts.base.PartUnion_Compose('test2', parts.IDManifestPart, parts.CryptManifestPart, parts.base.make_unstruct_part('test'))
+    test2i = test2('test', 0, type='yay', sig=b'', key=None, extra0='test', extra2=3)
+    test3 = parts.base.PartUnion_Nest('test3', id=parts.IDManifestPart, crypt=parts.CryptManifestPart)
+    test3i = test3(id=parts.IDManifestPart('test', -1, type='yay2'), crypt=parts.CryptManifestPart(sig=b'', key=None))
 
-    _core = FlexiLynx.core
-    privkey = _core.frameworks.manifest.core.EdPrivK.generate()
-    man = _core.frameworks.manifest.Manifest(
-        id='testmod', real_version=0, type='module', format_version=1,
-        upstream=_core.frameworks.manifest.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
-        crypt=_core.frameworks.manifest.types.Manifest_crypt(signature=None, public_key=privkey.public_key()),
-        version=_core.frameworks.manifest.types.Manifest_version(meta_version='Manifest.version.meta_version val', last_update_time=-1, last_update_time_pretty='lutp', first_creation_time=-2, first_creation_time_pretty='fctp'),
-        metadata=_core.frameworks.manifest.types.Manifest_metadata(name='Test Module', by='Shae'),
-        relatedepends=_core.frameworks.manifest.types.Manifest_relatedepends(python_implementation='cpython', platform='linux'),
-        contentinfo=None,
-        contentdata=_core.frameworks.manifest.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
-    )
+    #_core = FlexiLynx.core
+    #privkey = _core.frameworks.manifest.core.EdPrivK.generate()
+    #man = _core.frameworks.manifest.Manifest(
+    #    id='testmod', real_version=0, type='module', format_version=1,
+    #    upstream=_core.frameworks.manifest.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
+    #    crypt=_core.frameworks.manifest.types.Manifest_crypt(signature=None, public_key=privkey.public_key()),
+    #    version=_core.frameworks.manifest.types.Manifest_version(meta_version='Manifest.version.meta_version val', last_update_time=-1, last_update_time_pretty='lutp', first_creation_time=-2, first_creation_time_pretty='fctp'),
+    #    metadata=_core.frameworks.manifest.types.Manifest_metadata(name='Test Module', by='Shae'),
+    #    relatedepends=_core.frameworks.manifest.types.Manifest_relatedepends(python_implementation='cpython', platform='linux'),
+    #    contentinfo=None,
+    #    contentdata=_core.frameworks.manifest.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
+    #)
 
     def test_logger():
         FlexiLynx.logger.debug('test 0')
