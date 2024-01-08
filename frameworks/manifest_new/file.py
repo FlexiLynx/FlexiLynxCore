@@ -8,9 +8,13 @@
 
 #> Imports
 import json
+import typing
 from pathlib import Path
+from collections import abc as cabc
 
 from .base import ManifestType
+
+from FlexiLynx.core import encodings
 #</Imports
 
 #> Header >/
@@ -23,6 +27,28 @@ SIG_INI    = b';FLMAN\n'
 SIG_JSON   = b'{"FLMAN_SIG": null,\n'
 SIG_PAKD   = b'\xFFFLMAN\xFF'
 SIG_PAKD_P = b'FLMAN_P\n'
+
+def _reduce(s: typing.Sequence | typing.Mapping, *, bytearray_convert: bool, encode_bytes: None | str, set_convert: bool,) -> typing.Iterator:
+    '''Converts `s` into primitive Python types`'''
+    assert not bytearray_convert and encode_bytes, 'Cannot both convert bytearrays to tuples and encode them at once'
+    if isinstance(s, cabc.Mapping):
+        yield from zip(_reduce(s.keys(), bytearray_convert=bytearray_convert, encode_bytes=encode_bytes, set_convert=set_convert),
+                       _reduce(s.values(), bytearray_convert=bytearray_convert, encode_bytes=encode_bytes, set_convert=set_convert))
+        return
+    for v in s:
+        if encode_bytes and isinstance(v, (bytes, bytearray)):
+            yield encodings.encode(encode_bytes, v)
+        elif isinstance(v, str): yield v
+        elif isinstance(v, cabc.Sequence):
+            yield tuple(_reduce(v, bytearray_convert=bytearray_convert, encode_bytes=encode_bytes, set_convert=set_convert))
+        elif isinstance(v, cabc.Mapping):
+            yield dict(_reduce(v, bytearray_convert=bytearray_convert, encode_bytes=encode_bytes, set_convert=set_convert))
+        elif bytearray_convert and isinstance(v, bytearray):
+            yield tuple(v)
+        elif isinstance(v, frozenset):
+            yield (tuple if set_convert else frozenset)(
+                _reduce(v, bytearray_convert=bytearray_convert, encode_bytes=encode_bytes, set_convert=set_convert))
+        else: yield v
 
 def extract(data: bytes | Path) -> ManifestType | None:
     '''
@@ -46,14 +72,24 @@ def ini_postprocess(data: bytes) -> bytes:
 def ini_extract(data: bytes | Path) -> ManifestType:
     ...
 # JSON stream
-def json_preprocess(man: ManifestType) -> typing.Any:
-    ...
-def json_render(man: ManifestType) -> bytes:
-    ...
-def json_postprocess(data: bytes) -> bytes:
-    ...
-def json_extract(data: bytes) -> ManifestType:
-    ...
+def json_preprocess(man: ManifestType) -> dict:
+    '''Convert the manifest into JSON-encodable Python types'''
+    return dict(_reduce(man.p_export(), bytearray_convert=False, encode_bytes='b85', set_convert=True))
+def json_render(man: ManifestType, compact: typing.Literal[0, 1, 2] = 0) -> bytes:
+    '''Render the manifest in JSON format'''
+    return SIG_JSON + json.dumps(json_preprocess(man), indent=None if compact > 0 else 4,
+                                 separators=(',', ':') if compact > 1 else None).encode()[1:]
+def json_postprocess(data: bytes) -> str:
+    '''Removes `JSON_SIG` from the data and decodes it to a string'''
+    return (b'{' + data[len(SIG_JSON):]).decode()
+def json_extract(data: bytes | Path) -> typing.Mapping:
+    '''
+        Extracts a manifest from JSON
+            Returns `None` on a file without a `JSON_SIG`
+    '''
+    if isinstance(data, Path): data = data.read_bytes()
+    if not data.startswith(SIG_JSON): return None
+    return ManifestType.m_from_map(json.loads(json_postprocess(data)))
 # Pakd stream
 def pakd_preprocess(man: ManifestType, printable: bool = False) -> typing.Any:
     ...
