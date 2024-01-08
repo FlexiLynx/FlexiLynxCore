@@ -20,7 +20,8 @@ from FlexiLynx.core.util import concat_mappings, dictdir
 #> Header >/
 __all__ = ('BasePart', 'UnstructuredBasePart', 'StructuredBasePart',
            'make_struct_part', 'make_unstruct_part',
-           'PartUnion', 'PartUnion_Compose', 'PartUnion_New', 'PartUnion_Nest')
+           'PartUnion', 'PartUnion_Compose', 'PartUnion_New', 'PartUnion_Nest',
+           'PartUnion_Hybrid')
 
 # Parts base
 class BasePart:
@@ -439,3 +440,22 @@ class _PartUnion_NestMeta(type):
 class PartUnion_Nest(_PartUnion, metaclass=_PartUnion_NestMeta):
     __slots__ = ()
     __doc__ = _PartUnion_Nest.__doc__
+## "Hybrid"
+class _PartUnion_Hybrid(_PartUnion_New, _PartUnion_Nest):
+    '''Constructs (effectively) a hybrid of `PartUnion_New` and `PartUnion_Nest` type'''
+    __slots__ = ()
+    p_export_flat = None
+class _PartUnion_HybridMeta(type):
+    def __call__(cls, p_name: str, *new_parts: type[StructuredBasePart], _bases=(_PartUnion_New, _PartUnion_Nest),
+                 p_nest_defaults: typing.Mapping[str, type[UnstructuredBasePart | StructuredBasePart]] = {}, **nest_parts: type[UnstructuredBasePart | StructuredBasePart]):
+        assert all(map(StructuredBasePart.__subclasscheck__,  new_parts)), 'Parts for "new" method must all be StructuredBaseParts'
+        return make_dataclass(p_name, sum((tuple((i,f.type,f) for i,f in p.__dataclass_fields__.items()) for p in new_parts), start=()) \
+                              + tuple((n, p, field(default=p_nest_defaults.get(n, MISSING))) for n,p in nest_parts.items()),
+                              bases=_bases, frozen=True, namespace={'p_parts_cls_new': new_parts, 'p_parts_cls_nest': nest_parts})
+    def __instancecheck__(cls, other: typing.Any) -> bool:
+        return isinstance(other, _PartUnion_Hybrid)
+    def __subclasscheck__(cls, other: type) -> bool:
+        return issubclass(other, _PartUnion_Hybrid) or issubclass(other, PartUnion_Hybrid)
+class PartUnion_Hybrid(_PartUnion, metaclass=_PartUnion_HybridMeta):
+    __slots__ = ()
+    __doc__ = _PartUnion_Hybrid.__doc__
