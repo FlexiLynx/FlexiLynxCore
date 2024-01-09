@@ -9,6 +9,7 @@
 '''
 
 #> Imports
+import io
 import json
 import typing
 from pathlib import Path
@@ -87,7 +88,13 @@ def ini_preprocess(man: ManifestType) -> dict:
              **concat_mappings(*(dict(_ini_preprocess(v, (k,))) for k,v in mexp.items() if isinstance(v, cabc.Mapping)))}
     return procd
 def ini_render(man: ManifestType) -> bytes:
-    ...
+    '''Render the manifest in INI format'''
+    p = ConfigParser(delimiters=(': ',), interpolation=None)
+    p.optionxform = lambda o: o
+    p.read_dict(ini_preprocess(man))
+    with io.StringIO() as sio:
+        p.write(sio, space_around_delimiters=False)
+        return f'{sio.getvalue().strip()}\n'.encode()
 def ini_postprocess(data: bytes) -> bytes:
     ...
 def ini_extract(data: bytes | Path) -> ManifestType:
