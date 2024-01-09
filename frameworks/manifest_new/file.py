@@ -13,6 +13,7 @@ import io
 import json
 import typing
 from pathlib import Path
+from threading import RLock
 from ast import literal_eval
 from configparser import ConfigParser
 from collections import abc as cabc
@@ -69,6 +70,9 @@ def extract(data: bytes | Path) -> ManifestType | None:
     return None
 
 # INI stream
+_ini_parser = ConfigParser(delimiters=(': ',), interpolation=None)
+_ini_parser.optionxform = lambda o: o
+_ini_parser_lock = RLock()
 def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iterator[tuple[str, dict]]:
     m = {}
     for k,v in d.items():
@@ -89,12 +93,13 @@ def ini_preprocess(man: ManifestType) -> dict:
     return procd
 def ini_render(man: ManifestType) -> bytes:
     '''Render the manifest in INI format'''
-    p = ConfigParser(delimiters=(': ',), interpolation=None)
-    p.optionxform = lambda o: o
-    p.read_dict(ini_preprocess(man))
-    with io.StringIO() as sio:
-        p.write(sio, space_around_delimiters=False)
-        return f'{sio.getvalue().strip()}\n'.encode()
+    mdict = ini_preprocess(man) # keep some of the work outside of the lock
+    with _ini_parser_lock:
+        _ini_parser.clear()
+        _ini_parser.read_dict(mdict)
+        with io.StringIO() as sio:
+            _ini_parser.write(sio, space_around_delimiters=False)
+            return f'{sio.getvalue().strip()}\n'.encode()
 def _ini_postprocess(m: typing.Mapping[str, str]) -> dict[str, dict | typing.Any]:
     d = {}
     for n,s in m.items():
@@ -108,10 +113,10 @@ def _ini_postprocess(m: typing.Mapping[str, str]) -> dict[str, dict | typing.Any
     return d
 def ini_postprocess(data: bytes) -> bytes:
     '''Reads the `data` with `ConfigParser`, then unflatten it and evaluate the values'''
-    p = ConfigParser(delimiters=(': ',), interpolation=None)
-    p.optionxform = lambda o: o
-    p.read_string(data.decode())
-    return _ini_postprocess(p)
+    with _ini_parser_lock:
+        _ini_parser.clear()
+        _ini_parser.read_string(data.decode())
+        return _ini_postprocess(_ini_parser)
 def ini_extract(data: bytes | Path) -> ManifestType:
     ...
 # JSON stream
