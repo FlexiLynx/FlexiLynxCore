@@ -20,7 +20,7 @@ from collections import abc as cabc
 from .base import ManifestType
 
 from FlexiLynx.core import packlib, encodings
-from FlexiLynx.core.util import concat_mappings
+from FlexiLynx.core.util import concat_mappings, map_vals
 #</Imports
 
 #> Header >/
@@ -95,8 +95,23 @@ def ini_render(man: ManifestType) -> bytes:
     with io.StringIO() as sio:
         p.write(sio, space_around_delimiters=False)
         return f'{sio.getvalue().strip()}\n'.encode()
+def _ini_postprocess(m: typing.Mapping[str, str]) -> dict[str, dict | typing.Any]:
+    d = {}
+    for n,s in m.items():
+        if n == 'DEFAULT': continue
+        elif n == '!':
+            d.update(map_vals(literal_eval, s, type_=iter))
+            continue
+        cwd = d
+        for k in n.split('.'): cwd[k] = cwd = cwd.get(k, {})
+        cwd.update((literal_eval(k), literal_eval(v)) for k,v in s.items())
+    return d
 def ini_postprocess(data: bytes) -> bytes:
-    ...
+    '''Reads the `data` with `ConfigParser`, then unflatten it and evaluate the values'''
+    p = ConfigParser(delimiters=(': ',), interpolation=None)
+    p.optionxform = lambda o: o
+    p.read_string(data.decode())
+    return _ini_postprocess(p)
 def ini_extract(data: bytes | Path) -> ManifestType:
     ...
 # JSON stream
