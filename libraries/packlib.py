@@ -90,7 +90,8 @@ class Packer:
         r = repr(l)
         try: e = literal_eval(r)
         except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError): return None
-        if l == e: return None
+        if l == e: return r
+        return None
     def encode(self, o: object) -> tuple[typing.Literal[*TYPE_KEYS], bytes]:
         '''Returns an object's type-key and encoded bytes'''
         match o:
@@ -153,6 +154,13 @@ class Packer:
                                     if (not a.startswith('_')) and hasattr(o, a)})
         # Fail
         raise TypeError(f'Cannot encode object {o!r} of type {type(o).__qualname__}')
+    def encode_many(self, objects: tuple[object, ...]) -> typing.Iterator[tuple[typing.Literal[*TYPE_KEYS], bytes]]:
+        '''Encode a set of objects, both with `encode()` and as literals, then yield the shortest viable representation'''
+        for o in objects:
+            et,ev = self.encode(o)
+            if ((lit := self._try_encode_literal(o)) is not None) \
+               and (len(lit) < len(ev)): yield (repr, lit.encode(self.STR_ENCODING))
+            else: yield (et, ev)
     def sarchive(self, stream: typing.BinaryIO, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]):
         '''Archives sets of encoded data into a stream'''
         data = tuple(data)
@@ -167,7 +175,7 @@ class Packer:
             return stream.getvalue()
     def spack(self, stream: typing.BinaryIO, *objects: object) -> bytes:
         '''Packs a sequence of objects into a stream'''
-        self.sarchive(stream, (self.encode(o) for o in objects))
+        self.sarchive(stream, self.encode_many(objects))
     def pack(self, *objects: object) -> bytes:
         '''Packs a sequence of objects into bytes'''
         with io.BytesIO() as stream:
