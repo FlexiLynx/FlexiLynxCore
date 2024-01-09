@@ -15,7 +15,7 @@ import typing
 from pathlib import Path
 from threading import RLock
 from ast import literal_eval
-from configparser import ConfigParser
+from configparser import RawConfigParser
 from collections import abc as cabc
 
 from .base import ManifestType
@@ -70,9 +70,8 @@ def extract(data: bytes | Path) -> ManifestType | None:
     return None
 
 # INI stream
-_ini_parser = ConfigParser(delimiters=(': ',), interpolation=None)
-_ini_parser.optionxform = lambda o: o
-_ini_parser_lock = RLock()
+_ini_parser = RawConfigParser(delimiters=(': ',))
+_ini_parser.optionxform = lambda o: o; _ini_parser_lock = RLock()
 def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iterator[tuple[str, dict]]:
     m = {}
     for k,v in d.items():
@@ -86,7 +85,7 @@ def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iter
         m[repr(k)] = repr(v)
     if m: yield ('.'.join(_kl), m)
 def ini_preprocess(man: ManifestType) -> dict:
-    '''Convert `man.m_export()` into a suitable format to be read by `ConfigParser`'''
+    '''Convert `man.m_export()` into a suitable format to be read by `RawConfigParser`'''
     mexp = man.m_export()
     procd = {'!': {k: repr(v) for k,v in mexp.items() if not isinstance(v, cabc.Mapping)},
              **concat_mappings(*(dict(_ini_preprocess(v, (k,))) for k,v in mexp.items() if isinstance(v, cabc.Mapping)))}
@@ -112,7 +111,7 @@ def _ini_postprocess(m: typing.Mapping[str, str]) -> dict[str, dict | typing.Any
         cwd.update((literal_eval(k), literal_eval(v)) for k,v in s.items())
     return d
 def ini_postprocess(data: bytes) -> bytes:
-    '''Reads the `data` with `ConfigParser`, then unflatten it and evaluate the values'''
+    '''Reads the `data` with `RawConfigParser`, then unflatten it and evaluate the values'''
     with _ini_parser_lock:
         _ini_parser.clear()
         _ini_parser.read_string(data.decode())
