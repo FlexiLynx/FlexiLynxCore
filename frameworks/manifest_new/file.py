@@ -104,7 +104,7 @@ def ini_render(man: ManifestType) -> bytes:
         _ini_parser.read_dict(mdict)
         with io.StringIO() as sio:
             _ini_parser.write(sio, space_around_delimiters=False)
-            return f'{sio.getvalue().strip()}\n'.encode()
+            return SIG_INI + (f'{sio.getvalue().strip()}\n'.encode())
 def _ini_postprocess(m: typing.Mapping[str, str]) -> dict[str, dict | typing.Any]:
     d = {}
     for n,s in m.items():
@@ -123,7 +123,13 @@ def ini_postprocess(data: bytes) -> bytes:
         _ini_parser.read_string(data.decode())
         return _ini_postprocess(_ini_parser)
 def ini_extract(data: bytes | Path) -> ManifestType:
-    ...
+    '''
+        Extracts a manifest from INI
+            Returns `None` on a file without a `SIG_INI`
+    '''
+    if isinstance(data, Path): data = data.read_bytes()
+    if not data.startswith(SIG_INI): return None
+    return ManifestType.m_from_map(ini_postprocess(data))
 # JSON stream
 def json_preprocess(man: ManifestType) -> dict:
     '''Convert the manifest into JSON-encodable Python types'''
