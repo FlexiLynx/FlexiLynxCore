@@ -62,11 +62,11 @@ class Packer:
         return self
     def __init__(self, optimize_do_blanking: bool = True, try_reduce_objects: bool = False,
                  reduce_namedtuple: typing.Literal[False, dict, tuple, namedtuple] = namedtuple, **kwargs):
+        if getattr(self, '_is_initted', False): return
         self.optimize_do_blanking = optimize_do_blanking
         self.try_reduce_objects = try_reduce_objects
         assert reduce_namedtuple in {False, dict, tuple, namedtuple}
         self.reduce_namedtuple = reduce_namedtuple
-        if getattr(self, '_is_initted', False): return
         for k,v in kwargs.items():
             setattr(self, k, v)
         self._size_base = 255 - len(self.TYPE_KEYS) # we need to reserve len(self.TYPE_KEYS) bytes to encode type-keys
