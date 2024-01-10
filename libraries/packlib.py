@@ -8,6 +8,7 @@ import weakref
 import typing
 import dataclasses
 from ast import literal_eval
+from fractions import Fraction
 from collections import abc, namedtuple
 #</Imports
 
@@ -31,9 +32,11 @@ class Packer:
     S_DOUBLE = struct.Struct('!d')
     S_COMPLEX = struct.Struct('!dd')
 
+    FRACTION_PRECISION = Fraction.limit_denominator.__defaults__[0]
+
     TYPE_KEYS = ( # ordered simplest to most complex (sans Other)
         # Numerics
-        False, True, int, float, complex,
+        False, True, int, float, complex, Fraction,
         # Sequences
         ## Simple sequences (encoded as-is)
         bytes, str,
@@ -74,17 +77,23 @@ class Packer:
                             'or disable caching (do_cache_instance=False) if you must modify an existing instance')
         super().__setattr__(attr, val)
 
+    @staticmethod
+    def _i_to_base(n: int, base: int) -> bytes:
+        return bytes(((n % (base**p))) // (base**(p-1)) for p in range(1, math.ceil(1+math.log(n+1, base))))
+    @staticmethod
+    def _i_from_base(bn: bytes, base: int) -> int:
+        if not bn: return 0
+        return sum(d*(base**p) for p,d in enumerate(bn))
     def encode_size(self, s: int) -> bytes:
         '''Encodes an integer in self._size_base; originally inspired by https://stackoverflow.com/a/28666223'''
         if not s: return b''
-        return bytes(((s % (self._size_base**p))) // (self._size_base**(p-1)) for p in range(1, math.ceil(1+math.log(s+1, self._size_base))))
+        return self._i_to_base(s, self._size_base)
     def decode_size(self, bs: bytes) -> int:
         '''
             Decodes an integer from self._size_base
             Not that this not used by the current implementation of siunarchive()
         '''
-        if not bs: return 0
-        return sum(d*(self._size_base**p) for p,d in enumerate(bs))
+        return _i_from_base(bs, self._size_base)
 
     def _try_encode_literal(self, l: object) -> str | None:
         r = repr(l)
@@ -103,18 +112,23 @@ class Packer:
                         if (o or not self.optimize_do_blanking) else b'')
             case float():
                 if self.optimize_do_blanking and not o: return (float, b'')
-                r = repr(o).encode(self.STR_ENCODING)
-                if len(r) < self.S_DOUBLE.size: return (repr, r)
-                try:
-                    return (float, self.S_DOUBLE.pack(o))
-                except struct.error: return (repr, r)
+                fenc = self.encode(Fraction(o))
+                if fenc[1] < self.S_DOUBLE.size: return fenc
+                try: return (float, self.S_DOUBLE.pack(o))
+                except struct.error: return fenc
             case complex():
                 if self.optimize_do_blanking and not o: return (complex, b'')
-                r = repr(o).encode(self.STR_ENCODING)
-                if len(r) < self.S_COMPLEX.size: return (repr, r)
+                pak = self.pack(o.real, o.imag)
+                if len(pak) < self.S_COMPLEX.size: return (complex, pak)
                 try:
                     return (complex, self.S_COMPLEX.pack(o.real, o.imag))
-                except struct.error: return (repr, r)
+                except struct.error: return (complex, pak)
+            case Fraction():
+                n,d = o.limit_denominator(self.FRACTION_PRECISION).as_integer_ratio()
+                np = n.to_bytes(((n.bit_length() + 1) + 7) // 8, signed=True) \
+                     if (n or not self.optimize_do_blanking) else b'' # numerator is signed
+                dp = self._i_to_base(d, 254) if (d or not self.optimize_do_blanking) else b'' # denominator is not
+                return np + b'\xFF' + dp
             # Sequences
             ## Simple
             case bytes() | bytearray():
@@ -195,7 +209,12 @@ class Packer:
         if t is float:
             return self.S_DOUBLE.unpack(e)[0]
         if t is complex:
-            return complex(*self.S_COMPLEX.unpack(e))
+            if len(e) == self.S_COMPLEX.size:
+                return self.S_COMPLEX.unpack(e)
+            return complex(*self.unpack(e))
+        if t is Fraction:
+            n,d = t.rsplit(b'\xFF', 1)
+            return Fraction(int.from_bytes(n, signed=True), self._i_from_base(d, 254))
         # Sequences
         ## Simple
         if t is bytes: return e
