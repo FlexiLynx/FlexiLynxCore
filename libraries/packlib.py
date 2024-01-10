@@ -2,11 +2,12 @@
 
 #> Imports
 import io
-import struct
 import math
+import types
+import struct
 import weakref
-import typing
 import dataclasses
+import typing
 from ast import literal_eval
 from fractions import Fraction
 from collections import abc, namedtuple
@@ -45,6 +46,8 @@ class Packer:
         # Other keys
         None, repr,
     )
+
+    EXTENDED_CONSTANTS = (None, NotImplemented, Ellipsis)
 
     _INSTANCE_CACHE = weakref.WeakValueDictionary() # instances have no state, so its safe to cache them
 
@@ -152,8 +155,8 @@ class Packer:
             case abc.Mapping():
                 return (dict, self.pack(*sum(tuple(o.items()), start=())))
             # Others
-            case (None):
-                return (None, b'')
+            case _ if (o in self.EXTENDED_CONSTANTS):
+                return (None, bytes(((self.EXTENDED_CONSTANTS.index(o) or (b'' if self.optimize_do_blanking else 0)),)))
             case _ if (r := self._try_encode_literal(o)) is not None: # object equals its repr ((sometimes) literal) form
                 return (repr, r.encode(self.STR_ENCODING))
         # Try to reduce objects
@@ -235,7 +238,10 @@ class Packer:
             dic = dict(zip(seq[2::2], seq[3::2]))
             return namedtuple(seq[0], dic.keys(), module=seq[1])(**dic)
         # Other
-        if t is None: return None
+        if t is None:
+            if len(e) != 1:
+                raise ValueError(f'Invalid extended constant value {e!r} (must have a length of 1 or 0')
+            return self.EXTENDED_CONSTANTS[e[0]]
         if t is repr:
             return literal_eval(e.decode(self.STR_ENCODING))
     def sunarchive_one(self, stream: typing.BinaryIO) -> tuple[typing.Literal[*TYPE_KEYS], bytes] | None:
