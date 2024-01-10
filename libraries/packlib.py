@@ -128,7 +128,7 @@ class Packer:
                 np = n.to_bytes(((n.bit_length() + 1) + 7) // 8, signed=True) \
                      if (n or not self.optimize_do_blanking) else b'' # numerator is signed
                 dp = self._i_to_base(d, 254) if (d or not self.optimize_do_blanking) else b'' # denominator is not
-                return np + b'\xFF' + dp
+                return (Fraction, np + b'\xFF' + dp)
             # Sequences
             ## Simple
             case bytes() | bytearray():
@@ -215,7 +215,7 @@ class Packer:
                 return self.S_COMPLEX.unpack(e)
             return complex(*self.unpack(e))
         if t is Fraction:
-            n,d = t.rsplit(b'\xFF', 1)
+            n,d = e.rsplit(b'\xFF', 1)
             return Fraction(int.from_bytes(n, signed=True), self._i_from_base(d, 254))
         # Sequences
         ## Simple
