@@ -305,6 +305,55 @@ def unpack(packed: bytes, **packer_attrs) -> tuple[object, ...]:
     '''
     return (Packer(**packer_attrs) if packer_attrs else packer).unpack(packed)
 
+def inspect(packed: bytes, packer: Packer = packer, *,
+            fmtk: str = 'hex', input: typing.Callable[[str], str] = input, print: typing.Callable[[str], None] = print) -> bool:
+    '''Writes out details about the packed bytes and allows interactive inspection and recursion'''
+    import base64, traceback
+    fmts = {
+        'repr': repr,
+        'hex': bytes.hex,
+        'b85': lambda b: base64.b85encode(b).decode(),
+    }; fmt = fmts[fmtk]
+    entries = []
+    last = 0
+    pakd = io.BytesIO(packed)
+    while True:
+        entries.append(packer.sunarchive_one(pakd))
+        if entries[-1] is None:
+            entries.pop(); break
+        print(f'Decoded {fmt(packed[last:pakd.tell()])}:')
+        print(f'{len(entries)}: {getattr(entries[-1][0], "__name__", repr(entries[-1][0]))} = {fmt(entries[-1][1])}')
+        last = pakd.tell()
+    if not entries:
+        print('No entries; backing out')
+        return True
+    print('Commands:\n'
+          '- "q": quit\n'
+          '- "b": same as quit, but only quits the current `inspect`, not all previous ones ("b"acks out of recursion)\n'
+          '- "i <i>": recursively inspect bytes from entry "<i>"\n'
+          '- "d <i>": decode (possibly recursively) entry "<i>"\n'
+          '- "f [n]": change format to format "[n]"; if "[n]" is not given, then print a list of available formats')
+    while True:
+        c = input('Enter command >').lower().split(' ')
+        match c:
+            case ('q',):
+                print('Quitting')
+                return False
+            case ('b',):
+                print('Backing out')
+                return True
+            case ('i', i):
+                if not inspect(entries[int(i)-1][1], fmtk=fmtk, input=input, print=print): break
+            case ('d', i):
+                print(repr(packer.decode(*entries[int(i)-1])))
+            case 'f': print(', '.join(fmts.keys()))
+            case ('f', f):
+                if f in fmts:
+                    fmtk = f
+                    fmt = fmts[fmtk]
+                else: print(f'Format {f!r} not recognized')
+            case _: print(f'Unrecognized command {c}')
+
 # Self-test
 def _stage_selftest():
     # Imports
