@@ -156,7 +156,7 @@ class Packer:
                 return (dict, self.pack(*sum(tuple(o.items()), start=())))
             # Others
             case _ if (o in self.EXTENDED_CONSTANTS):
-                return (None, bytes(((self.EXTENDED_CONSTANTS.index(o) or (b'' if self.optimize_do_blanking else 0)),)))
+                return (None, b'' if (self.optimize_do_blanking and o is None) else bytes((self.EXTENDED_CONSTANTS.index(o),)))
             case _ if (r := self._try_encode_literal(o)) is not None: # object equals its repr ((sometimes) literal) form
                 return (repr, r.encode(self.STR_ENCODING))
         # Try to reduce objects
@@ -313,26 +313,38 @@ def inspect(packed: bytes, packer: Packer = packer, *,
         'repr': repr,
         'hex': bytes.hex,
         'b85': lambda b: base64.b85encode(b).decode(),
+        'replace': lambda b: b.decode(errors='replace'),
+        '\\': lambda b: b.decode(errors='backslashreplace'),
     }; fmt = fmts[fmtk]
+    def p_cmds():
+        print('Commands:\n'
+              '- "q": quit\n'
+              '- "b": same as quit, but only quits the current `inspect`, not all previous ones ("b"acks out of recursion)\n'
+              '- "p": prints the list of entries\n'
+              '- "r": prints the entirety of the raw bytes that are being inspected\n'
+              '- "i <i>": recursively inspect bytes from entry "<i>"\n'
+              '- "d [i]": decode (possibly recursively) entry "[i]" (if "[i]" is not given, unpack the entirety of the currently inspected bytes)\n'
+              '- "f [n]": change format to format "[n]"; if "[n]" is not given, then print a list of available formats')
     entries = []
+    def p_meta(e: int):
+        s = packer.encode_size(len(entries[e][1]))
+        t = packer._type_to_pfx[entries[e][0]]
+        print(f'Entry {e+1}: {fmt(s + t + entries[e][1])}\n'
+              f' size: {fmt(s)} -> {len(entries[e][1])}\n'
+              f' type: {fmt(t)} -> {getattr(entries[e][0], "__name__", repr(entries[e][0]))}')
     last = 0
     pakd = io.BytesIO(packed)
     while True:
         entries.append(packer.sunarchive_one(pakd))
         if entries[-1] is None:
             entries.pop(); break
-        print(f'Decoded {fmt(packed[last:pakd.tell()])}:')
-        print(f'{len(entries)}: {getattr(entries[-1][0], "__name__", repr(entries[-1][0]))} = {fmt(entries[-1][1])}')
+        print(f'--Decoded {fmt(packed[last:pakd.tell()])}--')
+        p_meta(len(entries)-1)
         last = pakd.tell()
     if not entries:
         print('No entries; backing out')
         return True
-    print('Commands:\n'
-          '- "q": quit\n'
-          '- "b": same as quit, but only quits the current `inspect`, not all previous ones ("b"acks out of recursion)\n'
-          '- "i <i>": recursively inspect bytes from entry "<i>"\n'
-          '- "d <i>": decode (possibly recursively) entry "<i>"\n'
-          '- "f [n]": change format to format "[n]"; if "[n]" is not given, then print a list of available formats')
+    p_cmds()
     while True:
         c = input('Enter command >').lower().split(' ')
         match c:
@@ -342,17 +354,29 @@ def inspect(packed: bytes, packer: Packer = packer, *,
             case ('b',):
                 print('Backing out')
                 return True
+            case ('p',):
+                for i in range(len(entries)): p_meta(i)
+            case ('r',): print(fmt(packed))
             case ('i', i):
-                if not inspect(entries[int(i)-1][1], fmtk=fmtk, input=input, print=print): break
+                if not i.isdigit(): print(f'Not a number: {i!r}')
+                if not inspect(entries[int(i)-1][1], fmtk=fmtk, input=input, print=print):
+                    return False
+            case ('d',):
+                print(repr(packer.unpack(packed)))
             case ('d', i):
-                print(repr(packer.decode(*entries[int(i)-1])))
-            case 'f': print(', '.join(fmts.keys()))
+                if not i.isdigit(): print(f'Not a number: {i!r}')
+                elif 0 < int(i) <= len(entries):
+                    print(repr(packer.decode(*entries[int(i)-1])))
+                else: print(f'Out of bounds: {i}')
+            case ('f',): print(', '.join(fmts.keys()))
             case ('f', f):
                 if f in fmts:
                     fmtk = f
                     fmt = fmts[fmtk]
                 else: print(f'Format {f!r} not recognized')
-            case _: print(f'Unrecognized command {c}')
+            case _:
+                print(f'Unrecognized command {c}')
+                p_cmds()
 
 # Self-test
 def _stage_selftest():
