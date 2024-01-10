@@ -31,7 +31,7 @@ __all__ = ('SIG_INI', 'SIG_JSON', 'SIG_PAKD', 'SIG_PAKD_P', 'extract',
            'pakd_render', 'pakd_extract')
 
 SIG_INI    = b';FLMAN\n'
-SIG_JSON   = b'{"FLMAN_SIG": null,\n'
+SIG_JSON   = b'{"_FLMAN_SIG": null,'
 SIG_PAKD   = b'\xFFFLMAN\xFF'
 SIG_PAKD_P = b'FLMAN_P\n'
 
