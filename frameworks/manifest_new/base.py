@@ -3,6 +3,7 @@
 #> Imports
 import types
 import typing
+from collections import abc as cabc
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from .parts import *
@@ -24,6 +25,14 @@ class _ManifestType:
     '''
     __slots__ = ()
     m_types = {}
+
+    def __post_init__(self):
+        for n,p in self.m_parts.items():
+            if not hasattr(self, n):
+                setattr(self, n, None)
+                continue
+            if isinstance((sp := getattr(self, n)), cabc.Mapping):
+                setattr(self, n, p.p_import(sp))
 
     @classmethod
     def m_register(cls):
@@ -50,9 +59,6 @@ class _ManifestType:
         '''
         if m['type'] != cls.type:
             raise TypeError(f'Type mismatch: this class expects {cls.type}, but the manifest-to-import reports itself as a {m["type"]}')
-        for n,p in cls.m_parts.items():
-            if m[n] is None: continue
-            m[n] = p.p_import(m[n])
         return cls(key=None if m['key'] is None else EdPubK.from_public_bytes(m['key']), **filter_keys(lambda k: k not in {'type', 'key'}, m))
     
     def m_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
