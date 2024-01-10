@@ -66,7 +66,7 @@ class Packer:
         if getattr(self, '_is_initted', False): return
         for k,v in kwargs.items():
             setattr(self, k, v)
-        self._size_base = 225 - len(self.TYPE_KEYS) # we need to reserve len(self.TYPE_KEYS) bytes to encode type-keys
+        self._size_base = 255 - len(self.TYPE_KEYS) # we need to reserve len(self.TYPE_KEYS) bytes to encode type-keys
         self._type_to_pfx = {t: bytes((self._size_base + n,)) for n,t in enumerate(self.TYPE_KEYS)}
         self._pfx_to_type = {p: t for t,p in self._type_to_pfx.items()}
         self._is_initted = True
