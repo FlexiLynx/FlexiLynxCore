@@ -50,7 +50,11 @@ class _ManifestType:
         '''
         if m['type'] != cls.type:
             raise TypeError(f'Type mismatch: this class expects {cls.type}, but the manifest-to-import reports itself as a {m["type"]}')
+        for n,p in cls.m_parts.items():
+            if m[n] is None: continue
+            m[n] = p.p_import(m[n])
         return cls(key=None if m['key'] is None else EdPubK.from_public_bytes(m['key']), **filter_keys(lambda k: k not in {'type', 'key'}, m))
+    
     def m_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''
             Converts this manifest into a dictionary (`mappingproxy`) of primitive and immutable types
