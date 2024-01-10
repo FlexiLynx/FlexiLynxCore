@@ -12,7 +12,7 @@ from .parts import *
 import FlexiLynx
 from FlexiLynx.core.util import concat_mappings, filter_keys
 from FlexiLynx.core.packlib import pack
-from FlexiLynx.core.encodings import decode
+from FlexiLynx.core.encodings import decode, encode
 #</Imports
 
 #> Header >/
@@ -36,6 +36,10 @@ class _ManifestType:
                 continue
             if isinstance((sp := getattr(self, n)), cabc.Mapping):
                 setattr(self, n, p.p_import(sp))
+    def __repr__(self) -> str:
+        return f'{self.type}(id={self.id!r}, rel={self.rel!r}, ' \
+               f'key={"<not a keyholder>" if self.key is None else repr(encode("b85", self.m_key))}' \
+               f'{"".join(f""",\n{" "*len(self.type)} {n}={getattr(self, n)!r}""" for n in self.m_parts.keys())})'
 
     @property
     def m_key(self) -> EdPubK:
@@ -113,6 +117,7 @@ class _ManifestTypeMeta(type):
     def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, m_register: bool = True, m_top_mutable: bool = True, **parts: base.BasePart) -> type[_ManifestType]:
         c = (base._PartUnion_HybridMeta if parts else base._PartUnion_NewMeta).__call__(cls,
             m_name, *CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace={'m_parts': parts}, p_mutable=m_top_mutable, **parts)
+        c.__repr__ = _ManifestType.__repr__
         c.type = m_name
         if m_register: c.m_register()
         return c
