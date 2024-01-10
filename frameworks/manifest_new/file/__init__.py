@@ -18,7 +18,7 @@ from ast import literal_eval
 from configparser import RawConfigParser
 from collections import abc as cabc
 
-from .base import ManifestType
+from ..base import ManifestType
 
 from FlexiLynx.core import packlib, encodings
 from FlexiLynx.core.util import concat_mappings, map_vals

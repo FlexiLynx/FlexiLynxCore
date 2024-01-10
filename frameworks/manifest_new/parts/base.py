@@ -12,7 +12,7 @@ from collections import deque
 from collections import abc as cabc
 from dataclasses import dataclass, field, make_dataclass, MISSING
 
-from . import base
+from .. import base
 
 from FlexiLynx.core.util import concat_mappings, dictdir
 #</Imports

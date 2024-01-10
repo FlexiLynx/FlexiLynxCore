@@ -1,7 +1,7 @@
 #!/bin/python3
 
 '''
-    Parts of manifests
+    Core parts of manifests
 
     Each part contains data, a name, and various helper methods
     Different types of manifests may use different parts
@@ -13,8 +13,8 @@ from functools import partial
 from dataclasses import field
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
-from .parts_base import *
-from . import parts_base as base # re-exposed as base
+from . import base # re-exposed as base
+from .base import *
 #</Imports
 
 #> Header >/

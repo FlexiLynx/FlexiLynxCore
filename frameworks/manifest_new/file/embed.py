@@ -13,7 +13,7 @@
 #> Imports
 import re
 
-from .base import ManifestType
+from ..base import ManifestType
 
 from FlexiLynx.core import encodings, packlib
 #</Imports
