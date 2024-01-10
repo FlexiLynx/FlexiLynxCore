@@ -122,10 +122,10 @@ def ini_postprocess(data: bytes) -> bytes:
         _ini_parser.clear()
         _ini_parser.read_string(data.decode())
         return _ini_postprocess(_ini_parser)
-def ini_extract(data: bytes | Path) -> ManifestType:
+def ini_extract(data: bytes | Path) -> ManifestType | None:
     '''
         Extracts a manifest from INI
-            Returns `None` on a file without a `SIG_INI`
+            Returns `None` for contents without a `SIG_INI`
     '''
     if isinstance(data, Path): data = data.read_bytes()
     if not data.startswith(SIG_INI): return None
@@ -141,10 +141,10 @@ def json_render(man: ManifestType, compact: typing.Literal[0, 1, 2] = 0) -> byte
 def json_postprocess(data: bytes) -> str:
     '''Removes `JSON_SIG` from the data and decodes it to a string'''
     return (b'{' + data[len(SIG_JSON):]).decode()
-def json_extract(data: bytes | Path) -> typing.Mapping:
+def json_extract(data: bytes | Path) -> ManifestType | None:
     '''
         Extracts a manifest from JSON
-            Returns `None` on a file without a `SIG_JSON`
+            Returns `None` for contents without a `SIG_JSON`
     '''
     if isinstance(data, Path): data = data.read_bytes()
     if not data.startswith(SIG_JSON): return None
@@ -166,7 +166,7 @@ def pakd_postprocess(data: bytes, printable: bool) -> bytes:
 def pakd_extract(data: bytes | Path, printable: bool | None = None) -> ManifestType | None:
     '''
         Extracts a manifest from PackLib-packed bytes
-            Returns `None` on a file without a `SIG_PAKD` or `SIG_PAKD_P` (depending on `printable`)
+            Returns `None` for contents without a `SIG_PAKD` or `SIG_PAKD_P` (depending on `printable`)
     '''
     if isinstance(data, Path): data = data.read_bytes()
     if data.startswith(SIG_PAKD):
