@@ -49,13 +49,16 @@ def __setup__():
 # Testing code
 if __name__ == '__main__':
     __init__()
-    from FlexiLynx.core.frameworks.manifest import parts
-    test = parts.base.PartUnion_New('test', parts.IDManifestPart, parts.CryptManifestPart)
-    testi = test('test', 0, type='yay', sig=b'', key=None)
-    test2 = parts.base.PartUnion_Compose('test2', parts.IDManifestPart, parts.CryptManifestPart, parts.base.make_unstruct_part('test'))
-    test2i = test2('test', 0, type='yay', sig=b'', key=None, extra0='test', extra2=3)
-    test3 = parts.base.PartUnion_Nest('test3', id=parts.IDManifestPart, crypt=parts.CryptManifestPart)
-    test3i = test3(id=parts.IDManifestPart('test', -1, type='yay2'), crypt=parts.CryptManifestPart(sig=b'', key=None))
+    from FlexiLynx.core.frameworks import manifest
+    test = manifest.base.ManifestType('test', idp=manifest.parts.IDManifestPart)
+    testi = test('outerid', -1, idp=manifest.parts.IDManifestPart('innerid', 32767))
+    #from FlexiLynx.core.frameworks.manifest import parts
+    #test = parts.base.PartUnion_New('test', parts.IDManifestPart, parts.CryptManifestPart)
+    #testi = test('test', 0, type='yay', sig=b'', key=None)
+    #test2 = parts.base.PartUnion_Compose('test2', parts.IDManifestPart, parts.CryptManifestPart, parts.base.make_unstruct_part('test'))
+    #test2i = test2('test', 0, type='yay', sig=b'', key=None, extra0='test', extra2=3)
+    #test3 = parts.base.PartUnion_Nest('test3', id=parts.IDManifestPart, crypt=parts.CryptManifestPart)
+    #test3i = test3(id=parts.IDManifestPart('test', -1, type='yay2'), crypt=parts.CryptManifestPart(sig=b'', key=None))
 
     #_core = FlexiLynx.core
     #privkey = _core.frameworks.manifest.core.EdPrivK.generate()
