@@ -329,7 +329,7 @@ def inspect(packed: bytes, packer: Packer = packer, *,
     def p_meta(e: int):
         s = packer.encode_size(len(entries[e][1]))
         t = packer._type_to_pfx[entries[e][0]]
-        print(f'Entry {e+1}: {fmt(s + t + entries[e][1])}\n'
+        print(f'Entry {str(e+1).rjust(2, "0")}: {fmt(s + t + entries[e][1])}\n'
               f' size: {fmt(s)} -> {len(entries[e][1])}\n'
               f' type: {fmt(t)} -> {getattr(entries[e][0], "__name__", repr(entries[e][0]))}')
     last = 0
