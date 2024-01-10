@@ -3,14 +3,16 @@
 #> Imports
 import types
 import typing
+from pathlib import Path
 from collections import abc as cabc
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
 from .parts import *
 
 import FlexiLynx
 from FlexiLynx.core.util import concat_mappings, filter_keys
 from FlexiLynx.core.packlib import pack
+from FlexiLynx.core.encodings import decode
 #</Imports
 
 #> Header >/
@@ -25,6 +27,7 @@ class _ManifestType:
     '''
     __slots__ = ()
     m_types = {}
+    _M_STR_KEY_ENCODING = 'b85'
 
     def __post_init__(self):
         for n,p in self.m_parts.items():
@@ -33,6 +36,34 @@ class _ManifestType:
                 continue
             if isinstance((sp := getattr(self, n)), cabc.Mapping):
                 setattr(self, n, p.p_import(sp))
+
+    @property
+    def m_key(self) -> EdPubK:
+        '''A preprocessed verison of this manifest's key'''
+        if (k := getattr(self, 'key', None)) is None:
+            raise AttributeError('This manifest is not a keyholder')
+        if isinstance(k, bytes): k = EdPubK.from_public_bytes(k)
+        if not isinstance(k, EdPubK):
+            raise TypeError(f'Cannot resolve manifest key-val {k!r} to a key')
+        return k
+    @m_key.setter
+    def m_key(self, k: EdPubK | EdPrivK | Path | bytes | None):
+        '''
+            Sets this manifest's key, doing the following transformations:
+                `None` -> `None` (unset the key)
+                `Path` -> `bytes` (`Path.read_bytes()`)
+                `bytes` -> `Ed25519PublicKey` (`Ed25519PublicKey.from_public_bytes()`)
+                `Ed25519PrivateKey` -> `Ed25519PublicKey` (`Ed25519PrivateKey.public_key()`)
+        '''
+        if k is None:
+            self.key = None
+            return
+        if isinstance(k, Path): k = k.read_bytes()
+        if isinstance(k, bytes): k = EdPubK.from_public_bytes(k)
+        elif isinstance(k, EdPrivK): k = k.public_key()
+        if isinstance(k, EdPubK): self.key = k
+        else:
+            raise TypeError(f'Cannot resolve {k!r} to a key')
 
     @classmethod
     def m_register(cls):

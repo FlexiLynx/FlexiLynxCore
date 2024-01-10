@@ -14,7 +14,7 @@ __all__ = ('sign', 'verify')
 
 def sign(m: ManifestType, key: EdPrivK) -> ManifestType:
     '''Signs the manifest `m` in-place (setting `.key` and `.sig` and returns it'''
-    m.key = key.public_key()
+    m.m_key = key
     m.sig = key.sign(m.m_compile())
     return m
 def verify(m: ManifestType, key: EdPubK | None = None, fail_on_missing: bool = False) -> bool | None:
@@ -25,10 +25,11 @@ def verify(m: ManifestType, key: EdPubK | None = None, fail_on_missing: bool = F
         When necessary attributes are missing, raises `AttributeError` if `fail_on_missing`, otherwise returns `None`
     '''
     if key is None:
-        key = m.key
-        if key is None:
-            if not fail_on_missing: return None
-            raise AttributeError('Manifest is not a keyholder')
+        try:
+            key = m.m_key
+        except AttributeError:
+            if fail_on_missing: raise
+            return None
     if m.sig is None:
         if not fail_on_missing: return None
         raise AttributeError('Manifest is not signed')
