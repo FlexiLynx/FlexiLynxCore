@@ -79,10 +79,16 @@ def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iter
         if isinstance(v, cabc.Mapping):
             yield from _ini_preprocess(v, _kl+(k,))
             continue
-        try: literal_eval(repr(v))
-        except Exception:
-            raise TypeError(f'Could not convert key {(".".join(_kl+(k,)))!r} (val={v!r}) to a literal')
-        m[repr(k)] = repr(v)
+        try:
+            if literal_eval(repr(v)) != v:
+                raise ValueError(f'Literal representation of {v!r} does not match actual representation')
+        except Exception as le:
+            #try: m[repr(k)] = packlib.pack(v)
+            #except TypeError as pe:
+            le.add_note(f'Could not convert {v!r} to a literal')
+            raise le
+            #    raise ExceptionGroup(f'Could not convert {v!r} (at {(".".join(_kl+(k,)))!r}) to a literal; nor could it be packed', (le, pe))
+        else: m[repr(k)] = repr(v)
     if m: yield ('.'.join(_kl), m)
 def ini_preprocess(man: ManifestType) -> dict:
     '''Convert `man.m_export()` into a suitable format to be read by `RawConfigParser`'''
