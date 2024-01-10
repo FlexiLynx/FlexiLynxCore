@@ -112,8 +112,8 @@ class Packer:
                         if (o or not self.optimize_do_blanking) else b'')
             case float():
                 if self.optimize_do_blanking and not o: return (float, b'')
-                fenc = self.encode(Fraction(o))
-                if fenc[1] < self.S_DOUBLE.size: return fenc
+                fenc = self.encode(Fraction(o))[1]
+                if len(fenc) < self.S_DOUBLE.size: return (float, fenc)
                 try: return (float, self.S_DOUBLE.pack(o))
                 except struct.error: return fenc
             case complex():
@@ -207,7 +207,9 @@ class Packer:
         if t is False: return False
         if t is int: return int.from_bytes(e, signed=True)
         if t is float:
-            return self.S_DOUBLE.unpack(e)[0]
+            if len(e) == self.S_DOUBLE.size:
+                return self.S_DOUBLE.unpack(e)[0]
+            return float(self.decode(Fraction, e))
         if t is complex:
             if len(e) == self.S_COMPLEX.size:
                 return self.S_COMPLEX.unpack(e)
