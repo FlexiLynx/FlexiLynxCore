@@ -144,16 +144,19 @@ def json_extract(data: bytes | Path) -> typing.Mapping:
     if not data.startswith(SIG_JSON): return None
     return ManifestType.m_from_map(json.loads(json_postprocess(data)))
 # Pakd stream
+_PRINTABLE_PAKD_ENC = 'b85'
 def pakd_preprocess(man: ManifestType) -> typing.Any:
     '''Simply returns `man.m_export()`'''
     return man.m_export()
 def pakd_render(man: ManifestType, printable: bool = False) -> bytes:
     '''Render the manifest into PacLib-packed bytes'''
-    return (SIG_PAKD_P if printable else SIG_PAKD) + packlib.pack(pakd_preprocess(man))
+    if not printable: return SIG_PAKD + packlib.pack(pakd_preprocess(man))
+    return SIG_PAKD_P + encodings.encode(_PRINTABLE_PAKD_ENC, packlib.pack(pakd_preprocess(man))).encode()
 def pakd_postprocess(data: bytes, printable: bool) -> bytes:
     '''Decodes (base85) printable bytes if necessary and strips `SIG_PAKD`/`SIG_PAKD_P`'''
-    if printable: data = encodings.decode('b85', data.decode())
-    return data[len(SIG_PAKD_P if printable else SIG_PAKD):]
+    data = data[len(SIG_PAKD_P if printable else SIG_PAKD):]
+    if not printable: return data
+    return encodings.decode(_PRINTABLE_PAKD_ENC, data.decode())
 def pakd_extract(data: bytes | Path, printable: bool | None = None) -> ManifestType | None:
     '''
         Extracts a manifest from PackLib-packed bytes
