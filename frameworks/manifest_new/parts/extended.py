@@ -27,6 +27,8 @@ class KeyCascadePart:
         self.ring = {(k := self.transform_key(ok)).public_bytes_raw():
                      (k, self.transform_key(nk), s if isinstance(s, bytes) else decode('b85', s))
                      for ok,(nk,s) in self.ring.items()}
+    def __repr__(self) -> str:
+        return f'{type(self).__name__}({", ".join(f"""{encode("b85", k)} -> {encode("b85", c[1].public_bytes_raw())}""" for k,c in self.ring.items())})'
 
     def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''Exports this `KeyCascadePart`'''
