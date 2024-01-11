@@ -52,26 +52,24 @@ if __name__ == '__main__':
     from FlexiLynx.core.frameworks import manifest
     test = manifest.base.ManifestType('test', idp=manifest.parts.IDManifestPart)
     testi = test('outerid', -1, idp=manifest.parts.IDManifestPart('innerid', 32767))
-    #from FlexiLynx.core.frameworks.manifest import parts
-    #test = parts.base.PartUnion_New('test', parts.IDManifestPart, parts.CryptManifestPart)
-    #testi = test('test', 0, type='yay', sig=b'', key=None)
-    #test2 = parts.base.PartUnion_Compose('test2', parts.IDManifestPart, parts.CryptManifestPart, parts.base.make_unstruct_part('test'))
-    #test2i = test2('test', 0, type='yay', sig=b'', key=None, extra0='test', extra2=3)
-    #test3 = parts.base.PartUnion_Nest('test3', id=parts.IDManifestPart, crypt=parts.CryptManifestPart)
-    #test3i = test3(id=parts.IDManifestPart('test', -1, type='yay2'), crypt=parts.CryptManifestPart(sig=b'', key=None))
-
-    #_core = FlexiLynx.core
-    #privkey = _core.frameworks.manifest.core.EdPrivK.generate()
-    #man = _core.frameworks.manifest.Manifest(
-    #    id='testmod', real_version=0, type='module', format_version=1,
-    #    upstream=_core.frameworks.manifest.types.Manifest_upstream(manifest='Manifest.upstream.manifest val', files='Manifest.upstream.files val'),
-    #    crypt=_core.frameworks.manifest.types.Manifest_crypt(signature=None, public_key=privkey.public_key()),
-    #    version=_core.frameworks.manifest.types.Manifest_version(meta_version='Manifest.version.meta_version val', last_update_time=-1, last_update_time_pretty='lutp', first_creation_time=-2, first_creation_time_pretty='fctp'),
-    #    metadata=_core.frameworks.manifest.types.Manifest_metadata(name='Test Module', by='Shae'),
-    #    relatedepends=_core.frameworks.manifest.types.Manifest_relatedepends(python_implementation='cpython', platform='linux'),
-    #    contentinfo=None,
-    #    contentdata=_core.frameworks.manifest.types.Manifest_contentdata(content_key_a=b'content_val_a', content_key_b=b'content_val_b'),
-    #)
+    from FlexiLynx.core.frameworks.manifest import crypt
+    from FlexiLynx.core.frameworks.manifest.crypt import cascade
+    from FlexiLynx.core.frameworks.manifest.parts import extended
+    k0 = crypt.EdPrivK.generate()
+    k1 = crypt.EdPrivK.generate()
+    k2 = crypt.EdPrivK.generate()
+    k3 = crypt.EdPrivK.generate()
+    k4 = crypt.EdPrivK.generate()
+    k5 = crypt.EdPrivK.generate()
+    test2 = manifest.base.ManifestType('test2', cascade=extended.KeyCascadePart)
+    test2i = test2('test2id', 0, None)
+    crypt.sign(test2i, k0)
+    cascade.add_key(test2i, k0, k1.public_key())
+    cascade.add_key(test2i, k1, k2.public_key())
+    cascade.add_key(test2i, k2, k3.public_key())
+    cascade.add_key(test2i, k3, k4.public_key())
+    cascade.add_key(test2i, k4, k5.public_key())
+    cascade.add_key(test2i, k5, k0.public_key())
 
     def test_logger():
         FlexiLynx.logger.debug('test 0')
