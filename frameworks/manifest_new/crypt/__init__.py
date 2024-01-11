@@ -6,7 +6,7 @@
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
-from .base import ManifestType
+from ..base import ManifestType
 #</Imports
 
 #> Header >/
