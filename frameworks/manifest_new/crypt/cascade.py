@@ -19,6 +19,12 @@ __all__ = ('create', 'add_cascade', 'add_key',
            'KeyAlreadyInCascadeError',
            'BrokenCascadeError', 'InvalidCascadeError', 'CircularCascadeError')
 
+# Types
+type KeyRing = typing.Mapping[bytes, tuple[EdPubK, EdPubK, bytes]]
+@typing.runtime_checkable
+class CascadeHolder(typing.Protocol):
+    cascade: extended.KeyCascadePart
+
 # Cascade exceptions
 class CascadeException(Exception):
     '''Base exception for cascading issues'''
@@ -44,11 +50,11 @@ def create(auth: EdPrivK, key: EdPubK) -> tuple[EdPubK, EdPubK, bytes]:
     pauth = auth.public_key()
     return (pauth, key, auth.sign(pauth.public_bytes_raw()+key.public_bytes_raw()))
 ## Adding
-def add_cascade(m: ManifestType, casc: tuple[EdPubK, EdPubK, bytes], *,
+def add_cascade(m: CascadeHolder, casc: tuple[EdPubK, EdPubK, bytes], *,
                 init_empty_cascade: bool = True, overwrite_cascade: bool = False):
     '''Adds a cascade to the manifest'''
     ck = casc[0].public_bytes_raw()
-    if not hasattr(m, 'cascade'):
+    if not isinstance(m, CascadeHolder):
         raise NotACascadeHolderError('Manifest is not a cascade-holder')
     if m.cascade is None:
         if not init_empty_cascade:
@@ -57,7 +63,7 @@ def add_cascade(m: ManifestType, casc: tuple[EdPubK, EdPubK, bytes], *,
     if (not overwrite_cascade) and (ck in m.cascade.ring):
         raise KeyAlreadyInCascadeError(f'The authorizing key has already trusted another ({ck!r})')
     m.cascade.ring[ck] = casc
-def add_key(m: ManifestType, auth: EdPrivK, key: EdPubK, *,
+def add_key(m: CascadeHolder, auth: EdPrivK, key: EdPubK, *,
             init_empty_cascade: bool = True, overwrite_cascade: bool = False):
     '''
         Creates a cascade and adds it to the ring, where `auth` "vouches for" (signs) `key`
@@ -69,7 +75,7 @@ def add_key(m: ManifestType, auth: EdPrivK, key: EdPubK, *,
 CascadeResult = IntEnum('CascadeResult', ('UNKNOWN_FAILURE',
                                           'NOT_A_CASCADE_HOLDER', 'UNINITIALIZED_CASCADE',
                                           'BROKEN_CASCADE', 'INVALID_CASCADE', 'CIRCULAR_CASCADE'), start=1)
-def run_cascade(ring: typing.Mapping[bytes, tuple[EdPubK, EdPubK, bytes]], target: EdPubK, source: EdPubK, *,
+def run_cascade(ring: KeyRing, target: EdPubK, source: EdPubK, *,
                 fail_return: bool = False, info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept'], tuple[bytes, ...]], None] = None) -> None | CascadeResult:
     '''Checks `target` against the `source` key in `casc`'''
     c = source
@@ -101,7 +107,7 @@ def run_cascade(ring: typing.Mapping[bytes, tuple[EdPubK, EdPubK, bytes]], targe
         if c == target: return None # success
     if fail_return: return CascadeResult.CIRCULAR_CASCADE
     raise CircularCascadeError(f'A key was seen twice whilst walking the cascade: {encode("b85", cb)!r}')
-def run(m: ManifestType, target: EdPubK, source: EdPubK | None = None, *,
+def run(m: CascadeHolder, target: EdPubK, source: EdPubK | None = None, *,
         fail_return: bool = False, info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept'], tuple[bytes, ...]], None] = None) -> None | CascadeResult:
     '''
         Checks `target` against the `source` key in `m`'s cascade
@@ -111,7 +117,7 @@ def run(m: ManifestType, target: EdPubK, source: EdPubK | None = None, *,
             Successes always return `None` regardless of `fail_return`
     '''
     if source is None: source = m.m_key
-    if not hasattr(m, 'cascade'):
+    if not isinstance(m, CascadeHolder):
         if fail_return: return CascadeResult.NOT_A_CASCADE_HOLDER
         raise NotACascadeHolderError('Manifest is not a cascade-holder')
     if m.cascade is None:
