@@ -197,6 +197,7 @@ class TFlexiSpace(ModuleType):
         self._FS_dict_[attr] = val
 
     def _aggressive_assimilate(self, mod: ModuleType, as_: str, doc: str | None) -> typing.Self:
+        '''Creates a new `TFlexiSpace` from `mod`, then combines their dictionaries with `DictJoiner`'''
         new = type(self).__new__(type(self))
         new.__init__(as_, doc, _parent=self, _dict=mod.__dict__)
         return new
