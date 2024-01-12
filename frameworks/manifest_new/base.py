@@ -10,8 +10,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 from .parts import *
 
 import FlexiLynx
+from FlexiLynx.core import packlib
 from FlexiLynx.core.util import concat_mappings, filter_keys
-from FlexiLynx.core.packlib import pack
 from FlexiLynx.core.encodings import decode, encode
 #</Imports
 
@@ -112,7 +112,7 @@ class _ManifestType:
             Compile this manifest for signing
                 Note: does *not* compile the `sig` field
         '''
-        return pack(self.m_export() | {'sig': '<stripped>'})
+        return packlib.pack(self.m_export() | {'sig': '<stripped>'})
 class _ManifestTypeMeta(type):
     def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, m_register: bool = True, m_top_mutable: bool = True, **parts: base.BasePart) -> type[_ManifestType]:
         c = (base._PartUnion_HybridMeta if parts else base._PartUnion_NewMeta).__call__(cls,

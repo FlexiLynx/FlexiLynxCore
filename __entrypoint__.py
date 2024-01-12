@@ -11,10 +11,10 @@ from types import ModuleType
 #> Header
 MIN_PYTHON_VERSION = (3, 12, 0)
 FlexiLynx = NotImplemented
-def _resolve_import(modname: str):
+def _resolve_import(modname: str, *, fn: typing.Callable = importlib.import_module):
     if not __package__:
-        return importlib.import_module(modname)
-    return importlib.import_module(f'.{modname}', package=__package__)
+        return fn(modname)
+    return fn(f'.{modname}', package=__package__)
 def __init__():
     '''Load core Python modules'''
     # Check for minimum version
@@ -33,9 +33,9 @@ def __init__():
     FlexiLynx.logger = FlexiLynx.core.loglib.mklogger()
     ### Add other libraries
     _core.encodings = _resolve_import('libraries.encodings')
-    _core.ffetch = _resolve_import('libraries.ffetch')
+    _core.ffetch = _resolve_import('libraries.ffetch', fn=flexispacelib.LazyFSModule)
     _core.flexispacelib = flexispacelib
-    _core.packlib = _resolve_import('libraries.packlib')
+    _core.packlib = _resolve_import('libraries.packlib', fn=flexispacelib.LazyFSModule)
     _core.util = _resolve_import('libraries.util')
     ### Add framewarks
     _core/'frameworks'
