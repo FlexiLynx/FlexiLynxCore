@@ -15,11 +15,15 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey a
 
 from . import base # re-exposed as base
 from .base import *
+
+from FlexiLynx.core.flexispacelib import LazyFSModule
 #</Imports
 
 #> Header >/
+extended = LazyFSModule('.extended', __package__)
+
 # Setup __all__
-__all__ = ['base',]
+__all__ = ['base', 'extended']
 _make_part = partial(make_struct_part, add_to_all=__all__)
 
 # Parts classes

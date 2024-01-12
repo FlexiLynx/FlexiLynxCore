@@ -7,10 +7,14 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
 from ..base import ManifestType
+
+from FlexiLynx.core.flexispacelib import LazyFSModule
 #</Imports
 
 #> Header >/
-__all__ = ('sign', 'verify')
+__all__ = ('cascade', 'sign', 'verify')
+
+cascade = LazyFSModule('.cascade', __package__)
 
 def sign(m: ManifestType, key: EdPrivK) -> ManifestType:
     '''Signs the manifest `m` in-place (setting `.key` and `.sig` and returns it'''

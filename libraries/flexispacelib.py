@@ -7,13 +7,14 @@ from copy import deepcopy
 from types import ModuleType
 from collections import UserDict
 from collections.abc import KeysView, ValuesView, ItemsView
+from importlib import import_module
 from importlib.abc import MetaPathFinder, Loader
 from importlib.util import spec_from_loader
 from importlib.machinery import ModuleSpec
 #</Imports
 
 #> Header >/
-__all__ = ('TFlexiSpace', 'DictUnion', 'DictJoiner')
+__all__ = ('TFlexiSpace', 'LazyFSModule', 'DictUnion', 'DictJoiner')
 
 class DictUnion(UserDict):
     '''
@@ -150,12 +151,14 @@ class TFlexiSpace(ModuleType):
 
     __FS_sys_is_finalizing = sys.is_finalizing # keep reference even if `sys` name is collected
 
-    __FS_ASSIMILATE            = 0b001
-    __FS_ASSIMILATE_INTRUSIVE  = 0b010
-    __FS_ASSIMILATE_AGGRESSIVE = 0b100
+    __FS_ASSIMILATE            = 0b0001
+    __FS_ASSIMILATE_INTRUSIVE  = 0b0010
+    __FS_ASSIMILATE_AGGRESSIVE = 0b0100
+    __FS_ASSIMILATE_LAZY       = 0b1000
 
     def __init__(self, name: str, doc: str | None = None, *, _parent: typing.Self | None = None, _dict: dict | None = None,
-                 assimilate: bool = False, intrusive_assimilate: bool = True, aggressive_assimilate: bool = True):
+                 assimilate: bool = False, intrusive_assimilate: bool = True, aggressive_assimilate: bool = True,
+                 assimilate_lazy_modules: bool = True):
         self._FS_dict_ = DictJoiner(self.__dict__) if _dict is None else DictJoiner(self.__dict__, _dict)
         if _parent is None:
             self._FS_parents_ = ()
@@ -164,7 +167,8 @@ class TFlexiSpace(ModuleType):
             sys.meta_path.append(self._FS_metafinder_)
             self._FS_assimilate_ = assimilate * (self.__FS_ASSIMILATE
                                                  + (self.__FS_ASSIMILATE_INTRUSIVE  * intrusive_assimilate)
-                                                 + (self.__FS_ASSIMILATE_AGGRESSIVE * aggressive_assimilate))
+                                                 + (self.__FS_ASSIMILATE_AGGRESSIVE * aggressive_assimilate)
+                                                 + (self.__FS_ASSIMILATE_LAZY       * assimilate_lazy_modules))
             self.__package__ = None
         else:
             self._FS_parents_ = _parent._FS_parents_+(_parent,)
@@ -178,11 +182,11 @@ class TFlexiSpace(ModuleType):
     def __del__(self):
         if self.__FS_sys_is_finalizing() or (self._FS_metafinder_ is None): return
         sys.meta_path.remove(self._FS_metafinder_)
-    def __getattr__(self, attr: str) -> typing.Any:
-        try:
-            return super().__getattribute__('_FS_dict_')[attr]
-        except KeyError:
-            raise AttributeError(attr)
+    def __getattribute__(self, attr: str) -> typing.Any:
+        val = super().__getattribute__(attr)
+        if isinstance(val, LazyFSModule):
+            return val._realize()
+        return val
     def __setattr__(self, attr: str, val: typing.Any, *, _no_assimilate: bool = False):
         if not getattr(self, '_FS_initialized_', False):
             super().__setattr__(attr, val)
@@ -209,6 +213,10 @@ class TFlexiSpace(ModuleType):
         except Exception: pass
     def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self:
         '''Converts a `ModuleType` into a `TFlexiSpace`'''
+        if isinstance(mod, LazyFSModule):
+            object.__setattr__(mod, '_attached_to', self)
+            object.__setattr__(mod, '_attached_as', as_)
+            return mod
         if ((~self)._FS_assimilate_ & self.__FS_ASSIMILATE_AGGRESSIVE):
             amod = self._aggressive_assimilate(mod, as_, getattr(mod, '__doc__', None))
         else:
@@ -271,3 +279,57 @@ class TFlexiSpace(ModuleType):
         if name is None: raise TypeError(f'Object {obj} has no __name__ or __qualname__!')
         setattr(self, name, obj)
         return self
+
+class LazyFSModule(ModuleType):
+    '''
+        Allows "lazily" including modules in a `FlexiSpace`, simply by setting this to a name:
+            `lazymod = LazyFSModule('.lazymod', __package__)`
+        This module can be realized in one of two ways:
+            The recommended way is to reference it from its parent `TFlexiSpace`, which immediately realizes it:
+                `root.parent.lazymod` realizes `lazymod` and returns a `TFlexiSpace`
+            The second way is through attribute access or dir-ing:
+                `lazymod.a`, `lazymod.a = 0`, `dir(lazymod)`
+            In the second case, `lazymod` will still be a `LazyFSModule`, but will pass attributes (relatively) seamlessly (subsequent imports/access will get the real module as above)
+        When this module is realized, a number of things happen:
+          - The actual module is imported
+          - If the module was added to a `TFlexiSpace` with `assimilate=True` and `assimilate_lazy_modules=True`, then the `LazyFSModule` in that space is replaced with the underlying module
+              The underlying module will be assimilated as normal
+          - The `LazyFSModule` joins its dictionary to the imported or assimilated module's dictionary (using `DictJoiner`)
+    '''
+    __slots__ = ('_attached_to', '_attached_as', '_realized', '_dict')
+
+    def __init__(self, name: str, package: str | None = None):
+        super().__setattr__('_dict', None)
+        super().__setattr__('__name__', name)
+        super().__setattr__('__package__', package)
+        super().__setattr__('_attached_to', None)
+        super().__setattr__('_attached_as', None)
+        super().__setattr__('_realized', None)
+    def _realize(self) -> ModuleType:
+        if (mod := super().__getattribute__('_realized')) is not None: return mod
+        mod = import_module(self.__name__, self.__package__)
+        if self._attached_to is not None:
+            setattr(self._attached_to, self._attached_as, mod) # assimilates the module
+            mod = getattr(self._attached_to, self._attached_as)
+            super().__setattr__('_realized', mod)
+            super().__setattr__('__name__', mod.__name__)
+            super().__setattr__('__package__', mod.__package__)
+        else: super().__setattr__('_realized', mod)
+        super().__setattr__('_dict', DictJoiner(mod.__dict__, self.__dict__))
+        return self._realized
+
+    def __getattr__(self, attr: str) -> typing.Any:
+        return getattr(self._realize(), attr)
+    def __setattr__(self, attr: str, val: typing.Any):
+        if self._dict is not None:
+            self._dict[attr] = val
+        else: setattr(self._realize(), attr, val)
+    def __dir__(self) -> typing.Sequence[str]:
+        return dir(self._realize())
+
+    def __repr__(self) -> str:
+        if self._realized is None:
+            return f'<unrealized LazyFSModule {self.__name__ if self.__package__ is None else f"{self.__package__}{self.__name__}"} / ' \
+                   f'{"[unbound]" if self._attached_to is None else f"bound={self._attached_to}.{self._attached_as}"}>'
+        return f'<realized LazyFSModule {self.__name__!r}' \
+               f'{f" from {self.__file__}" if getattr(self, "__file__", None) is None else ""}>'
