@@ -39,6 +39,7 @@ Note: completed elements should have no modifiers
 |- v| 2024-01-03 |  2024-01-03  | Refactor libraries
 | - | 2024-01-03 |  2024-01-03  | - Refactor `libraries/flexispacelib.py`
 | - | 2024-01-03 |  2024-01-03  | - Refactor `libraries/loglib.py`
+| - | 2024-01-12 |  2024-01-12  | - Refactor all libraries
 | + | 2024-01-03 |  2024-01-05  | Refactor manifest framework
 ## Fix docstrings
 <details>
