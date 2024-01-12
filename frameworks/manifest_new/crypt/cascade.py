@@ -1,5 +1,23 @@
 #!/bin/python3
 
+'''
+    Provides facilities for adding and executing manifest key cascades
+
+    A cascade is a way to "migrate" keys in a secure way, for example:
+     1) Manifest `mA` has a public key `pubA` (`pubA == mA.key`), and tries to update to manifest `mB`
+     2) Manifest `mB` has a public key `pubB` (`pubB == mB.key`), which prompts `mA` to see if `mB` is a cascade-holder
+         `mB` has a cascade, with a ring that has a trust which uses `privA` to securely sign and map `pubA` to `pubB`
+     3) Manifest `mA` sees that `mB`'s cascade-ring contains a trust for  `pubA`, and so uses `PubA` to check that cascade's authenticity
+     3a) `mA` accepts that trust, which points to `pubB` which is `mB`'s key. `mA` will accept `mB` as an update
+    The above is equivelant to the following function:
+        ```
+        if mA.key != mB.key:
+            run(mB, mB.key, mA.key) # throws exceptions upon failures
+        ```
+    Note that this example is the simplest possibly use-case; actual manifest cascades can have multiple chains of trust
+        (A.E. `keyA` trusts `keyB`, and `keyB` trusts `keyC`, so `keyA` trusts `keyC` by walking the cascade)
+'''
+
 #> Imports
 import typing
 from enum import IntEnum
@@ -13,7 +31,7 @@ from FlexiLynx.core.encodings import encode
 #</Imports
 
 #> Header >/
-__all__ = ('create', 'add_cascade', 'add_key',
+__all__ = ('create', 'add_trust', 'add_key',
            'run_cascade', 'run',
            'CascadeException', 'NotACascadeHolderError', 'UninitializedCascadeError',
            'KeyAlreadyInCascadeError',
@@ -46,14 +64,18 @@ class CircularCascadeError(CascadeException):
 # Cascade functions
 ## Creation
 def create(auth: EdPrivK, key: EdPubK) -> tuple[EdPubK, EdPubK, bytes]:
-    '''Creates a new cascade, where `auth` "vouches for" (signs) `key`'''
+    '''Creates a new trust, where `auth` "vouches for" (signs) `key`'''
     pauth = auth.public_key()
     return (pauth, key, auth.sign(pauth.public_bytes_raw()+key.public_bytes_raw()))
 ## Adding
-def add_cascade(m: CascadeHolder, casc: tuple[EdPubK, EdPubK, bytes], *,
+def add_trust(m: CascadeHolder, trust: tuple[EdPubK, EdPubK, bytes], *,
                 init_empty_cascade: bool = True, overwrite_cascade: bool = False):
-    '''Adds a cascade to the manifest'''
-    ck = casc[0].public_bytes_raw()
+    '''
+        Adds a trust to the manifest's cascade's ring
+
+        Note that a `KeyAlreadyInCascadeError` will be raised if the key already vouches for another, and `overwrite_cascade` is false
+    '''
+    ck = trust[0].public_bytes_raw()
     if not isinstance(m, CascadeHolder):
         raise NotACascadeHolderError('Manifest is not a cascade-holder')
     if m.cascade is None:
@@ -62,15 +84,15 @@ def add_cascade(m: CascadeHolder, casc: tuple[EdPubK, EdPubK, bytes], *,
         m.cascade = extended.KeyCascadePart()
     if (not overwrite_cascade) and (ck in m.cascade.ring):
         raise KeyAlreadyInCascadeError(f'The authorizing key has already trusted another ({ck!r})')
-    m.cascade.ring[ck] = casc
+    m.cascade.ring[ck] = trust
 def add_key(m: CascadeHolder, auth: EdPrivK, key: EdPubK, *,
             init_empty_cascade: bool = True, overwrite_cascade: bool = False):
     '''
-        Creates a cascade and adds it to the ring, where `auth` "vouches for" (signs) `key`
+        Creates a trust and adds it to the manifest's cascade's ring, where `auth` "vouches for" (signs) `key`
 
-        Convenience function for `add_cascade(m, create(auth, key), ...)`
+        Convenience function for `add_trust(m, create(auth, key), ...)`
     '''
-    add_cascade(m, create(auth, key), init_empty_cascade=init_empty_cascade, overwrite_cascade=overwrite_cascade)
+    add_trust(m, create(auth, key), init_empty_cascade=init_empty_cascade, overwrite_cascade=overwrite_cascade)
 ## Executing
 CascadeResult = IntEnum('CascadeResult', ('UNKNOWN_FAILURE',
                                           'NOT_A_CASCADE_HOLDER', 'UNINITIALIZED_CASCADE',
