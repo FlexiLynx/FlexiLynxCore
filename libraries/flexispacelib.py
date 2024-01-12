@@ -130,7 +130,6 @@ class DictJoiner(DictUnion):
 
 class FlexiSpaceLoader(Loader):
     __slots__ = ('flexispace',)
-
     def __init__(self, flexispace: 'TFlexiSpace'):
         self.flexispace = flexispace
     def create_module(self, spec: ModuleSpec) -> ModuleType:
@@ -141,7 +140,7 @@ class FlexiSpaceFinder(MetaPathFinder):
     def __init__(self, flexispace: 'TFlexiSpace'):
         self.flexispace = flexispace
         self.loader = FlexiSpaceLoader(flexispace)
-    def find_spec(self, fullname: str, path: str, target: str | None = None) -> None:
+    def find_spec(self, fullname: str, path: str, target: str | None = None) -> ModuleSpec | None:
         if fullname.split('.')[0] != self.flexispace._FS_key_[0]: return None
         return spec_from_loader(fullname, self.loader)
 
