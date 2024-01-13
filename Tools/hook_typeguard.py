@@ -19,8 +19,16 @@ __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
                      .loader.load_module()
 
 #> Main >/
+#typeguard.config.debug_instrumentation = True
+class Finder(typeguard.TypeguardFinder):
+    def should_instrument(self, module_name: str):
+        if ((not module_name.startswith('libraries'))
+            or (module_name == 'libraries.flexispacelib')):
+            print(f'Skipped {module_name!r}')
+            return False
+        return True
 print('<TypeGuard Hook> Installing import hook')
-typeguard.install_import_hook()
+typeguard.install_import_hook(cls=Finder)
 print('<TypeGuard Hook> Chainloading __entrypoint__.__init__()')
 __entrypoint__.__init__()
 print('<TypeGuard Hook> Chainloading __entrypoint__.__setup__()')
