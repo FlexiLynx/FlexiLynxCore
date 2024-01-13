@@ -32,7 +32,8 @@ class KeyCascadePart:
 
     def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
         '''Exports this `KeyCascadePart`'''
-        return self._p_export_dict({'ring': {ok: (nk.public_bytes_raw(), s) for ok,(_,nk,s) in self.ring.items()}})
+        return types.MappingProxyType(dict(self._p_export_dict(
+            {'ring': {ok: (nk.public_bytes_raw(), s) for ok,(_,nk,s) in self.ring.items()}})))
 
     @staticmethod
     def _transform_key(kkey: str | bytes | EdPrivK | EdPubK) -> EdPubK:
