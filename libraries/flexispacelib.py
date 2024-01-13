@@ -181,6 +181,7 @@ class TFlexiSpace(ModuleType):
     def __del__(self):
         if self.__FS_sys_is_finalizing() or (self._FS_metafinder_ is None): return
         sys.meta_path.remove(self._FS_metafinder_)
+    @typing.no_type_check
     def __getattribute__(self, attr: str) -> typing.Any:
         val = super().__getattribute__(attr)
         if isinstance(val, LazyFSModule):
