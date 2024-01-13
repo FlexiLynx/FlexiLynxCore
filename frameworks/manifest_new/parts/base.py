@@ -31,7 +31,7 @@ class BasePart:
     p_subparts: typing.ClassVar[typing.Mapping | None] = None
 
     @classmethod
-    def _p_export_val(cls, v: typing.Any) -> bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None:
+    def _p_export_val(cls, v: typing.Any) -> bool | int | float | complex | bytes | str | tuple | frozenset | dict | None:
         '''
             Exports values into immutable primitives and/or collections in the following order:
                 (note that the number next to each item groups items where order is non-important in an implementation
@@ -66,7 +66,7 @@ class BasePart:
             case str(): return str(v)
             # handle mappings and sequences
             case cabc.Mapping():
-                return types.MappingProxyType(dict(cls._p_export_dict(v)))
+                return dict(cls._p_export_dict(v))
             case cabc.Sequence():
                 return tuple(cls._p_export_iterable(v))
             case cabc.Set():
@@ -86,28 +86,28 @@ class BasePart:
         assert not isinstance(v, cabc.Iterator), 'Refusing to export an iterator as it may lead to unpredictable results'
         return map(cls._p_export_val, v)
     @classmethod
-    def _p_export_dict(cls, d: dict) -> typing.Iterable[tuple[str, bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+    def _p_export_dict(cls, d: dict) -> typing.Iterable[tuple[str, bool | int | float | complex | bytes | str | tuple | frozenset | dict | None]]:
         '''
             Exports a dictionary into an iterable of `(key, _p_export_val(val))` tuples
                 Ignores all keys that start with `P_`, `p_`, or `_`
         '''
         return ((k, cls._p_export_val(v)) for k,v in d.items())
-    def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+    def p_export(self) -> dict[str, [bool | int | float | complex | bytes | str | tuple | frozenset | dict | None]]:
         '''
-            Converts this part into a dictionary (`mappingproxy`) of primitive and immutable types
+            Converts this part into a dictionary of primitive and immutable types
             Values beginning with `p_`, `P_`, or `_` should not be exported
             If a value has a `._p_export()` or `.p_export()` method, that should be used to export the object
                 No further processing should be done on that value
                 `.p_export()` should be used to export a part directly, `._p_export()` is to override exporting specifically for nested exports
             If a subclass of `BasePart` wants to only modify exporting of a specific *type* of value, then the `_p_export_val()` classmethod can be overridden
                 It is recommended to `return super()._p_export_val(v)` on types not recognized by the overriden method
-                    or at the very least `return mappingproxy(dict(v.p_export()))` or `return mappingproxy(dict(v.p_export()))` if `v` has either of those methods,
-                        `return mappingproxy(dict(_p_export_dict(v)))` for mappings (`mappingproxy` is `types.MappingProxyType`),
+                    or at the very least `return dict(v.p_export())` or `return dict(v.p_export())` if `v` has either of those methods,
+                        `return dict(_p_export_dict(v))` for mappings,
                         `return frozenset(_p_export_iterable(v))` for sets,
                         and `return tuple(_p_export_iterable(v))` for otherwise unhandled sequences
             Note that structured parts should have immutable values anyway (`dict`s are an exception as there is no built-in frozen version)
         '''
-        return types.MappingProxyType(dict(self._p_export_dict(dictdir(self))))
+        return dict(self._p_export_dict(dictdir(self)))
 
     @classmethod
     def _p_import_val(cls, k: str, v: typing.Any) -> typing.Any:
@@ -161,7 +161,7 @@ def make_struct_part(name: str | None = None, add_to_all: list[str] | None = Non
                      bases: tuple[type, ...] = (StructuredPartType,), dc_decor: typing.Callable[[type[BasePart]], type[BasePart]] | None = None, post_init: typing.Callable[[type[StructuredPartType]], None] | None = None) -> typing.Callable[[type[BasePart]], type[StructuredPartType]]:
     '''
         Makes a decorator for a manifest-part, applying dataclass decorators and adding the `BasePart` superclass if it isn't already added
-            Also generates the `p_subparts` mapping (as a `mappingproxy`) if `auto_subparts` is true
+            Also generates the `p_subparts` mapping if `auto_subparts` is true
                 Subparts are added to (copied) existing `p_subparts` mappings
                 Subparts are discovered via annotations, although detection is limited:
                     it will only check if an annotation is a subpart,
@@ -186,7 +186,6 @@ def make_struct_part(name: str | None = None, add_to_all: list[str] | None = Non
                     if not (ps := tuple(i for i,av in enumerate(a.__args__) if isinstance(av, type) and issubclass(av, BasePart))): continue
                     assert len(ps) == 1, f'Cannot specify multiple `BasePart` subclasses in a single type: saw {tuple(p.__qualname__ for p in ps)} in annotation {a!r}'
                     cdict['p_subparts'][n] = a.__args__[ps[0]]
-            cdict['p_subparts'] = types.MappingProxyType(cdict['p_subparts'])
         partcls = ((_mutable_part_dataclass_decor if mutable else _part_dataclass_decor) if dc_decor is None else dc_decor)(
             type((cls.__name__ if name is None else name), (cls,)+bases, cdict))
         if add_to_all is not None: add_to_all.append(cls.__name__)
@@ -284,15 +283,14 @@ class _PartUnion_Compose(_PartUnion):
         assert isinstance(self.p_unstruct, self.p_unstruct_cls), 'Unstructured type in export does not match unstructured type in union'
         self._p_union_initted = True
         return self
-    def p_union_extract(self) -> types.MappingProxyType[type[StructuredPartType] | type[UnstructuredPart], StructuredPartType | UnstructuredPart]:
+    def p_union_extract(self) -> dict[type[StructuredPartType] | type[UnstructuredPart], StructuredPartType | UnstructuredPart]:
         '''Extracts the union into a mapping of `{type(<part>): <part>}`'''
-        return types.MappingProxyType(self.p_structs | ({} if self.p_unstruct_cls is None else {self.p_unstruct_cls: self.p_unstruct}))
+        return self.p_structs | ({} if self.p_unstruct_cls is None else {self.p_unstruct_cls: self.p_unstruct})
 
-    def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+    def p_export(self) -> dict[str, [bool | int | float | complex | bytes | str | tuple | frozenset | dict | None]]:
         '''Concatenates and returns the exports of all unionized parts'''
-        return types.MappingProxyType(dict(
-            tuple(() if self.p_unstruct is None else tuple(self.p_unstruct.p_export().items())
-            + tuple(p.p_export() for p in self.p_structs))))
+        return dict(tuple(() if self.p_unstruct is None else tuple(self.p_unstruct.p_export().items())
+                          + tuple(p.p_export() for p in self.p_structs)))
     @classmethod
     def p_import(cls, export: typing.Mapping[str, [bool | int | float | complex | bytes | str | typing.Sequence | typing.Set | typing.Mapping | None]]) -> typing.Self:
         '''Constructs a new instance of this class with `**export`'''
@@ -429,9 +427,9 @@ class _PartUnion_Nest(_PartUnion, DataclassPartType):
     '''
     __slots__ = ()
 
-    def p_export_flat(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+    def p_export_flat(self) -> dict[str, [bool | int | float | complex | bytes | str | tuple | frozenset | dict | None]]:
         '''Returns a union of every contained parts' exports'''
-        return types.MappingProxyType(concat_mappings(*self.p_export().values()))
+        return concat_mappings(*self.p_export().values())
 class _PartUnion_NestMeta(type):
     def __call__(cls, p_name: str, p_defaults: typing.Mapping[str, BasePart] = {},
                  p_allow_nested_replace: bool = False, **parts: type[BasePart]):

@@ -1,7 +1,6 @@
 #!/bin/python3
 
 #> Imports
-import types
 import typing
 from pathlib import Path
 from collections import abc as cabc
@@ -96,16 +95,16 @@ class _ManifestType:
             raise TypeError(f'Type mismatch: this class expects {cls.type}, but the manifest-to-import reports itself as a {m["type"]}')
         return cls(key=None if m['key'] is None else EdPubK.from_public_bytes(m['key']), **filter_keys(lambda k: k not in {'type', 'key'}, m))
     
-    def m_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+    def m_export(self) -> dict[str, [bool | int | float | complex | bytes | str | tuple | frozenset | dict | None]]:
         '''
-            Converts this manifest into a dictionary (`mappingproxy`) of primitive and immutable types
+            Converts this manifest into a dictionary of primitive and immutable types
                 Uses the underlying parts' `p_export()`
         '''
-        return types.MappingProxyType(concat_mappings(
+        return concat_mappings(
             dict(IDManifestPart._p_export_dict({'id': self.id, 'type': self.type, 'rel': self.rel})),
             dict(CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key})),
             {n: (v.p_export() if ((v := getattr(self, n, None)) is not None) else None) for n in self.m_parts.keys()},
-        ))
+        )
 
     def m_compile(self) -> bytes:
         '''

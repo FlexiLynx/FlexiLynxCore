@@ -1,7 +1,6 @@
 #!/bin/python3
 
 #> Imports
-import types
 import typing
 from functools import partial
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
@@ -30,10 +29,10 @@ class KeyCascadePart:
     def __repr__(self) -> str:
         return f'{type(self).__name__}({", ".join(f"""{encode("b85", k)} -> {encode("b85", c[1].public_bytes_raw())}""" for k,c in self.ring.items())})'
 
-    def p_export(self) -> types.MappingProxyType[str, [bool | int | float | complex | bytes | str | tuple | frozenset | types.MappingProxyType | None]]:
+    def p_export(self) -> dict[str, [bool | int | float | complex | bytes | str | tuple | frozenset | dict | None]]:
         '''Exports this `KeyCascadePart`'''
-        return types.MappingProxyType(dict(self._p_export_dict(
-            {'ring': {ok: (nk.public_bytes_raw(), s) for ok,(_,nk,s) in self.ring.items()}})))
+        return dict(self._p_export_dict(
+            {'ring': {ok: (nk.public_bytes_raw(), s) for ok,(_,nk,s) in self.ring.items()}}))
 
     @staticmethod
     def _transform_key(kkey: str | bytes | EdPrivK | EdPubK) -> EdPubK:
