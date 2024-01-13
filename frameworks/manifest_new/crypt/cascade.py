@@ -135,7 +135,7 @@ def run(m: CascadeHolder, target: EdPubK, source: EdPubK | None = None, *,
         Checks `target` against the `source` key in `m`'s cascade
         If `source` is not supplied, the manifest's current key is used
 
-        If `fail_return` is true, then returns a `CascadeResult` instead of raising exceptions
+        If `fail_return` is true, then returns a `CascadeResult` instead of raising (most) exceptions
             Successes always return `None` regardless of `fail_return`
     '''
     if source is None: source = m.m_key
