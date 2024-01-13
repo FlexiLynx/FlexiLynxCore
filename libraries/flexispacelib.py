@@ -96,7 +96,7 @@ class DictUnion(UserDict):
         return set(k for k,v in self.items())
     def values(self) -> tuple[typing.Any]:
         return tuple(k for k,v in self.items())
-    def items(self) -> tuple[tuple[typing.Hashable, typing.Any]]:
+    def items(self) -> tuple[tuple[typing.Hashable, typing.Any], ...]:
         return tuple(self.iitems())
 
     # Standalone methods
@@ -140,7 +140,7 @@ class FlexiSpaceFinder(MetaPathFinder):
     def __init__(self, flexispace: 'TFlexiSpace'):
         self.flexispace = flexispace
         self.loader = FlexiSpaceLoader(flexispace)
-    def find_spec(self, fullname: str, path: str, target: str | None = None) -> ModuleSpec | None:
+    def find_spec(self, fullname: str, path: str | None, target: str | None = None) -> ModuleSpec | None:
         if fullname.split('.')[0] != self.flexispace._FS_key_[0]: return None
         return spec_from_loader(fullname, self.loader)
 
@@ -212,7 +212,7 @@ class TFlexiSpace(ModuleType):
         else: return
         try: super(type(v), v).__setattr__('__module__', self.__name__) # try forceful override with super type
         except Exception: pass
-    def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self:
+    def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self | 'LazyFSModule':
         '''Converts a `ModuleType` into a `TFlexiSpace`'''
         if isinstance(mod, LazyFSModule):
             object.__setattr__(mod, '_attached_to', self)
