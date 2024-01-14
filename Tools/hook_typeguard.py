@@ -21,9 +21,11 @@ __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
 #> Main >/
 #typeguard.config.debug_instrumentation = True
 class Finder(typeguard.TypeguardFinder):
+    INCLUDE = ('libraries', 'frameworks', 'FlexiLynx')
+    EXCLUDE = ()
     def should_instrument(self, module_name: str):
-        if ((not module_name.startswith('libraries'))
-            or (module_name == 'libraries.flexispacelib')):
+        if (not (any(module_name.startswith(i) for i in self.INCLUDE))
+                or any(module_name.startswith(e) for e in self.EXCLUDE)):
             print(f'Skipped {module_name!r}')
             return False
         return True
