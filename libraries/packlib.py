@@ -8,13 +8,16 @@ import struct
 import weakref
 import dataclasses
 import typing
+from enum import IntEnum
 from ast import literal_eval
 from fractions import Fraction
 from collections import abc, namedtuple
 #</Imports
 
 #> Header >/
-__all__ = ('Packer', 'packer', 'pack', 'unpack')
+__all__ = ('Packer', 'packer', 'pack', 'unpack', 'ReduceNamedtuple')
+
+ReduceNamedtuple = IntEnum('ReduceNamedtuple', ('FAIL', 'AS_DICT', 'AS_TUPLE', 'AS_NAMEDTUPLE'))
 
 class Packer:
     __slots__ = (
@@ -61,11 +64,10 @@ class Packer:
         self._is_cached_instance = do_cache_instance
         return self
     def __init__(self, optimize_do_blanking: bool = True, try_reduce_objects: bool = False,
-                 reduce_namedtuple: typing.Literal[False, dict, tuple, namedtuple] = namedtuple, **kwargs):
+                 reduce_namedtuple: ReduceNamedtuple = ReduceNamedtuple.AS_NAMEDTUPLE, **kwargs):
         if getattr(self, '_is_initted', False): return
         self.optimize_do_blanking = optimize_do_blanking
         self.try_reduce_objects = try_reduce_objects
-        assert reduce_namedtuple in {False, dict, tuple, namedtuple}
         self.reduce_namedtuple = reduce_namedtuple
         for k,v in kwargs.items():
             setattr(self, k, v)
@@ -140,13 +142,13 @@ class Packer:
                 return (str, o.encode(self.STR_ENCODING))
             ## Recursive
             case abc.Sequence():
-                if hasattr(o, '_asdict') and (self.reduce_namedtuple is not tuple):
+                if hasattr(o, '_asdict') and (self.reduce_namedtuple != ReduceNamedtuple.AS_TUPLE):
                     # if it's a namedtuple and we don't treat namedtuples as regular tuples
-                    if self.reduce_namedtuple is False:
-                        raise TypeError('Cannot reduce namedtuples (reduce_namedtuple is False)')
-                    if self.reduce_namedtuple is dict: # render as dict
+                    if self.reduce_namedtuple == ReduceNamedtuple.FAIL:
+                        raise TypeError('Cannot reduce namedtuples (reduce_namedtuple is FAIL)')
+                    if self.reduce_namedtuple == ReduceNamedtuple.AS_DICT: # render as dict
                         return self.encode(o._asdict())
-                    if self.reduce_namedtuple is namedtuple:
+                    if self.reduce_namedtuple == ReduceNamedtuple.AS_NAMEDTUPLE:
                         return (namedtuple, self.pack(o.__class__.__name__, o.__module__, *sum(tuple(o._asdict().items()), start=())))
                     raise ValueError(f'reduce_namedtuple is an illegal value: {self.reduce_namedtuple!r}')
                 return (tuple, self.pack(*(so for so in o)))

@@ -50,6 +50,7 @@ class DictUnion(UserDict):
             return d[item]
         raise KeyError(item)
     ## Mutating
+    @typing.no_type_check # required for TypeGuard
     def __setitem__(self, item: typing.Hashable, value: typing.Any):
         for d in (self.dicts if self.op_all else self._dict_containing(item, True)):
             d[item] = value
@@ -181,7 +182,7 @@ class TFlexiSpace(ModuleType):
     def __del__(self):
         if self.__FS_sys_is_finalizing() or (self._FS_metafinder_ is None): return
         sys.meta_path.remove(self._FS_metafinder_)
-    @typing.no_type_check
+    @typing.no_type_check # required for TypeGuard
     def __getattribute__(self, attr: str) -> typing.Any:
         val = super().__getattribute__(attr)
         if isinstance(val, LazyFSModule):
@@ -234,7 +235,7 @@ class TFlexiSpace(ModuleType):
             super(type(self), amod).__setattr__(a, v)
         return amod
 
-    def _get_tree(self, key: str | tuple[str, ...]) -> typing.Self:
+    def _get_tree(self, key: str | typing.Sequence[str]) -> typing.Self:
         '''Gets (or creates, if missing) a sub-FlexiSpace, creating all parents that are missing'''
         branch = self
         for n in (key.split('.') if isinstance(key, str) else key):

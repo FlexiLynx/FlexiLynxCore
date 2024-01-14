@@ -208,7 +208,7 @@ class PartUnion(BasePart):
         See `help(PartUnion_New)` and `help(PartUnion_Compose)`
     '''
     __slots__ = ()
-    def __new__(cls, name: str, *parts: UnstructuredPart | StructuredPartType) -> typing.Union['PartUnion_Compose', 'PartUnion_New'] | UnstructuredPart | StructuredPartType | BasePart:
+    def __new__(cls, name: str, *parts: type[UnstructuredPart] | type[StructuredPartType]) -> type[typing.Union['PartUnion_Compose', 'PartUnion_New'] | UnstructuredPart | StructuredPartType | BasePart]:
         if not len(parts): return type(name, (BasePart,), {})
         elif len(parts) == 1: return type(name, (parts[0]), {})
         struct = ustruct = 0
@@ -379,7 +379,7 @@ class _PartUnion_ComposeMeta(type):
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Compose)
     def __subclasscheck__(cls, other: type) -> bool:
-        return issubclass(other, _PartUnion_Compose) or issubclass(other, PartUnion_Compose)
+        return issubclass(other, _PartUnion_Compose)
 class PartUnion_Compose(_PartUnion, metaclass=_PartUnion_ComposeMeta):
     __slots__ = ()
     __doc__ = _PartUnion_Compose.__doc__
@@ -410,7 +410,7 @@ class _PartUnion_NewMeta(type): # also used for `ManifestType`
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_New)
     def __subclasscheck__(cls, other: type) -> bool:
-        return issubclass(other, _PartUnion_New) or issubclass(other, PartUnion_New)
+        return issubclass(other, _PartUnion_New)
 class PartUnion_New(_PartUnion, metaclass=_PartUnion_NewMeta):
     __Slots__ = ()
     __doc__ = _PartUnion_New.__doc__
@@ -438,7 +438,7 @@ class _PartUnion_NestMeta(type):
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Nest)
     def __subclasscheck__(cls, other: type) -> bool:
-        return issubclass(other, _PartUnion_Nest) or issubclass(other, PartUnion_Nest)
+        return issubclass(other, _PartUnion_Nest)
 class PartUnion_Nest(_PartUnion, metaclass=_PartUnion_NestMeta):
     __slots__ = ()
     __doc__ = _PartUnion_Nest.__doc__
@@ -457,7 +457,7 @@ class _PartUnion_HybridMeta(type): # also used for `ManifestType`
     def __instancecheck__(cls, other: typing.Any) -> bool:
         return isinstance(other, _PartUnion_Hybrid)
     def __subclasscheck__(cls, other: type) -> bool:
-        return issubclass(other, _PartUnion_Hybrid) or issubclass(other, PartUnion_Hybrid)
+        return issubclass(other, _PartUnion_Hybrid)
 class PartUnion_Hybrid(_PartUnion, metaclass=_PartUnion_HybridMeta):
     __slots__ = ()
     __doc__ = _PartUnion_Hybrid.__doc__
