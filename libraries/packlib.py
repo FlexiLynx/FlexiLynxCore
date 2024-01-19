@@ -52,7 +52,7 @@ class Packer:
 
     EXTENDED_CONSTANTS = (None, NotImplemented, Ellipsis)
 
-    _INSTANCE_CACHE = weakref.WeakValueDictionary() # instances have no state, so its safe to cache them
+    _INSTANCE_CACHE = weakref.WeakValueDictionary() # instances have no state, so it's safe to cache them
 
     def __new__(cls, do_cache_instance: bool = True, **kwargs):
         if do_cache_instance:
@@ -77,8 +77,8 @@ class Packer:
         self._is_initted = True
     def __setattr__(self, attr: str, val: typing.Any):
         if getattr(self, '_is_cached_instance', False) and getattr(self, '_is_initted', False):
-            raise TypeError('Cannot set attributes on cached instances.'
-                            'Either create a new instance and set attributes in its kwargs,'
+            raise TypeError('Cannot set attributes on cached instances. '
+                            'Either create a new instance and set attributes in its kwargs, '
                             'or disable caching (do_cache_instance=False) if you must modify an existing instance')
         super().__setattr__(attr, val)
 
