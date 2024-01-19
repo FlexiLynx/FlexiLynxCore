@@ -13,12 +13,12 @@ from . import cascade # re-exposed
 #> Header >/
 __all__ = ('cascade', 'sign', 'verify')
 
-def sign(m: base.ManifestType, key: EdPrivK) -> base.ManifestType:
+def sign(m: base.Manifest, key: EdPrivK) -> base.Manifest:
     '''Signs the manifest `m` in-place (setting `.key` and `.sig` and returns it'''
     m.m_key = key
     m.sig = key.sign(m.m_compile())
     return m
-def verify(m: base.ManifestType, key: EdPubK | None = None, fail_on_missing: bool = False) -> bool | None:
+def verify(m: base.Manifest, key: EdPubK | None = None, fail_on_missing: bool = False) -> bool | None:
     '''
         Checks if the manifest's signature is valid
         Checks `m.sig` and `m.compile()` against `key` (if supplied) or `m.key`

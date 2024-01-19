@@ -15,10 +15,10 @@ from FlexiLynx.core.encodings import decode, encode
 #</Imports
 
 #> Header >/
-__all__ = ('ManifestType',)
+__all__ = ('ManifestType', 'Manifest')
 logger = FlexiLynx.logger.getChild('core.fw.manif')
 
-class _ManifestType:
+class Manifest:
     '''
         A base class for all manifests
 
@@ -28,6 +28,8 @@ class _ManifestType:
     m_types = {}
     _M_STR_KEY_ENCODING = 'b85'
 
+    def __init__(self): # replaced by dataclass __init__ in _ManifestTypeMeta.__call__
+        raise TypeError('This class is a base and should never be instantiated')
     def __post_init__(self):
         for n,p in self.m_parts.items():
             if not hasattr(self, n):
@@ -113,20 +115,18 @@ class _ManifestType:
         '''
         return packlib.pack(self.m_export() | {'sig': '<stripped>'})
 class _ManifestTypeMeta(type):
-    def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, type[parts.base.BasePart]] = {}, m_register: bool = True, m_top_mutable: bool = True, **p_parts: type[parts.base.BasePart]) -> type[_ManifestType]:
+    def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, type[parts.base.BasePart]] = {}, m_register: bool = True, m_top_mutable: bool = True, **p_parts: type[parts.base.BasePart]) -> type[Manifest]:
         c = (parts.base._PartUnion_HybridMeta if p_parts else parts.base._PartUnion_NewMeta).__call__(cls,
-            m_name, *parts.CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace={'m_parts': p_parts}, p_mutable=m_top_mutable, **p_parts)
-        c.__repr__ = _ManifestType.__repr__
+            m_name, *parts.CoreManifestParts.p_struct_cls, _bases=(Manifest,), _namespace={'m_parts': p_parts}, p_mutable=m_top_mutable, **p_parts)
+        c.__repr__ = Manifest.__repr__
         c.type = m_name
         if m_register: c.m_register()
         return c
     def __instancecheck__(cls, other: typing.Any) -> bool:
-        return isinstance(other, _ManifestType)
-    def __subclasscheck__(cls, other: type) -> bool:
-        return issubclass(other, _ManifestType)
+        return isinstance(other, type) and issubclass(other, Manifest)
 class ManifestType(metaclass=_ManifestTypeMeta):
+    '''Creates a new type of `Manifest`; see `help(Manifest)` for details on manifests'''
     __slots__ = ()
-    __doc__ = _ManifestType.__doc__
 
-    m_types = _ManifestType.m_types
-    m_from_map = _ManifestType.m_from_map
+    m_types = Manifest.m_types
+    m_from_map = Manifest.m_from_map
