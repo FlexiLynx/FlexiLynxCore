@@ -121,14 +121,8 @@ class _ManifestTypeMeta(type):
         if m_register: c.m_register()
         return c
     def __instancecheck__(cls, other: typing.Any) -> bool:
-        global tc
-        tc = cls
-        global to
-        to = other
-        print(f'instancecheck {cls!r}@{id(cls)} {other!r} -> {isinstance(other, _ManifestType)}')
         return isinstance(other, _ManifestType)
     def __subclasscheck__(cls, other: type) -> bool:
-        print(f'subclasscheck {cls!r} {other!r}')
         return issubclass(other, _ManifestType)
 class ManifestType(metaclass=_ManifestTypeMeta):
     __slots__ = ()
