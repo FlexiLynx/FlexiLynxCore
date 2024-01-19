@@ -156,16 +156,14 @@ class TFlexiSpace(ModuleType):
 
     __FS_sys_is_finalizing = sys.is_finalizing # keep reference even if `sys` name is collected
 
-    __FS_ASSIMILATE            = 0b0001
-    __FS_ASSIMILATE_INTRUSIVE  = 0b0010
-    __FS_ASSIMILATE_AGGRESSIVE = 0b0100
-    __FS_ASSIMILATE_LAZY       = 0b1000
+    __FS_ASSIMILATE            = 0b001
+    __FS_ASSIMILATE_INTRUSIVE  = 0b010
+    __FS_ASSIMILATE_AGGRESSIVE = 0b100
 
     _FS_DEBUG_ASSIMILATE = False
 
     def __init__(self, name: str, doc: str | None = None, *, _parent: typing.Self | None = None, _dict: dict | None = None,
-                 assimilate: bool = False, intrusive_assimilate: bool = True, aggressive_assimilate: bool = True,
-                 assimilate_lazy_modules: bool = True):
+                 assimilate: bool = False, intrusive_assimilate: bool = True, aggressive_assimilate: bool = True):
         self._FS_dict_ = DictJoiner(self.__dict__) if _dict is None else DictJoiner(self.__dict__, _dict)
         if _parent is None:
             self._FS_parents_ = ()
@@ -174,8 +172,7 @@ class TFlexiSpace(ModuleType):
             sys.meta_path.append(self._FS_metafinder_)
             self._FS_assimilate_ = assimilate * (self.__FS_ASSIMILATE
                                                  + (self.__FS_ASSIMILATE_INTRUSIVE  * intrusive_assimilate)
-                                                 + (self.__FS_ASSIMILATE_AGGRESSIVE * aggressive_assimilate)
-                                                 + (self.__FS_ASSIMILATE_LAZY       * assimilate_lazy_modules))
+                                                 + (self.__FS_ASSIMILATE_AGGRESSIVE * aggressive_assimilate))
             self.__package__ = None
         else:
             self._FS_parents_ = _parent._FS_parents_+(_parent,)
@@ -200,9 +197,14 @@ class TFlexiSpace(ModuleType):
         self._FS_dict_[attr] = val
 
     def _aggressive_assimilate(self, mod: ModuleType, as_: str, doc: str | None) -> typing.Self:
-        '''Creates a new `TFlexiSpace` from `mod`, then combines their dictionaries with `DictJoiner`'''
+        '''
+            Creates a new `TFlexiSpace` from `mod`, then combines their dictionaries with `DictJoiner`,
+                as well as pointing the module's original `sys.modules` entry to the new `TFlexiSpace`
+        '''
         new = type(self).__new__(type(self))
         new.__init__(as_, doc, _parent=self, _dict=mod.__dict__)
+        if f'{mod.__package__ or ""}{mod.__name__}' in sys.modules:
+            sys.modules[f'{mod.__package__ or ""}{mod.__name__}'] = new
         return new
     def _intrusive_assimilate_val(self, obj: object, attr: str, val: object):
         '''Sets an attribute of an object (if possible)'''
@@ -227,8 +229,10 @@ class TFlexiSpace(ModuleType):
                     v = tree
                 amod.__setattr__(a, v, _no_assimilate=True)
                 continue
-            if isinstance(v, ModuleType) and not isinstance(v, self.__class__):
-                v = amod._assimilate(v, a) # recursively assimilate public sub-modules (that aren't FlexiSpace modules)
+            if isinstance(v, ModuleType):
+                if not isinstance(v, self.__class__):
+                    v = amod._assimilate(v, a) # recursively assimilate public sub-modules (that aren't FlexiSpace modules)
+                sys.modules[v.__name__] = v
             elif ((~self)._FS_assimilate_ & self.__FS_ASSIMILATE_INTRUSIVE) and (getattr(v, '__module__', None) == mod.__name__):
                 amod._intrusive_assimilate_val(v, '__module__', self.__name__)
             super(type(self), amod).__setattr__(a, v)
