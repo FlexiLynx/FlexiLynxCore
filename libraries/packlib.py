@@ -18,6 +18,7 @@ from collections import abc, namedtuple
 __all__ = ('Packer', 'packer', 'pack', 'unpack', 'ReduceNamedtuple')
 
 ReduceNamedtuple = IntEnum('ReduceNamedtuple', ('FAIL', 'AS_DICT', 'AS_TUPLE', 'AS_NAMEDTUPLE'))
+TypeKeyType = typing.NewType('TypeKey', typing.Any)
 
 class Packer:
     __slots__ = (
@@ -106,7 +107,7 @@ class Packer:
         except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError): return None
         if l == e: return r
         return None
-    def encode(self, o: object) -> tuple[typing.Literal[*TYPE_KEYS], bytes]:
+    def encode(self, o: object) -> tuple[TypeKeyType, bytes]:
         '''Returns an object's type-key and encoded bytes'''
         match o:
             # Numerics
@@ -173,26 +174,26 @@ class Packer:
                                     if (not a.startswith('_')) and hasattr(o, a)})
         # Fail
         raise TypeError(f'Cannot encode object {o!r} of type {type(o).__qualname__}')
-    def encode_many(self, objects: tuple[object, ...]) -> typing.Iterator[tuple[typing.Literal[*TYPE_KEYS], bytes]]:
+    def encode_many(self, objects: tuple[object, ...]) -> typing.Iterator[tuple[TypeKeyType, bytes]]:
         '''Encode a set of objects, both with `encode()` and as literals, then yield the shortest viable representation'''
         for o in objects:
             et,ev = self.encode(o)
             if ((lit := self._try_encode_literal(o)) is not None) \
                and (len(lit) < len(ev)): yield (repr, lit.encode(self.STR_ENCODING))
             else: yield (et, ev)
-    def sarchive(self, stream: typing.BinaryIO, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]):
+    def sarchive(self, stream: typing.BinaryIO, data: typing.Iterable[tuple[TypeKeyType, bytes]]):
         '''Archives sets of encoded data into a stream'''
         data = tuple(data)
         for t,d in data:
             stream.write(self.encode_size(len(d)))
             stream.write(self._type_to_pfx[t])
             stream.write(d)
-    def archive(self, data: tuple[tuple[typing.Literal[*TYPE_KEYS], bytes], ...]) -> bytes:
+    def archive(self, data: tuple[tuple[TypeKeyType, bytes], ...]) -> bytes:
         '''Archives sets of encoded data into bytes'''
         with io.BytesIO() as stream:
             self.sarchive(stream, data)
             return stream.getvalue()
-    def spack(self, stream: typing.BinaryIO, *objects: object) -> bytes:
+    def spack(self, stream: typing.BinaryIO, *objects: object):
         '''Packs a sequence of objects into a stream'''
         self.sarchive(stream, self.encode_many(objects))
     def pack(self, *objects: object) -> bytes:
@@ -201,7 +202,7 @@ class Packer:
             self.spack(stream, *objects)
             return stream.getvalue()
 
-    def decode(self, t: typing.Literal[*TYPE_KEYS], e: bytes) -> object:
+    def decode(self, t: TypeKeyType, e: bytes) -> object:
         '''Decodes encoded data, given its pack-type'''
         if not e:
             if isinstance(t, type): return t()
@@ -246,7 +247,7 @@ class Packer:
             return self.EXTENDED_CONSTANTS[e[0]]
         if t is repr:
             return literal_eval(e.decode(self.STR_ENCODING))
-    def sunarchive_one(self, stream: typing.BinaryIO) -> tuple[typing.Literal[*TYPE_KEYS], bytes] | None:
+    def sunarchive_one(self, stream: typing.BinaryIO) -> tuple[TypeKeyType, bytes] | None:
         '''Un-archives a single sequence of data from a stream'''
         p = size = 0
         while True:
@@ -256,14 +257,14 @@ class Packer:
             size += self._size_base**p*b[0]
             p += 1
         return (self._pfx_to_type[b], stream.read(size))
-    def siunarchive(self, stream: typing.BinaryIO) -> typing.Generator[tuple[typing.Literal[*TYPE_KEYS], bytes], None, None]:
+    def siunarchive(self, stream: typing.BinaryIO) -> typing.Generator[tuple[TypeKeyType, bytes], None, None]:
         '''Un-archives and yields sequences of data from a stream'''
         while (seq := self.sunarchive_one(stream)) is not None: yield seq
-    def iunarchive(self, arch: bytes) -> typing.Generator[tuple[typing.Literal[*TYPE_KEYS], bytes], None, None]:
+    def iunarchive(self, arch: bytes) -> typing.Generator[tuple[TypeKeyType, bytes], None, None]:
         '''Un-archives and yields sequences of data from bytes'''
         with io.BytesIO(arch) as stream:
             yield from self.siunarchive(stream)
-    def unarchive(self, arch: bytes) -> tuple[tuple[typing.Literal[*TYPE_KEYS], bytes]]:
+    def unarchive(self, arch: bytes) -> tuple[tuple[TypeKeyType, bytes]]:
         '''Un-archives sequences of data from bytes'''
         return tuple(self.iunarchive(arch))
     def siunpack(self, stream: typing.BinaryIO) -> typing.Iterator[object]:
