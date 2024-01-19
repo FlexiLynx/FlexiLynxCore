@@ -52,14 +52,14 @@ class UninitializedCascadeError(CascadeException, ValueError):
     '''A manifest is a cascade holder, but is holding an uninitialized cascade (`None`)'''
 ## Creation-related exceptions
 class KeyAlreadyInCascadeError(CascadeException):
-    '''An attempt was made to add a cascade to a ring when the vouching key is already in the ring'''
+    '''An attempt was made to add a trust to a ring when the vouching key is already in the ring'''
 ## Execution-related exceptions
 class BrokenCascadeError(CascadeException):
-    '''A key wasn't found in the cascade'''
+    '''A key wasn't found in the cascade's ring'''
 class InvalidCascadeError(CascadeException, InvalidSignature):
     '''A signature in the cascade was invalid'''
 class CircularCascadeError(CascadeException):
-    '''A key was seen twice whilst walking a cascade'''
+    '''A key was seen twice whilst walking a cascade's ring'''
 
 # Cascade functions
 ## Creation
@@ -99,7 +99,7 @@ CascadeResult = IntEnum('CascadeResult', ('UNKNOWN_FAILURE',
                                           'BROKEN_CASCADE', 'INVALID_CASCADE', 'CIRCULAR_CASCADE'), start=1)
 def run_cascade(ring: KeyRing, target: EdPubK, source: EdPubK, *,
                 fail_return: bool = False, info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept'], tuple[bytes, ...]], None] = None) -> None | CascadeResult:
-    '''Checks `target` against the `source` key in `casc`'''
+    '''Checks `target` against the `source` key in `ring`'''
     c = source
     seen = set()
     while (cb := c.public_bytes_raw()) not in seen:
