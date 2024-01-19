@@ -47,7 +47,8 @@ def __setup__():
 
 #> Main >/
 # Testing code
-if __name__ == '__main__':
+def _test():
+    global manifest, crypt, cascade, extended, test, testi, k0, k1, k2, k3, k4, k5, test2, test2i
     __init__()
     from FlexiLynx.core.frameworks import manifest
     test = manifest.base.ManifestType('test', idp=manifest.parts.IDManifestPart)
@@ -80,3 +81,4 @@ if __name__ == '__main__':
         FlexiLynx.logger.critical('test 5')
         FlexiLynx.logger.irrec('test 6')
     test_logger()
+if __name__ == '__main__': _test()

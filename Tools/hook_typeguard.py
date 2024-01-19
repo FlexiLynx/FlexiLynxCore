@@ -28,6 +28,7 @@ class Finder(typeguard.TypeguardFinder):
                 or any(module_name.startswith(e) for e in self.EXCLUDE)):
             print(f'Skipped {module_name!r}')
             return False
+        print(f'Check {module_name!r}')
         return True
 print('<TypeGuard Hook> Installing import hook')
 typeguard.install_import_hook(cls=Finder)
@@ -35,3 +36,5 @@ print('<TypeGuard Hook> Chainloading __entrypoint__.__init__()')
 __entrypoint__.__init__()
 print('<TypeGuard Hook> Chainloading __entrypoint__.__setup__()')
 __entrypoint__.__setup__()
+print('<TypeGuard Hook> Chainloading __entrypoint__._test()')
+__entrypoint__._test()
