@@ -14,17 +14,13 @@ from dataclasses import field
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from . import base # re-exposed as base
-from .base import *
-
-from FlexiLynx.core.flexispacelib import LazyFSModule
+from . import extended # re-exposed as extended
 #</Imports
 
 #> Header >/
-extended = LazyFSModule('.extended', __package__)
-
 # Setup __all__
 __all__ = ['base', 'extended']
-_make_part = partial(make_struct_part, add_to_all=__all__)
+_make_part = partial(base.make_struct_part, add_to_all=__all__)
 
 # Parts classes
 ## Core parts
@@ -51,7 +47,7 @@ class CryptManifestPart:
         return super()._p_import_val(k, v)
 
 # Part unions
-CoreManifestParts = PartUnion('CoreManifestParts', IDManifestPart, CryptManifestPart)
+CoreManifestParts = base.PartUnion('CoreManifestParts', IDManifestPart, CryptManifestPart)
 __all__.append('CoreManifestParts')
 
 # Finalize __all__

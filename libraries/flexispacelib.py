@@ -14,7 +14,7 @@ from importlib.machinery import ModuleSpec
 #</Imports
 
 #> Header >/
-__all__ = ('TFlexiSpace', 'LazyFSModule', 'DictUnion', 'DictJoiner')
+__all__ = ('TFlexiSpace', 'DictUnion', 'DictJoiner')
 
 class DictUnion(UserDict):
     '''
@@ -146,8 +146,13 @@ class FlexiSpaceFinder(MetaPathFinder):
         return spec_from_loader(fullname, self.loader)
 
 class TFlexiSpace(ModuleType):
-    '''Provides a way to recursively define and use namespaces as importable modules'''
-    __slots__ = ('_FS_dict_', '_FS_initialized_', '_FS_assimilate_', '_FS_metafinder_', '_FS_parents_', '_FS_key_')
+    '''
+        Provides a way to recursively define and use namespaces as importable modules
+
+        Important note: packages assimilated to FlexiSpaces should make *very* careful use of relative importing of eachother
+            While imports may work, they may not be pointing to the expected value
+    '''
+    __slots__ = ('_FS_dict_', '_FS_initialized_', '_FS_assimilate_', '_FS_metafinder_', '_FS_parents_', '_FS_key_', '_FS_assimilated_')
 
     __FS_sys_is_finalizing = sys.is_finalizing # keep reference even if `sys` name is collected
 
@@ -155,6 +160,8 @@ class TFlexiSpace(ModuleType):
     __FS_ASSIMILATE_INTRUSIVE  = 0b0010
     __FS_ASSIMILATE_AGGRESSIVE = 0b0100
     __FS_ASSIMILATE_LAZY       = 0b1000
+
+    _FS_DEBUG_ASSIMILATE = False
 
     def __init__(self, name: str, doc: str | None = None, *, _parent: typing.Self | None = None, _dict: dict | None = None,
                  assimilate: bool = False, intrusive_assimilate: bool = True, aggressive_assimilate: bool = True,
@@ -182,12 +189,6 @@ class TFlexiSpace(ModuleType):
     def __del__(self):
         if self.__FS_sys_is_finalizing() or (self._FS_metafinder_ is None): return
         sys.meta_path.remove(self._FS_metafinder_)
-    @typing.no_type_check # required for TypeGuard
-    def __getattribute__(self, attr: str) -> typing.Any:
-        val = super().__getattribute__(attr)
-        if isinstance(val, LazyFSModule):
-            return val._realize()
-        return val
     def __setattr__(self, attr: str, val: typing.Any, *, _no_assimilate: bool = False):
         if not getattr(self, '_FS_initialized_', False):
             super().__setattr__(attr, val)
@@ -203,22 +204,15 @@ class TFlexiSpace(ModuleType):
         new = type(self).__new__(type(self))
         new.__init__(as_, doc, _parent=self, _dict=mod.__dict__)
         return new
-    def _intrusive_assimilate(self, obj: type('HasDunderModule', (typing.Protocol,), {'__module__': ''})):
-        '''Sets __module__ attributes of an object (if possible)'''
-        try: obj.__module__ = self.__name__
+    def _intrusive_assimilate_val(self, obj: object, attr: str, val: object):
+        '''Sets an attribute of an object (if possible)'''
+        try: object.__setattr__(attr, val)
         except Exception: pass
         else: return
-        try: object.__setattr__('__module__', self.__name__) # try forceful override with base object
+        try: super(type(v), v).__setattr__(attr, val)
         except Exception: pass
-        else: return
-        try: super(type(v), v).__setattr__('__module__', self.__name__) # try forceful override with super type
-        except Exception: pass
-    def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self | 'LazyFSModule':
+    def _assimilate(self, mod: ModuleType, as_: str) -> typing.Self:
         '''Converts a `ModuleType` into a `TFlexiSpace`'''
-        if isinstance(mod, LazyFSModule):
-            object.__setattr__(mod, '_attached_to', self)
-            object.__setattr__(mod, '_attached_as', as_)
-            return mod
         if ((~self)._FS_assimilate_ & self.__FS_ASSIMILATE_AGGRESSIVE):
             amod = self._aggressive_assimilate(mod, as_, getattr(mod, '__doc__', None))
         else:
@@ -226,20 +220,32 @@ class TFlexiSpace(ModuleType):
         public = set(getattr(mod, '__all__', set()))
         for a,v in mod.__dict__.items():
             if a not in public:
+                if ((~self)._FS_assimilate_ & self.__FS_ASSIMILATE_INTRUSIVE) \
+                       and isinstance(v, ModuleType) and not isinstance(v, self.__class__) \
+                       and v.__name__.startswith(f'{self._FS_key_[0]}.') \
+                       and (tree := (~self)._get_tree(v.__name__.split('.')[1:], create=False)) is not None:
+                    v = tree
                 amod.__setattr__(a, v, _no_assimilate=True)
                 continue
             if isinstance(v, ModuleType) and not isinstance(v, self.__class__):
                 v = amod._assimilate(v, a) # recursively assimilate public sub-modules (that aren't FlexiSpace modules)
             elif ((~self)._FS_assimilate_ & self.__FS_ASSIMILATE_INTRUSIVE) and (getattr(v, '__module__', None) == mod.__name__):
-                amod._intrusive_assimilate(v)
+                amod._intrusive_assimilate_val(v, '__module__', self.__name__)
             super(type(self), amod).__setattr__(a, v)
+        if self._FS_DEBUG_ASSIMILATE:
+            super(type(self), amod).__setattr__('_FS_assimilated_', (self, mod, as_, {
+                'public': public,
+                'level': (~self)._FS_assimilate_,
+            }))
         return amod
 
-    def _get_tree(self, key: str | typing.Sequence[str]) -> typing.Self:
-        '''Gets (or creates, if missing) a sub-FlexiSpace, creating all parents that are missing'''
+    def _get_tree(self, key: str | typing.Sequence[str], create: bool = True) -> typing.Self | None:
+        '''Gets (or creates, if missing and `create`) a sub-FlexiSpace, creating all parents that are missing (if `create` is true)'''
         branch = self
         for n in (key.split('.') if isinstance(key, str) else key):
-            if not hasattr(branch, n): setattr(branch, n, self.__class__(n, _parent=branch))
+            if not hasattr(branch, n):
+                if not create: return None
+                setattr(branch, n, self.__class__(n, _parent=branch))
             branch = getattr(branch, n)
             assert isinstance(branch, self.__class__ | ModuleType)
         return branch
@@ -282,8 +288,10 @@ class TFlexiSpace(ModuleType):
         setattr(self, name, obj)
         return self
 
-class LazyFSModule(ModuleType):
+class _LazyFSModule(ModuleType):
     '''
+        ! Currently broken and not implemented !
+
         Allows "lazily" including modules in a `FlexiSpace`, simply by setting this to a name:
             `lazymod = LazyFSModule('.lazymod', __package__)`
         This module can be realized in one of two ways:
@@ -307,6 +315,7 @@ class LazyFSModule(ModuleType):
         super().__setattr__('_attached_to', None)
         super().__setattr__('_attached_as', None)
         super().__setattr__('_realized', None)
+        sys.modules[f'{package or ""}{name}'] = self
     def _realize(self) -> ModuleType:
         if (mod := super().__getattribute__('_realized')) is not None: return mod
         mod = import_module(self.__name__, self.__package__)
@@ -318,8 +327,8 @@ class LazyFSModule(ModuleType):
             super().__setattr__('__package__', mod.__package__)
         else: super().__setattr__('_realized', mod)
         super().__setattr__('_dict', DictJoiner(mod.__dict__, self.__dict__))
+        sys.modules[f'{mod.__package__ or ""}{mod.__name__}'] = mod
         return self._realized
-
     def __getattr__(self, attr: str) -> typing.Any:
         return getattr(self._realize(), attr)
     def __setattr__(self, attr: str, val: typing.Any):

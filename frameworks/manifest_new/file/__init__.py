@@ -18,7 +18,7 @@ from ast import literal_eval
 from configparser import RawConfigParser
 from collections import abc as cabc
 
-from ..base import ManifestType
+from .. import base
 
 from FlexiLynx.core import packlib, encodings
 from FlexiLynx.core.util import concat_mappings, map_vals
@@ -57,7 +57,7 @@ def _reduce(s: typing.Sequence | typing.Mapping, *, bytearray_convert: bool, enc
                 _reduce(v, bytearray_convert=bytearray_convert, encode_bytes=encode_bytes, set_convert=set_convert))
         else: yield v
 
-def extract(data: bytes | Path) -> ManifestType | None:
+def extract(data: bytes | Path) -> base.ManifestType | None:
     '''
         Automatically chooses the method to extract `data` from its signature
             Returns `None` on a file without a signature
@@ -90,13 +90,13 @@ def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iter
             #    raise ExceptionGroup(f'Could not convert {v!r} (at {(".".join(_kl+(k,)))!r}) to a literal; nor could it be packed', (le, pe))
         else: m[repr(k)] = repr(v)
     if m: yield ('.'.join(_kl), m)
-def ini_preprocess(man: ManifestType) -> dict:
+def ini_preprocess(man: base.ManifestType) -> dict:
     '''Convert `man.m_export()` into a suitable format to be read by `RawConfigParser`'''
     mexp = man.m_export()
     procd = {'!': {k: repr(v) for k,v in mexp.items() if not isinstance(v, cabc.Mapping)},
              **concat_mappings(*(dict(_ini_preprocess(v, (k,))) for k,v in mexp.items() if isinstance(v, cabc.Mapping)))}
     return procd
-def ini_render(man: ManifestType) -> bytes:
+def ini_render(man: base.ManifestType) -> bytes:
     '''Render the manifest in INI format'''
     mdict = ini_preprocess(man) # keep some of the work outside of the lock
     with _ini_parser_lock:
@@ -122,39 +122,39 @@ def ini_postprocess(data: bytes) -> bytes:
         _ini_parser.clear()
         _ini_parser.read_string(data.decode())
         return _ini_postprocess(_ini_parser)
-def ini_extract(data: bytes | Path) -> ManifestType | None:
+def ini_extract(data: bytes | Path) -> base.ManifestType | None:
     '''
         Extracts a manifest from INI
             Returns `None` for contents without a `SIG_INI`
     '''
     if isinstance(data, Path): data = data.read_bytes()
     if not data.startswith(SIG_INI): return None
-    return ManifestType.m_from_map(ini_postprocess(data))
+    return base.ManifestType.m_from_map(ini_postprocess(data))
 # JSON stream
-def json_preprocess(man: ManifestType) -> dict:
+def json_preprocess(man: base.ManifestType) -> dict:
     '''Convert the manifest into JSON-encodable Python types'''
     return dict(_reduce(man.m_export(), bytearray_convert=False, encode_bytes='b85', set_convert=True))
-def json_render(man: ManifestType, compact: typing.Literal[0, 1, 2] = 0) -> bytes:
+def json_render(man: base.ManifestType, compact: typing.Literal[0, 1, 2] = 0) -> bytes:
     '''Render the manifest in JSON format'''
     return SIG_JSON + json.dumps(json_preprocess(man), indent=None if compact > 0 else 4,
                                  separators=(',', ':') if compact > 1 else None).encode()[1:]
 def json_postprocess(data: bytes) -> str:
     '''Removes `JSON_SIG` from the data and decodes it to a string'''
     return (b'{' + data[len(SIG_JSON):]).decode()
-def json_extract(data: bytes | Path) -> ManifestType | None:
+def json_extract(data: bytes | Path) -> base.ManifestType | None:
     '''
         Extracts a manifest from JSON
             Returns `None` for contents without a `SIG_JSON`
     '''
     if isinstance(data, Path): data = data.read_bytes()
     if not data.startswith(SIG_JSON): return None
-    return ManifestType.m_from_map(json.loads(json_postprocess(data)))
+    return base.ManifestType.m_from_map(json.loads(json_postprocess(data)))
 # Pakd stream
 _PRINTABLE_PAKD_ENC = 'b85'
-def pakd_preprocess(man: ManifestType) -> typing.Any:
+def pakd_preprocess(man: base.ManifestType) -> typing.Any:
     '''Simply returns `man.m_export()`'''
     return man.m_export()
-def pakd_render(man: ManifestType, printable: bool = False) -> bytes:
+def pakd_render(man: base.ManifestType, printable: bool = False) -> bytes:
     '''Render the manifest into PacLib-packed bytes'''
     if not printable: return SIG_PAKD + packlib.pack(pakd_preprocess(man))
     return SIG_PAKD_P + encodings.encode(_PRINTABLE_PAKD_ENC, packlib.pack(pakd_preprocess(man))).encode()
@@ -163,7 +163,7 @@ def pakd_postprocess(data: bytes, printable: bool) -> bytes:
     data = data[len(SIG_PAKD_P if printable else SIG_PAKD):]
     if not printable: return data
     return encodings.decode(_PRINTABLE_PAKD_ENC, data.decode())
-def pakd_extract(data: bytes | Path, printable: bool | None = None) -> ManifestType | None:
+def pakd_extract(data: bytes | Path, printable: bool | None = None) -> base.ManifestType | None:
     '''
         Extracts a manifest from PackLib-packed bytes
             Returns `None` for contents without a `SIG_PAKD` or `SIG_PAKD_P` (depending on `printable`)
@@ -176,4 +176,4 @@ def pakd_extract(data: bytes | Path, printable: bool | None = None) -> ManifestT
         if printable is False: return None
         printable = True
     else: return None
-    return ManifestType.m_from_map(packlib.unpack(pakd_postprocess(data, printable))[0])
+    return base.ManifestType.m_from_map(packlib.unpack(pakd_postprocess(data, printable))[0])

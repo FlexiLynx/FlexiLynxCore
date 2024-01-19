@@ -6,7 +6,7 @@ from pathlib import Path
 from collections import abc as cabc
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
-from .parts import *
+from . import parts
 
 import FlexiLynx
 from FlexiLynx.core import packlib
@@ -101,8 +101,8 @@ class _ManifestType:
                 Uses the underlying parts' `p_export()`
         '''
         return concat_mappings(
-            dict(IDManifestPart._p_export_dict({'id': self.id, 'type': self.type, 'rel': self.rel})),
-            dict(CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key})),
+            dict(parts.IDManifestPart._p_export_dict({'id': self.id, 'type': self.type, 'rel': self.rel})),
+            dict(parts.CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key})),
             {n: (v.p_export() if ((v := getattr(self, n, None)) is not None) else None) for n in self.m_parts.keys()},
         )
 
@@ -113,17 +113,23 @@ class _ManifestType:
         '''
         return packlib.pack(self.m_export() | {'sig': '<stripped>'})
 class _ManifestTypeMeta(type):
-    def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, base.BasePart] = {}, m_register: bool = True, m_top_mutable: bool = True, **parts: base.BasePart) -> type[_ManifestType]:
-        c = (base._PartUnion_HybridMeta if parts else base._PartUnion_NewMeta).__call__(cls,
-            m_name, *CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace={'m_parts': parts}, p_mutable=m_top_mutable, **parts)
+    def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, type[parts.base.BasePart]] = {}, m_register: bool = True, m_top_mutable: bool = True, **p_parts: type[parts.base.BasePart]) -> type[_ManifestType]:
+        c = (parts.base._PartUnion_HybridMeta if p_parts else parts.base._PartUnion_NewMeta).__call__(cls,
+            m_name, *parts.CoreManifestParts.p_struct_cls, _bases=(_ManifestType,), _namespace={'m_parts': p_parts}, p_mutable=m_top_mutable, **p_parts)
         c.__repr__ = _ManifestType.__repr__
         c.type = m_name
         if m_register: c.m_register()
         return c
     def __instancecheck__(cls, other: typing.Any) -> bool:
+        global tc
+        tc = cls
+        global to
+        to = other
+        print(f'instancecheck {cls!r}@{id(cls)} {other!r} -> {isinstance(other, _ManifestType)}')
         return isinstance(other, _ManifestType)
     def __subclasscheck__(cls, other: type) -> bool:
-        return issubclass(other, _ManifestType) or issubclass(other, ManifestType)
+        print(f'subclasscheck {cls!r} {other!r}')
+        return issubclass(other, _ManifestType)
 class ManifestType(metaclass=_ManifestTypeMeta):
     __slots__ = ()
     __doc__ = _ManifestType.__doc__

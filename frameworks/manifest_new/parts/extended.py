@@ -5,7 +5,7 @@ import typing
 from functools import partial
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
-from .base import *
+from . import base
 
 from FlexiLynx.core.encodings import decode, encode
 #</Imports
@@ -13,7 +13,7 @@ from FlexiLynx.core.encodings import decode, encode
 #> Header >/
 # Setup __all__
 __all__ = []
-_make_part = partial(make_struct_part, add_to_all=__all__)
+_make_part = partial(base.make_struct_part, add_to_all=__all__)
 
 # Parts classes
 @_make_part('cascade')

@@ -24,8 +24,7 @@ from enum import IntEnum
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
-from ..parts import extended
-from ..base import ManifestType
+from .. import parts
 
 from FlexiLynx.core.encodings import encode
 #</Imports
@@ -41,7 +40,7 @@ __all__ = ('create', 'add_trust', 'add_key',
 type KeyRing = typing.Mapping[bytes, tuple[EdPubK, EdPubK, bytes]]
 @typing.runtime_checkable
 class CascadeHolder(typing.Protocol):
-    cascade: extended.KeyCascadePart
+    cascade: parts.extended.KeyCascadePart
 
 # Cascade exceptions
 class CascadeException(Exception):
@@ -81,7 +80,7 @@ def add_trust(m: CascadeHolder, trust: tuple[EdPubK, EdPubK, bytes], *,
     if m.cascade is None:
         if not init_empty_cascade:
             raise UninitializedCascadeError('Manifest is holding an uninitialized cascade (init_empty_cascade=False)')
-        m.cascade = extended.KeyCascadePart()
+        m.cascade = parts.extended.KeyCascadePart()
     if (not overwrite_cascade) and (ck in m.cascade.ring):
         raise KeyAlreadyInCascadeError(f'The authorizing key has already trusted another ({ck!r})')
     m.cascade.ring[ck] = trust

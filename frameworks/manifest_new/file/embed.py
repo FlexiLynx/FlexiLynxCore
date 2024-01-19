@@ -13,7 +13,7 @@
 #> Imports
 import re
 
-from ..base import ManifestType
+from .. import base
 
 from FlexiLynx.core import encodings, packlib
 #</Imports
@@ -26,7 +26,7 @@ embed_str = "__EMBEDDED_MANIFEST__ = ('{type}', '{pack}')"
 pack_patt = f'(?P<pack>{encodings.char_patts["b85"].pattern}+)'
 type_patt = r'(?P<type>[!#-&(-\[\]-~])'
 embed_patt = re.compile(fr'''^{embed_str.format(type=type_patt, pack=pack_patt)}(?:\n|$)''')
-def embed_manifest(contents: str, man: ManifestType) -> str:
+def embed_manifest(contents: str, man: base.ManifestType) -> str:
     '''Embeds a manifest object into a Python file'''
     return embed_manifest_dict(contents, man.p_export(), man.type)
 def embed_manifest_dict(contents: str, man: dict, type_key: str) -> str:
@@ -38,9 +38,9 @@ def embed_packed_manifest_dict(contents: str, packed: bytes, type_key: str) -> s
 def strip_manifest(contents: str) -> str:
     '''Strips an embedded manifest rom a Python file'''
     return embed_patt.sub('', contents)
-def extract_manifest(contents: str) -> ManifestType | None:
+def extract_manifest(contents: str) -> base.ManifestType | None:
     '''Extracts an embedded manifest from a Python file'''
-    return ManifestType.m_from_map(d) if (d := extract_manifest_dict(contents)) is not None else None
+    return base.ManifestType.m_from_map(d) if (d := extract_manifest_dict(contents)) is not None else None
 def extract_manifest_dict(contents: str) -> tuple[str, dict] | None:
     '''Extracts a manifest type-key and manifest dictionary from a Python file'''
     if (p := extract_packed_manifest_dict(contents)) is not None:

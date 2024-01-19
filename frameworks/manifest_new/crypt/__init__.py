@@ -6,22 +6,19 @@
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
-from ..base import ManifestType
-
-from FlexiLynx.core.flexispacelib import LazyFSModule
+from .. import base
+from . import cascade # re-exposed
 #</Imports
 
 #> Header >/
 __all__ = ('cascade', 'sign', 'verify')
 
-cascade = LazyFSModule('.cascade', __package__)
-
-def sign(m: ManifestType, key: EdPrivK) -> ManifestType:
+def sign(m: base.ManifestType, key: EdPrivK) -> base.ManifestType:
     '''Signs the manifest `m` in-place (setting `.key` and `.sig` and returns it'''
     m.m_key = key
     m.sig = key.sign(m.m_compile())
     return m
-def verify(m: ManifestType, key: EdPubK | None = None, fail_on_missing: bool = False) -> bool | None:
+def verify(m: base.ManifestType, key: EdPubK | None = None, fail_on_missing: bool = False) -> bool | None:
     '''
         Checks if the manifest's signature is valid
         Checks `m.sig` and `m.compile()` against `key` (if supplied) or `m.key`
