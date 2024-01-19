@@ -25,6 +25,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK, Ed25519PublicKey as EdPubK
 
 from .. import parts
+from .. import exceptions
 
 from FlexiLynx.core.encodings import encode
 #</Imports
@@ -43,9 +44,9 @@ class CascadeHolder(typing.Protocol):
     cascade: parts.extended.KeyCascadePart
 
 # Cascade exceptions
-class CascadeException(Exception):
+class CascadeException(exceptions.ManifestException):
     '''Base exception for cascading issues'''
-class NotACascadeHolderError(CascadeException, TypeError):
+class NotACascadeHolderError(CascadeException, exceptions.MissingPartError):
     '''A cascade method was attempted on a manifest that does not have a `cascade` part'''
 class UninitializedCascadeError(CascadeException, ValueError):
     '''A manifest is a cascade holder, but is holding an uninitialized cascade (`None`)'''
