@@ -100,14 +100,6 @@ class _ManifestType:
             Converts this manifest into a dictionary of primitive and immutable types
                 Uses the underlying parts' `p_export()`
         '''
-        print(dict(parts.IDManifestPart._p_export_dict({'id': self.id, 'type': self.type, 'rel': self.rel})),
-            dict(parts.CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key})),
-            {n: (v.p_export() if ((v := getattr(self, n, None)) is not None) else None) for n in self.m_parts.keys()},)
-        print(concat_mappings(
-            dict(parts.IDManifestPart._p_export_dict({'id': self.id, 'type': self.type, 'rel': self.rel})),
-            dict(parts.CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key})),
-            {n: (v.p_export() if ((v := getattr(self, n, None)) is not None) else None) for n in self.m_parts.keys()},
-        ))
         return concat_mappings(
             dict(parts.IDManifestPart._p_export_dict({'id': self.id, 'type': self.type, 'rel': self.rel})),
             dict(parts.CryptManifestPart._p_export_dict({'sig': self.sig, 'key': self.key})),
