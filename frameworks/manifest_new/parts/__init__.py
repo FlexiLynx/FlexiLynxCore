@@ -45,6 +45,15 @@ class CryptManifestPart:
             if isinstance(v, bytes): return EdPubK.from_public_bytes(v)
             raise TypeError('Field "key" must be of type "bytes", not {type(v).__qualname__!r}')
         return super()._p_import_val(k, v)
+## Content parts
+_ContentManifestPart_Files = base.make_unstruct_part('files')
+_ContentManifestPart_Data = base.make_unstruct_part('data')
+@_make_part('content')
+class ContentManifestPart:
+    files: _ContentManifestPart_Files
+    Files: typing.ClassVar = _ContentManifestPart_Files
+    data: _ContentManifestPart_Data | None = None
+    Data: typing.ClassVar = _ContentManifestPart_Data
 
 # Part unions
 CoreManifestParts = base.PartUnion('CoreManifestParts', IDManifestPart, CryptManifestPart)
