@@ -191,7 +191,7 @@ def make_struct_part(name: str | None = None, add_to_all: list[str] | None = Non
         if add_to_all is not None: add_to_all.append(cls.__name__)
         return partcls
     return part_maker
-def make_unstruct_part(name: str, add_to_all: list[str] | None = None, type_params: type = (typing.Any,), *, all_name: str | None = None, mutable: bool = True, base: type = UnstructuredPart) -> type[UnstructuredPart]:
+def make_unstruct_part(name: str, add_to_all: list[str] | None = None, type_params: tuple[type, ...] = (typing.Any,), *, all_name: str | None = None, mutable: bool = True, base: type = UnstructuredPart) -> type[UnstructuredPart]:
     '''Makes a new type that inherits from `base[*type_params]`'''
     cls = types.new_class(name, (base[*type_params],), {} if mutable else {'__setattr__': None})
     if add_to_all is not None: add_to_all.append(name if all_name is None else all_name)

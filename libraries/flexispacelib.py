@@ -141,7 +141,7 @@ class FlexiSpaceFinder(MetaPathFinder):
     def __init__(self, flexispace: 'TFlexiSpace'):
         self.flexispace = flexispace
         self.loader = FlexiSpaceLoader(flexispace)
-    def find_spec(self, fullname: str, path: str | None, target: str | None = None) -> ModuleSpec | None:
+    def find_spec(self, fullname: str, path: typing.Any, target: str | None = None) -> ModuleSpec | None:
         if fullname.split('.')[0] != self.flexispace._FS_key_[0]: return None
         return spec_from_loader(fullname, self.loader)
 
