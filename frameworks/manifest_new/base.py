@@ -30,6 +30,14 @@ class Manifest:
 
     def __init__(self): # replaced by dataclass __init__ in _ManifestTypeMeta.__call__
         raise TypeError('This class is a base and should never be instantiated')
+    def __init_subclass__(cls):
+        if cls.__bases__ == (Manifest,): return
+        parts = {}
+        for b in cls.__bases__:
+            if parts.keys() & b.m_parts.keys():
+                raise TypeError(f'Base class {b!r} conflicts key(s) in other base(s): {parts.keys() & b.m_parts.keys()}')
+            parts.update(b.m_parts)
+        cls.m_parts = parts | cls.m_parts
     def __post_init__(self):
         for n,p in self.m_parts.items():
             if not hasattr(self, n):
@@ -115,9 +123,11 @@ class Manifest:
         '''
         return packlib.pack(self.m_export() | {'sig': '<stripped>'})
 class _ManifestTypeMeta(type):
-    def __call__(cls, m_name: str, *, p_defaults: typing.Mapping[str, type[parts.base.BasePart]] = {}, m_register: bool = True, m_top_mutable: bool = True, **p_parts: type[parts.base.BasePart]) -> type[Manifest]:
+    def __call__(cls, m_name: str, *bases: type, p_defaults: typing.Mapping[str, type[parts.base.BasePart]] = {}, m_register: bool = True, m_top_mutable: bool = True, **p_parts: type[parts.base.BasePart]) -> type[Manifest]:
+        if not bases: bases = (Manifest,)
+        assert all(map(cls.__instancecheck__, bases)), 'Bases must all be instances of `ManifestType` / subclasses of `Manifest`'
         c = (parts.base._PartUnion_HybridMeta if p_parts else parts.base._PartUnion_NewMeta).__call__(cls,
-            m_name, *parts.CoreManifestParts.p_struct_cls, _bases=(Manifest,), _namespace={'m_parts': p_parts}, p_mutable=m_top_mutable, **p_parts)
+            m_name, *parts.CoreManifestParts.p_struct_cls, _bases=bases, _namespace={'m_parts': p_parts}, p_mutable=m_top_mutable, **p_parts)
         c.__repr__ = Manifest.__repr__
         c.type = m_name
         if m_register: c.m_register()
