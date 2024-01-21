@@ -8,13 +8,21 @@ from pathlib import Path
 from importlib import util as iutil
 #</Imports
 
-# Get entrypoint
+# Find entrypoint
 if ep := os.getenv('FLEXILYNX_ENTRYPOINT', None): p = Path(ep)
 elif (p := Path('__entrypoint__.py')).exists(): pass
 elif (p := Path('../__entrypoint__.py')).exists(): pass
 else:
     raise FileNotFoundError('Could not find __entrypoint__.py or ../__entrypoint__.py, maybe set FLEXILYNX_ENTRYPOINT in env?')
 sys.path.append(p.parent.as_posix())
+
+# Caching prevents TypeGuard instrumentation
+sys.dont_write_bytecode = True
+for f in p.parent.glob('**/__pycache__/*.pyc'):
+    f.unlink()
+    print(f'Unlinked cache: {f}')
+
+# Load entrypoint
 __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
                      .loader.load_module()
 
