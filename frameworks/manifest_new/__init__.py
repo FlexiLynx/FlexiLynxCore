@@ -4,7 +4,7 @@ __all__ = ('Manifest', 'base', 'crypt', 'exceptions', 'file', 'parts',
            'BareContentManifest', 'ContentManifest')
 
 #> Package
-from base import Manifest
+from .base import Manifest
 from . import base
 from . import crypt
 from . import exceptions
