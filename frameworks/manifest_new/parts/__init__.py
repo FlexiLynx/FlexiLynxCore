@@ -55,6 +55,18 @@ class ContentManifestPart:
     Files: typing.ClassVar = _ContentManifestPart_Files
     data: _ContentManifestPart_Data | None = None
     Data: typing.ClassVar = _ContentManifestPart_Data
+## Metadata part
+@_make_part('metadata')
+class MetadataManifestPart:
+    name: str
+    desc: str | None
+    upstream: str | None
+    # Creator info
+    creator: str
+    contact: str | None = None
+    # Versioning
+    version: int = 0
+    version_str: str | None = None
 
 # Part unions
 CoreManifestParts = base.PartUnion('CoreManifestParts', IDManifestPart, CryptManifestPart)
