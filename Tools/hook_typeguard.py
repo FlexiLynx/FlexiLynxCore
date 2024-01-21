@@ -34,9 +34,9 @@ class Finder(typeguard.TypeguardFinder):
     def should_instrument(self, module_name: str):
         if (not (any(module_name.startswith(i) for i in self.INCLUDE))
                 or any(module_name.startswith(e) for e in self.EXCLUDE)):
-            print(f'Skipped {module_name!r}')
+            print(f'<TypeGuard Hook> Skipped {module_name!r}')
             return False
-        print(f'Check {module_name!r}')
+        print(f'<TypeGuard Hook> Check {module_name!r}')
         return True
 print('<TypeGuard Hook> Installing import hook')
 typeguard.install_import_hook(cls=Finder)
