@@ -70,9 +70,12 @@ def extract(data: bytes | Path) -> base.Manifest | None:
     return None
 
 # INI stream
-_ini_parser = RawConfigParser(delimiters=(': ',))
+_ini_parser = RawConfigParser(delimiters=(': ',), allow_no_value=True)
 _ini_parser.optionxform = lambda o: o; _ini_parser_lock = RLock()
 def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iterator[tuple[str, dict]]:
+    if not d:
+        yield ('.'.join(_kl), {})
+        return
     m = {}
     for k,v in d.items():
         assert ('.' not in k) and (':' not in k), f'{k} contains illegal character(s) ("." and/or ":")'
