@@ -11,7 +11,7 @@ class ManifestException(Exception):
         __all__.append(cls.__name__)
 class CorruptedFileException(ManifestException):
     '''When a non-manifest file is attempted to be used as a manifest'''
-class ManifestTypeError(ManifestException):
+class ManifestTypeError(ManifestException, TypeError):
     '''When a manifest has an incorrect type or contains a part that is of an incorrect type (see derived `PartTypeError`)'''
 class PartError(ManifestException):
     '''Issues relating to a manifest's parts, such as missing or incorrect parts'''
