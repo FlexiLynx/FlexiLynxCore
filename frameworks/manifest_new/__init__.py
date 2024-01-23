@@ -1,11 +1,12 @@
 #!/bin/python3
 
-__all__ = ('Manifest', 'base', 'crypt', 'exceptions', 'file', 'parts', 'upstream',
+__all__ = ('Manifest', 'base', 'content', 'crypt', 'exceptions', 'file', 'parts', 'upstream',
            'BareContentManifest', 'ContentManifest')
 
 #> Package
 from .base import Manifest
 from . import base
+from . import content
 from . import crypt
 from . import exceptions
 from . import file
