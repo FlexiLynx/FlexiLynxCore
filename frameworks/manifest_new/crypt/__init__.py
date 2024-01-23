@@ -44,9 +44,30 @@ def verify(m: base.Manifest, key: EdPubK | None = None, fail_on_missing: bool = 
     return True
 
 def _migrate_cascaderun_icallb(loc: typing.Literal['saw', 'check', 'accept'], args: tuple[bytes, ...]):
-    ...
+    match loc:
+        case 'saw':
+            logger.debug(f'Cascade: Saw key {encode("b85", args[0])}')
+        case 'check':
+            logger.verbose(f'Cascade: Checking new key {encode("b85", args[1])}')
+            logger.debug(f'Cascade: Checking below signature with key: {encode("b85", args[0])}\n{encode("b85", args[2])}')
+        case 'accept':
+            logger.info(f'Cascade: Accepted new key {encode("b85", args[0])}')
 def _migrate_dualcascaderun_icallb(loc: typing.Literal['saw', 'check', 'accept', 'swap', 'split', 'reject'], state: bool, depth: int, args: tuple[bytes, ...]):
-    ...
+    pfx = f'Cascade{"B" if state else "A"}[{depth}]'
+    match loc:
+        case 'saw':
+            logger.debug(f'{pfx}: Saw key {encode("b85", args[0])}')
+        case 'check':
+            logger.verbose(f'{pfx}: Checking new key {encode("b85", args[1])}')
+            logger.debug(f'{pfx}: Checking:\nsignature {encode("b85", args[2])}\nwith key {encode("b85", args[0])}')
+        case 'accept':
+            logger.info(f'{pfx}: Accepted new key {encode("b85", args[0])}')
+        case 'swap':
+            logger.info(f'{pfx}: Swapped cascades')
+        case 'split':
+            logger.verbose(f'{pfx}: Checking divergent cascades')
+        case 'reject':
+            logger.info(f'{pfx}: Rejected split')
 def migrate(target: base.Manifest, local: base.Manifest, cascade_target: bool = True, cascade_local: bool = True):
     '''
         Checks if `target` is a secure update for `local` with `verify()`
