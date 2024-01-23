@@ -165,6 +165,7 @@ def dualrun(target: EdPubK, source: EdPubK, a: KeyRing, b: KeyRing, *, fail_retu
     assert (not resilient) or fail_return, 'resilient flag does not work properly if fail_return is false'
     if _seen is None: _seen = (set(), set())
     if not _depth:
+        a = a.copy(); b = b.copy() # prevent mutating original rings
         # First-time flattening
         for k in frozenset(a.keys() & b.keys()):
             if a[k] == b[k]: del b[k]
