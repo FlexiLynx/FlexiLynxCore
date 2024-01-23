@@ -1,6 +1,6 @@
 #!/bin/python3
 
-__all__ = ('Manifest', 'base', 'crypt', 'exceptions', 'file', 'parts',
+__all__ = ('Manifest', 'base', 'crypt', 'exceptions', 'file', 'parts', 'upstream',
            'BareContentManifest', 'ContentManifest')
 
 #> Package
@@ -10,6 +10,7 @@ from . import crypt
 from . import exceptions
 from . import file
 from . import parts
+from . import upstream
 #</Package
 
 #> Header >/
