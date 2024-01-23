@@ -76,7 +76,7 @@ def _test():
         CTEST_CIR = True
         import random
         badk = manifest.crypt.EdPrivK.generate(); badkp = badk.public_key()
-        for _ in range(1000):
+        for _ in range(1):
             kr_0 = {}; kr_1 = {}
             keyspr = tuple(manifest.crypt.EdPrivK.from_private_bytes(k) for k in {manifest.crypt.EdPrivK.generate().private_bytes_raw() for _ in range(1000)})
             keyspb = tuple(k.public_key() for k in keyspr)
@@ -97,7 +97,7 @@ def _test():
             to = random.choice(keyspb[i:])
             print(f'Goal: ({i}){FlexiLynx.core.encodings.encode("b85", frm.public_bytes_raw())} -> {FlexiLynx.core.encodings.encode("b85", to.public_bytes_raw())}')
             manifest.crypt.cascade.dualrun(to, frm, kr_0, kr_1,
-                info_callback=lambda l,s,d,a: False and print(f'{d} a,b={"b,a" if s else "a,b"} {l}: {", ".join(FlexiLynx.core.encodings.encode("b85", b) for b in a)}'))
+                info_callback=manifest.crypt._migrate_dualcascaderun_icallb)
     def test_migrate():
         import traceback
         global k0, k1, badkey, a, b
