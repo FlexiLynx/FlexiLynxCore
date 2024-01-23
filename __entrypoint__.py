@@ -48,29 +48,54 @@ def __setup__():
 #> Main >/
 # Testing code
 def _test():
-    global manifest, crypt, cascade, extended, test, testi, k0, k1, k2, k3, k4, k5, test2, test2i
+    print('_test() pre __init__()')
+    global manifest, test, kr_0, kr_1, keyspr, keyspb, badk, badkp, frm, to
     __init__()
+    print('_test() after __init__()')
     from FlexiLynx.core.frameworks import manifest
-    test = manifest.base.ManifestType('test', idp=manifest.parts.IDManifestPart)
-    testi = test('outerid', -1, idp=manifest.parts.IDManifestPart('innerid', 32767))
-    from FlexiLynx.core.frameworks.manifest import crypt
-    from FlexiLynx.core.frameworks.manifest.crypt import cascade
-    from FlexiLynx.core.frameworks.manifest.parts import extended
-    k0 = crypt.EdPrivK.generate()
-    k1 = crypt.EdPrivK.generate()
-    k2 = crypt.EdPrivK.generate()
-    k3 = crypt.EdPrivK.generate()
-    k4 = crypt.EdPrivK.generate()
-    k5 = crypt.EdPrivK.generate()
-    test2 = manifest.base.ManifestType('test2', cascade=extended.KeyCascadePart)
-    test2i = test2('test2id', 0, None)
-    crypt.sign(test2i, k0)
-    cascade.add_key(test2i, k0, k1.public_key())
-    cascade.add_key(test2i, k1, k2.public_key())
-    cascade.add_key(test2i, k2, k3.public_key())
-    cascade.add_key(test2i, k3, k4.public_key())
-    cascade.add_key(test2i, k4, k5.public_key())
-    cascade.add_key(test2i, k5, k0.public_key())
+    test = manifest.ContentManifest(
+        'testid',
+        0,
+        manifest.parts.ContentManifestPart(
+            upstream=None,
+            files=manifest.parts.ContentManifestPart.Files(),
+        ),
+        manifest.parts.MetadataManifestPart(
+            name='Test Manifest',
+            desc=None,
+            upstream=None,
+            creator='Shae',
+        ),
+        manifest.parts.extended.KeyCascadePart(),
+    )
+    CTEST_BRK = True
+    CTEST_ALT = True
+    CTEST_FLP = True
+    CTEST_CIR = True
+    import random
+    badk = manifest.crypt.EdPrivK.generate(); badkp = badk.public_key()
+    for _ in range(1000):
+        kr_0 = {}; kr_1 = {}
+        keyspr = tuple(manifest.crypt.EdPrivK.from_private_bytes(k) for k in {manifest.crypt.EdPrivK.generate().private_bytes_raw() for _ in range(1000)})
+        keyspb = tuple(k.public_key() for k in keyspr)
+        for i in range(len(keyspr)-1):
+            #print(f'{FlexiLynx.core.encodings.encode("b85", keyspb[i].public_bytes_raw())} trust {FlexiLynx.core.encodings.encode("b85", keyspb[i+1].public_bytes_raw())}')
+            kr_0[keyspb[i].public_bytes_raw()] = manifest.crypt.cascade.create(keyspr[i], keyspb[i+1]) # correct path
+            if CTEST_BRK and not random.randint(0, len(keyspr)*4):
+                print(f'Cascade broken off: {FlexiLynx.core.encodings.encode("b85", keyspb[i].public_bytes_raw())} -> (badkey){FlexiLynx.core.encodings.encode("b85", badkp.public_bytes_raw())}')
+                kr_0[keyspb[i].public_bytes_raw()] = manifest.crypt.cascade.create(keyspr[i], badkp)
+            if CTEST_ALT and not random.randint(0, 1):
+                kr_1[keyspb[i].public_bytes_raw()] = manifest.crypt.cascade.create(keyspr[i], badkp) # incorrect path in the alternative route
+                kr_0,kr_1 = kr_1,kr_0
+            elif CTEST_FLP and not random.randint(0, 1): kr_0,kr_1 = kr_1,kr_0
+        if CTEST_CIR and random.randint(0, 1):
+            print('Cascade is continuously circular unless broken in middle')
+            kr_0[keyspb[-1].public_bytes_raw()] = manifest.crypt.cascade.create(keyspr[-1], keyspb[0])
+        frm = keyspb[i := random.randint(0, len(keyspb)-1)]
+        to = random.choice(keyspb[i:])
+        print(f'Goal: ({i}){FlexiLynx.core.encodings.encode("b85", frm.public_bytes_raw())} -> {FlexiLynx.core.encodings.encode("b85", to.public_bytes_raw())}')
+        manifest.crypt.cascade.dualrun(to, frm, kr_0, kr_1,
+            info_callback=lambda l,s,d,a: False and print(f'{d} a,b={"b,a" if s else "a,b"} {l}: {", ".join(FlexiLynx.core.encodings.encode("b85", b) for b in a)}'))
 
     def test_logger():
         FlexiLynx.logger.debug('test 0')
