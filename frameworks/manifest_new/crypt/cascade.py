@@ -32,13 +32,14 @@ from FlexiLynx.core.encodings import encode
 
 #> Header >/
 __all__ = ('create', 'add_trust', 'add_key',
-           'run_cascade', 'run',
+           'run_cascade', 'run', 'dualrun',
            'CascadeException', 'NotACascadeHolderError', 'UninitializedCascadeError',
            'KeyAlreadyInCascadeError',
            'BrokenCascadeError', 'InvalidCascadeError', 'CircularCascadeError')
 
 # Types
-type KeyRing = typing.Mapping[bytes, tuple[EdPubK, EdPubK, bytes]]
+type Trust = tuple[EdPubK, EdPubK, bytes]
+type KeyRing = typing.Mapping[bytes, Trust]
 @typing.runtime_checkable
 class CascadeHolder(typing.Protocol):
     cascade: parts.extended.KeyCascadePart
@@ -63,13 +64,13 @@ class CircularCascadeError(CascadeException):
 
 # Cascade functions
 ## Creation
-def create(auth: EdPrivK, key: EdPubK) -> tuple[EdPubK, EdPubK, bytes]:
+def create(auth: EdPrivK, key: EdPubK) -> Trust:
     '''Creates a new trust, where `auth` "vouches for" (signs) `key`'''
     pauth = auth.public_key()
     return (pauth, key, auth.sign(pauth.public_bytes_raw()+key.public_bytes_raw()))
 ## Adding
-def add_trust(m: CascadeHolder, trust: tuple[EdPubK, EdPubK, bytes], *,
-                init_empty_cascade: bool = True, overwrite_cascade: bool = False):
+def add_trust(m: CascadeHolder, trust: Trust, *,
+              init_empty_cascade: bool = True, overwrite_cascade: bool = False):
     '''
         Adds a trust to the manifest's cascade's ring
 
@@ -96,7 +97,8 @@ def add_key(m: CascadeHolder, auth: EdPrivK, key: EdPubK, *,
 ## Executing
 CascadeResult = IntEnum('CascadeResult', ('UNKNOWN_FAILURE',
                                           'NOT_A_CASCADE_HOLDER', 'UNINITIALIZED_CASCADE',
-                                          'BROKEN_CASCADE', 'INVALID_CASCADE', 'CIRCULAR_CASCADE'), start=1)
+                                          'BROKEN_CASCADE', 'INVALID_CASCADE', 'CIRCULAR_CASCADE',
+                                          '_DUALRUN_UNSPLIT'), start=1)
 def run_cascade(ring: KeyRing, target: EdPubK, source: EdPubK, *,
                 fail_return: bool = False, info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept'], tuple[bytes, ...]], None] = None) -> None | CascadeResult:
     '''Checks `target` against the `source` key in `ring`'''
@@ -117,7 +119,7 @@ def run_cascade(ring: KeyRing, target: EdPubK, source: EdPubK, *,
             e = CascadeException('A should-be-impossible mismatch was detected; maybe the ring was not created properly?')
             e.add_note(f'(key) {encode("b85", cb)!r} != (val[0]) {encode("b85", rc.public_bytes_raw())!r}')
             raise e
-        # Check the cascade
+        # Check the trust
         if info_callback is not None: info_callback('check', (cb, rn.public_bytes_raw(), rs))
         try: rc.verify(rs, cb+rn.public_bytes_raw())
         except InvalidSignature:
@@ -146,3 +148,106 @@ def run(m: CascadeHolder, target: EdPubK, source: EdPubK | None = None, *,
         if fail_return: return CascadeResult.UNINITIALIZED_CASCADE
         raise UninitializedCascadeError('Manifest is holding an uninitialized cascade')
     return run_cascade(m.cascade.ring, target, source, fail_return=fail_return, info_callback=info_callback)
+
+def dualrun(target: EdPubK, source: EdPubK, a: KeyRing, b: KeyRing, *, fail_return: bool = False, resilient: bool = False,
+            info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept', 'swap', 'split', 'reject'], bool, int, tuple[bytes, ...]], None] = None,
+            _seen: tuple[set[bytes], set[bytes]] | None = None, _depth: int = 0, _state: bool = False, _spliton: bytes | None = None) -> None | CascadeResult:
+    '''...'''
+    assert (not resilient) or fail_return, 'resilient flag does not work properly if fail_return is false'
+    if _seen is None: _seen = (set(), set())
+    if not _depth:
+        # First-time flattening
+        for k in frozenset(a.keys() & b.keys()):
+            if a[k] == b[k]: del b[k]
+        for k in b.keys() - a.keys():
+            a[k] = b[k]
+            del b[k]
+    c = source
+    _state = False
+    while (cb := c.public_bytes_raw()) not in _seen[_state]:
+        if target.public_bytes_raw() == cb: return None # success
+        if cb not in a:
+            # change state, swap cascades, and check if `cb` is in the other cascade
+            _state, a, b = (not _state), b, a
+            if info_callback is not None: info_callback('swap', _state, _depth, (cb,))
+            if cb not in a:
+                if _depth: return CascadeResult._DUALRUN_UNSPLIT # report broken cascade to parent split
+                if fail_return: return CascadeResult.BROKEN_CASCADE
+                raise BrokenCascadeError(f'Both cascades broke off at key: {encode("b85", cb)!r}')
+        elif (cb in b) and (cb != _spliton): # (cb in a) and (cb in b) and (cb != _spliton)
+            # dual-cascade situation, split and follow both
+            if info_callback is not None: info_callback('split', not _state, _depth+1, (cb,))
+            if (r := dualrun(target, c, b, a, fail_return=fail_return, info_callback=info_callback, _seen=_seen, _depth=_depth+1, _state=not _state, _spliton=cb)) is not CascadeResult._DUALRUN_UNSPLIT:
+                # propogates errors (CascadeResults besides _DUALRUN_UNSPLIT) if resilient is false and successes (None) back
+                if (not resilient) or (r is None): return r
+            if info_callback is not None: info_callback('reject', _state, _depth, (cb,))
+        if _spliton != cb:
+            _seen[_state].add(cb)
+            info_callback('saw', _state, _depth, (cb,))
+        # Extract the trust
+        rc,rn,rs = a[cb]
+        # Check if something went wrong
+        if rc.public_bytes_raw() != cb:
+            if fail_return: return CascadeResult.UNKNOWN_FAILURE
+            e = CascadeException('A should-be-impossible mismatch was detected; maybe the ring was not created properly?')
+            e.add_note(f'(key) {encode("b85", cb)!r} != (val[0]) {encode("b85", rc.public_bytes_raw())!r}')
+            raise e
+        # Check the trust
+        if info_callback is not None: info_callback('check', _state, _depth, (cb, rn.public_bytes_raw(), rs))
+        try: rc.verify(rs, cb+rn.public_bytes_raw())
+        except InvalidSignature:
+            if fail_return: return CascadeResult.INVALID_CASCADE
+            raise InvalidCascadeError(f'A key failed verification: {encode("b85", rn.public_bytes_raw())}')
+        # Accept the key
+        if info_callback is not None: info_callback('accept', _state, _depth, (rn.public_bytes_raw(),))
+        c = rn
+    if fail_return: return CascadeResult.CIRCULAR_CASCADE
+    raise CircularCascadeError(f'A key was seen twice whilst walking both cascades: {encode("b85", cb)!r}')
+
+# In-dev / abandoned (for now) code to run more than two cascades at the same time #
+
+#def _coaxcascs(cascades: tuple[CascadeHolder | parts.extended.KeyCascadePart | KeyRing, ...]) -> typing.Generator[KeyRing, None, None]:
+#    # Coax CascadeHolders and KeyCascadeParts to KeyRings
+#    for c in cascades:
+#        if isinstance(c, CascadeHolder): yield c.cascade.ring
+#        elif isinstance(c, parts.extended.KeyCascadePart): yield c.ring
+#        elif isinstance(c, KeyRing): yield c
+#        else:
+#            raise TypeError(f'{c!r} is not a CascadeHolder, KeyCascadePart, or KeyRing')
+#def _getcascs(key: bytes, casc: int, cascs: tuple[KeyRing, ...], seens: tuple[set[bytes], ...], offset: int = 0,
+#              info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept', 'swap', 'break'], int, tuple[bytes, ...]], None]) -> typing.Generator[tuple[int, Trust], None, None]:
+#    # ...
+#    if key in seens[casc+offset]:
+#        raise CircularCascadeError(f'A key was seen twice whilst walking (non-empty) cascade #{casc+offest}: {encode("b85", key)!r}')
+#    seens[casc+offset].add(key)
+#    if info_callback is not None: info_callback('saw', casc+offset, 
+#    if (t := cascs[casc].get(key, None)) is not None:
+#        yield (casc, t)
+#    for n,c in enumerate(cascs):
+#        if n == casc: continue
+#        if (t := c.get(key, None)) is not None:
+#            yield from _getcascs(cascs[n:]
+#def _branchcascs(current: bytes, target: bytes, casc: int, cascs: tuple[KeyRing, ...], seens: tuple[set[bytes], ...]) -> 
+#    # ...
+#    _getcascs(key, casc
+#def run_many(target: EdPubK, source: EdPubK, fail_return: bool = False,
+#             info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept', 'swap', 'break'], tuple[bytes, ...] | int], None] = None,
+#             *cascades: CascadeHolder | parts.extended.KeyCascadePart | KeyRing) -> None | CascadeResult:
+#    '''...'''
+#    cascades = tuple(filter(len, _coaxcascs(cascades))) # coax to KeyRings and remove empty ones
+#    if not len(cascades):
+#        if fail_return: return CascadeResult.NO_CASCADES
+#        raise CascadeException('No non-empty cascades provided')
+#    seens = tuple(set() for _ in len(cascades))
+#    current = source
+#    n = 0
+#    while n < len(cascades):
+#        try:
+#            citer = _branchcascs(current.public_bytes_raw(), n, cascades, seens)
+#        except CircularCascadeError:
+#            if not fail_return: raise
+#            return CascadeResult.CIRCULAR_CASCADE
+#        for c,t in citer:
+#            citer2 = 
+#        else: n += 1
+#            ...
