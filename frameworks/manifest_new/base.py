@@ -47,9 +47,9 @@ class Manifest:
             if isinstance((sp := getattr(self, n)), cabc.Mapping):
                 setattr(self, n, p.p_import(sp))
     def __repr__(self) -> str:
-        return f'{self.type}(id={self.id!r}, rel={self.rel!r}, ' \
+        return f'<{"un" if self.sig is None else ""}signed>{self.type}(id={self.id!r}, rel={self.rel!r}, ' \
                f'key={"<not a keyholder>" if self.key is None else repr(encode("b85", self.m_key.public_bytes_raw()))}' \
-               f'{"".join(f""",\n{" "*len(self.type)} {n}={getattr(self, n)!r}""" for n in self.m_parts.keys())})'
+               f'{"".join(f""",\n    {n}={getattr(self, n)!r}""" for n in self.m_parts.keys())})'
 
     @property
     def m_key(self) -> EdPubK:
