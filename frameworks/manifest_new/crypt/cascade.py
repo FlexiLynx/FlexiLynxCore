@@ -152,7 +152,16 @@ def run(m: CascadeHolder, target: EdPubK, source: EdPubK | None = None, *,
 def dualrun(target: EdPubK, source: EdPubK, a: KeyRing, b: KeyRing, *, fail_return: bool = False, resilient: bool = False,
             info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept', 'swap', 'split', 'reject'], bool, int, tuple[bytes, ...]], None] = None,
             _seen: tuple[set[bytes], set[bytes]] | None = None, _depth: int = 0, _state: bool = False, _spliton: bytes | None = None) -> None | CascadeResult:
-    '''...'''
+    '''
+        Acts the same as `run_cascade()`, but accepts two cascades instead of one
+        Walks both cascades, recursing when needed, in order to follow `source` to `target` whenever possible
+
+        `resilient` prevents split calls from returning errors, allowing an attempt to be made to continue walking both cascades
+            `resilient` should not be used without `fail_return`; an assertion is made to prevent the use without
+        `info_callback` takes more parameters than in `run_cascade()`, specifically having the below signature:
+            `info_callback(loc: typing.Literal['saw', 'check', 'accept', 'swap', 'split', 'reject', state: bool, depth: int, args: tuple[bytes, ...])`
+            `state` is true when `a` and `b` are "swapped" (AKA `b` is being walked)
+    '''
     assert (not resilient) or fail_return, 'resilient flag does not work properly if fail_return is false'
     if _seen is None: _seen = (set(), set())
     if not _depth:
