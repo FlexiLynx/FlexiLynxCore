@@ -4,6 +4,8 @@
 import typing
 import hashlib
 from pathlib import Path
+
+from .base import logger
 #</Imports
 
 #> Header >/
@@ -32,7 +34,6 @@ class FileDiff(typing.NamedTuple):
         return cls(removed=tuple(local.keys()-new.keys()),
                    added=tuple(new.keys()-local.keys()),
                    changed=changed, same=tuple((local.keys() & new.keys()) - frozenset(changed)))
-
     @classmethod
     def generate(cls, base: Path, target: dict[Path, bytes], **htree_kwargs) -> typing.Self:
         '''
@@ -40,3 +41,19 @@ class FileDiff(typing.NamedTuple):
                 Keyword arguments (`htree_kwargs`) are passed to `hash_tree()`, see `help(hash_tree())`
         '''
         return cls.diff(dict(hash_tree(base, **htree_kwargs)), target)
+
+    def render(self, base: Path, files: dict[Path, bytes], *, do_uninstall: bool = False,
+               hash_method: str | typing.Callable[[bytes], bytes] = 'sha256', **diff_htree_args) -> typing.Self:
+        '''Installs changed files from `files` and then generates a new `FileDiff` from `base`'''
+        h = (lambda b: hashlib.new(hash_method, b).digest()) if isinstance(hash_method, str) else hash_method
+        logger.info(f'Installing up to {min(len(files), len(removed)+len(added)+len(changed))} file(s)')
+        for p,c in (files.keys() - frozenset(self.same)):
+            logger.verbose(f'Writing {len(c)} byte(s) to {p}')
+            logger.debug(f'Wrote {p.write_bytes(c)} byte(s) to {p}')
+        if do_uninstall and self.removed:
+            logger.info(f'Uninstalling {len(self.removed)} file(s)')
+            for p in self.removed: p.unlink()
+        # note: whilst passing in `h` to `hash_tree()` instead of `hash_method` may reduce the need for a lambda construction,
+        #  it may not be equivelant to passing `hash_method` to `hash_tree()` directly if `hash_tree()` has been overriden
+        # in summary, `hash_method` is passed as given so that `render(base, files, **kwargs)` returns the same as `hash_tree(base, **kwargs)`
+        return self.generate(base, {p: h(c) for p,c in files.items()}, hash_method=hash_method, **diff_htree_args)
