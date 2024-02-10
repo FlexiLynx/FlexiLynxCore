@@ -11,7 +11,7 @@ from http.client import HTTPResponse, HTTPMessage
 #</Imports
 
 #> Header >/
-__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request', 'fetch')
+__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request', 'fetch', 'fetch_chunked')
 
 class FlexiLynxHTTPResponse:
     '''
@@ -208,3 +208,11 @@ def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
             `no_cache` simply sets `read_cache` and `write_cache` to `False` when given
     '''
     return request(url, **(({'read_cache': False, 'write_cache': False} if no_cache else {}) | kwargs)).read()
+def fetch_chunked(url: str, csize: int, *, chunk_cached: bool = True, no_cache: bool = True, write_cache: bool = False, **kwargs) -> typing.Generator[bytes, None, None]:
+    '''
+        Similar to `fetch()` (with similar parameters), but yields chunks of bytes of (up to) `csize`
+            The `chunk_cached` parameter is passed to `FlexiLynxHTTPResponse.chunks()`
+    '''
+    return (request(url, **(({'read_cache': False, 'write_cache': False}
+                            if no_cache else {'write_cache': write_cache}) | kwargs))
+            ).chunks(csize, read_full_cache=True, chunk_cached=chunk_cached, whence_chunk=FlexiLynxHTTPResponse.Continue.BEGINNING)
