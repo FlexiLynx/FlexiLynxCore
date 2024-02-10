@@ -1,12 +1,16 @@
 #!/bin/python3
 
 #> Imports
+import os
 import sys
 import typing
 import itertools
+import threading
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from queue import SimpleQueue, Empty as EmptyQueueException
 from http.client import HTTPResponse
+from multiprocessing.pool import ThreadPool
 from urllib import request as urlrequest
 #</Imports
 
@@ -206,13 +210,40 @@ def fetch_chunks(url: str | urlrequest.Request, chunk_size: int | None, chunk_co
     elif chunk_size is None: raise TypeError('chunk_size may not be None if chunk_count is not provided')
     return hr.iter_chunks(chunk_size, chunk_cached=chunk_cached)
 
+class _ThreadCounter:
+    __slots__ = ('lock', '_count')
+    def __init__(self):
+        self.lock = threading.Lock()
+        self._count = 0
+    def __enter__(self):
+        with self.lock:
+            self._count += 1
+    def __exit__(self, *exc):
+        with self.lock:
+            self._count -= 1
+    @property
+    def count(self) -> int:
+        with self.lock:
+            return self._count
+
 @dataclass(eq=False, kw_only=True, slots=True)
 class FancyFetch:
+    # Async
+    _is_async:            bool = field(init=False, default=False)
+    _async_lock:          typing.ClassVar[object] = threading.Lock()
+    _async_outputter:     typing.ClassVar[None | threading.Thread] = None # properly set later
+    _async_queue:         typing.ClassVar[dict[int, tuple[int, int, str]]] = {}
+    _async_awakens:       typing.ClassVar[threading.Condition()] = threading.Condition()
+    _async_depends:       typing.ClassVar[_ThreadCounter] = _ThreadCounter()
+    ## Async config
+    async_thread_per:     typing.ClassVar[int] = 8
+    async_secs_each:      typing.ClassVar[int] = 2.0
+    
     # Config
     file:                 typing.TextIO = sys.stderr
     do_line_clear:        bool = True
-    line_clear_seq:       str = '\x1b[2K\r'
-    line_end_char:        str = '\n'
+    line_clear_seq:       typing.ClassVar[str] = '\x1b[2K\r'
+    line_end_char:        typing.ClassVar[str] = '\n'
     max_cache_size:       int = ((2**10)**2)//10 # one tenth of a MiB
     size_prefixes:        tuple[tuple[int, str], ...] = tuple((pfx, 1024**(mag)) for mag,pfx in enumerate(('b', 'kib', 'mib', 'gib'))) \
                                                         + tuple((pfx, 1000**(mag+1)) for mag,pfx in enumerate(('kb', 'mb', 'gb')))
@@ -240,9 +271,57 @@ class FancyFetch:
     ### URL config
     url_max_width:        int = 60
     url_trunc_txt:        str = '...'
-    url_protocols:        dict = tuple({'http': '[ ]', 'https': '[S]', 'ftp': '[F]'}.items())
+    url_protocols:        tuple = tuple({'http': '[ ]', 'https': '[S]', 'ftp': '[F]'}.items())
     url_protocol_unknown: str = '[?]'
 
+    @classmethod
+    def _asyncoutputmgr(cls):
+        broken = set()
+        files = {}
+        with cls._async_awakens:
+            while True:
+                if not cls._async_depends.count:
+                    with self._async_lock:
+                        for f in files.values(): f.close()
+                        files.clear()
+                        broken.clear()
+                        cls._async_queue.clear()
+                    cls._async_awakens.wait()
+                with self._async_lock:
+                    for id,(mode,file,text) in tuple(self._async_queue.items()):
+                        if file not in files:
+                            files[file] = os.fdopen(file, 'a')
+                        if not (mode & 1): continue
+                        if file in broken:
+                            print(end=cls.line_end_char, file=files[file])
+                            broken.remove(file)
+                        print(text, end='', file=files[file])
+                        if mode != 2: broken.add(file)
+                        del self._async_queue[id]
+                    c = self._async_queue
+                for mode,file,text in c.values():
+                    if (file in broken) or mode:
+                        broken.add(file)
+                        files[file].write(cls.line_clear_seq)
+                        files[file].flush()
+                    print(text, end='', file=file)
+                
+                    
+    def multifetch(self, *targets: str | urlrequest.Request | FLHTTPResponse, request_kwargs: tuple[dict[str, typing.Any]] = {}, foreach_kwargs: dict[int, dict[str, typing.Any]] = {}, **forall_kwargs) -> tuple[bytes, ...]:
+        '''
+            Fetches multiple requests URLs at the same time
+            Output text is managed by a single thread that is spawned and shared across multiple calls of `multifetch()` and instances of `FancyFetch`
+            It is recommended to only run one `.multifetch()` at a time,
+                but multiple calls could be safely made at the same time if they are the same (or equivelant) instances of `FancyFetch` and don't change `line_end_char` and `line_clear_seq`
+        '''
+        with self._async_lock:
+            if not self._async_outputter.is_alive():
+                self._async_outputter.start()
+        with self._async_depends:
+            self._async_awakens.notify_all()
+            with ThreadPool(self.async_thread_per) as p:
+                results = tuple(p.apply(self.fetch, (t,), foreach_kwargs.get(i, {}) | forall_kwargs | {'_is_async': True}) for i,t in enumerate(targets))
+            return tuple(r.get() for r in results)
     def fetch(self, target: str | urlrequest.Request | FLHTTPResponse, *, request_kwargs: dict[str, typing.Any] = {}, **kwargs) -> bytes:
         '''
             Fetches data from `target`, printing out various helpful messages
@@ -252,7 +331,7 @@ class FancyFetch:
         '''
         if not isinstance(target, FLHTTPResponse):
             target = request(target, **request_kwargs, add_to_cache=False)
-        config = {a: getattr(self, a) for a in self.__slots__} | kwargs
+        config = {a: getattr(self, a) for a in self.__slots__} | {k: v for k,v in type(self).__dict__.items() if not k.startswith('_')} | kwargs | {'_id': id(target)}
         staticfmt = self.static_format_map(config, target)
         if target.has_read:
             self.on_cache_read(config, staticfmt, target)
@@ -330,18 +409,28 @@ class FancyFetch:
 
     def print(self, config: dict, text: str):
         '''Called to print text without any end'''
-        print(text, end='', file=config['file'])
-    def print_end(self, config: dict, text: str, prefix_end: bool = False):
-        '''Called to print and add the line ending char (prints the line ending char before as well if `prefix_end` is true)'''
-        if prefix_end: print(end=config['line_end_char'], file=config['file'])
-        print(text, end=config['line_end_char'], file=config['file'])
+        if self._is_async:
+            with self._async_lock:
+                self._async_queue[config['_id']] = (0, config['file'].fileno(), text)
+        else: print(text, end='', file=config['file'])
+    def print_end(self, config: dict, text: str):
+        '''Called to print and add the line ending char'''
+        if self._is_async:
+            with self._async_lock:
+                self._async_queue[config['_id']] = (1, config['file'].fileno(), f'{text}{config["line_end_char"]}')
+        else:
+            print(text, end=config['line_end_char'], file=config['file'])
     def print_clear(self, config: dict, text: str, end: bool = False):
         '''Called to clear and reprint the current line'''
-        config['file'].write(config['line_clear_seq'] if config['do_line_clear'] else config['line_end_char'])
-        config['file'].flush()
-        config['file'].write(text)
-        if end: config['file'].write(config['line_end_char'])
-        config['file'].flush()
+        if self._is_async:
+            with self._async_lock:
+                self._async_queue[config['_id']] = (2+end, config['file'].fileno(), f'{text}{config["line_end_char"] if end else ""}')
+        else:
+            config['file'].write(config['line_clear_seq'] if config['do_line_clear'] else config['line_end_char'])
+            config['file'].flush()
+            config['file'].write(text)
+            if end: config['file'].write(config['line_end_char'])
+            config['file'].flush()
 
     def static_format_map(self, config: dict, r: FLHTTPResponse) -> dict:
         '''
@@ -388,4 +477,5 @@ class FancyFetch:
             return f'{parts[0][:config["url_max_width"]-len(config["url_trunc_txt"])-len(parts[1])-1]}' \
                    f'{config["url_trunc_txt"]}/{parts[1]}'
         return f'{url[:config["url_max_width"]-len(config["url_trunc_txt"])]}{config["url_trunc_txt"]}'
+FancyFetch._async_outputter = threading.Thread(target=FancyFetch._asyncoutputmgr)
 fancy_fetch = FancyFetch()
