@@ -11,7 +11,7 @@ from http.client import HTTPResponse, HTTPMessage
 #</Imports
 
 #> Header >/
-__all__ = ('FlexiLynxHTTPResponse',)
+__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request')
 
 class FlexiLynxHTTPResponse:
     '''
@@ -177,3 +177,25 @@ class FlexiLynxHTTPResponse:
         if ds is self.DataStat.CLOSED: raise TypeError('Cannot get length of a closed response')
         if ds is self.DataStat.COMPLETE: return len(self.data)
         raise RuntimeError('Cannot get length of an incomplete response (maybe you need `.clength()`?)')
+
+# Requesting & cache
+cache = {}
+def request(url: str, *, timeout: int | None = None, user_agent: str = 'Mozilla/5.0',
+            cache_dict: dict[int, FlexiLynxHTTPResponse] = cache, read_cache: bool = True, write_cache: bool = True) -> FlexiLynxHTTPResponse:
+    '''
+        Requests data from `url`, constructing a `FlexiLynxHTTPResponse`
+            Reads data from `cache` (or `cache_dict`, if given) if present when `read_cache` is true
+            Adds data from `cache` (or `cache_dict`, if given) when `write_cache` is true
+                Setting `write_cache` to true whilst `read_cache` to false is a good way to refresh a cached entry
+    '''
+    if read_cache or write_cache:
+        hurl = hash(url)
+        if read_cache and ((c := cache_dict.get(hurl, None)) is not None):
+            return c
+    hr = FlexiLynxHTTPResponse(
+        urlrequest.urlopen(
+            urlrequest.Request(url, headers={'User-Agent': user_agent}), timeout=timeout),
+        url)
+    if write_cache:
+        cache_dict[hurl] = hr
+    return hr
