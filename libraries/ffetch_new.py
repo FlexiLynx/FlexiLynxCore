@@ -11,7 +11,7 @@ from http.client import HTTPResponse, HTTPMessage
 #</Imports
 
 #> Header >/
-__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request')
+__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request', 'fetch')
 
 class FlexiLynxHTTPResponse:
     '''
@@ -199,3 +199,12 @@ def request(url: str, *, timeout: int | None = None, user_agent: str = 'Mozilla/
     if write_cache:
         cache_dict[hurl] = hr
     return hr
+
+# Fetching
+def fetch(url: str, no_cache: bool = False, **kwargs) -> bytes:
+    '''
+        Something of a convenience wrapper for `request()`, but returns `bytes` instead of a `FlexiLynxHTTPResponse`
+        See `help(request)` for `kwargs`
+            `no_cache` simply sets `read_cache` and `write_cache` to `False` when given
+    '''
+    return request(url, **(({'read_cache': False, 'write_cache': False} if no_cache else {}) | kwargs)).read()
