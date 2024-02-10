@@ -162,17 +162,15 @@ class FlexiLynxHTTPResponse:
     @property
     def headers(self) -> HTTPMessage:
         return self._res.headers
-    @property
+
     def rlength(self) -> int | None:
         '''"reported" length from Content-Length header; could be `None`'''
         if self.data_stat() is self.DataStat.CLOSED: raise TypeError('Cannot get reported length of a closed response')
         return int(cl) if (cl := self.headers.get('Content-Length')) is not None else None
-    @property
     def clength(self) -> int:
         '''"cached" length, AKA size of `.data` (which may not be final)'''
         if self.data_stat() is self.DataStat.CLOSED: raise TypeError('Cannot get cached length of a closed response')
         return 0 if self.data is None else len(self.data)
-    @property
     def length(self) -> int:
         '''Returns the length of `.data`, similar to `clength()`, but raises `RuntimeError` when `.data` is not finalized (`.data != DataStat.COMPLETE`)'''
         ds = self.data_stat()
