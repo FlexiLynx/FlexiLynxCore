@@ -6,8 +6,8 @@ import threading
 import itertools
 from enum import Enum
 from collections import deque
-from http.client import HTTPResponse
 from urllib import request as urlrequest
+from http.client import HTTPResponse, HTTPMessage
 #</Imports
 
 #> Header >/
@@ -159,3 +159,24 @@ class FlexiLynxHTTPResponse:
         elif isinstance(self.data, deque): return self.DataStat.INCOMPLETE
         elif isinstance(self.data, bytes): return self.DataStat.COMPLETE
         else: raise TypeError('data is set, but is an unknown type: expect None, deque, or bytes, not `{type(self.data).__name__}`')
+
+    @property
+    def headers(self) -> HTTPMessage:
+        return self._res.headers
+    @property
+    def rlength(self) -> int | None:
+        '''"reported" length from Content-Length header; could be `None`'''
+        if self.data_stat is self.DataStat.CLOSED: raise TypeError('Cannot get reported length of a closed response')
+        return int(cl) if (cl := self.headers.get('Content-Length')) is not None else None
+    @property
+    def clength(self) -> int:
+        '''"cached" length, AKA size of `.data` (which may not be final)'''
+        if self.data_stat is self.DataStat.CLOSED: raise TypeError('Cannot get cached length of a closed response')
+        return 0 if self.data is None else len(self.data)
+    @property
+    def length(self) -> int:
+        '''Returns the length of `.data`, similar to `clength()`, but raises `RuntimeError` when `.data` is not finalized (`.data != DataStat.COMPLETE`)'''
+        ds = self.data_stat
+        if ds is self.DataStat.CLOSED: raise TypeError('Cannot get length of a closed response')
+        if ds is self.DataStat.COMPLETE: return len(self.data)
+        raise RuntimeError('Cannot get length of an incomplete response (maybe you need `.clength()`?)')
