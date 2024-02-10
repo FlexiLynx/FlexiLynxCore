@@ -61,7 +61,7 @@ class FlexiLynxHTTPResponse:
             Note that this function is locked, along with `chunks()`. As such, it may deadlock whilst another read is in progress in a different thread
         '''
         with self._lock:
-            ds = self.data_stat
+            ds = self.data_stat()
             # If closed
             if ds is self.DataStat.CLOSED:
                 raise TypeError('This response is closed')
@@ -104,7 +104,7 @@ class FlexiLynxHTTPResponse:
             Note that this function is locked, along with `read()`. As such, it may deadlock whilst another read is in progress in a different thread
         '''
         with self._lock:
-            ds = self.data_stat
+            ds = self.data_stat()
             # If closed
             if ds is self.DataStat.CLOSED:
                 raise TypeError('This response is closed')
@@ -135,7 +135,7 @@ class FlexiLynxHTTPResponse:
                             # Just yield the cached data
                             yield bytes(self.data)
             # Read the rest (if in progress) or read the entirety (if not) until everything's been read
-            while (self.data_stat is self.DataStat.INCOMPLETE) or (self.data_stat is self.DataStat.UNSTARTED):
+            while (self.data_stat() is self.DataStat.INCOMPLETE) or (self.data_stat() is self.DataStat.UNSTARTED):
                 yield self.read(csize)
 
     def _DataStatResType(name: str) -> type[int]:
@@ -144,7 +144,6 @@ class FlexiLynxHTTPResponse:
         return type(name, (int,), {'__slots__': (), '__bool__': __bool__})
     _DataStatRes = _DataStatResType('_DataStatRes')
     DataStat = Enum('DataStat', ('UNSTARTED', 'INCOMPLETE', 'COMPLETE', 'CLOSED'), type=_DataStatRes)
-    @property
     def data_stat(self) -> DataStat:
         '''
             `DataStat.UNSTARTED`: Reading has not been started yet; boolean-evaluates to `False`
@@ -166,17 +165,17 @@ class FlexiLynxHTTPResponse:
     @property
     def rlength(self) -> int | None:
         '''"reported" length from Content-Length header; could be `None`'''
-        if self.data_stat is self.DataStat.CLOSED: raise TypeError('Cannot get reported length of a closed response')
+        if self.data_stat() is self.DataStat.CLOSED: raise TypeError('Cannot get reported length of a closed response')
         return int(cl) if (cl := self.headers.get('Content-Length')) is not None else None
     @property
     def clength(self) -> int:
         '''"cached" length, AKA size of `.data` (which may not be final)'''
-        if self.data_stat is self.DataStat.CLOSED: raise TypeError('Cannot get cached length of a closed response')
+        if self.data_stat() is self.DataStat.CLOSED: raise TypeError('Cannot get cached length of a closed response')
         return 0 if self.data is None else len(self.data)
     @property
     def length(self) -> int:
         '''Returns the length of `.data`, similar to `clength()`, but raises `RuntimeError` when `.data` is not finalized (`.data != DataStat.COMPLETE`)'''
-        ds = self.data_stat
+        ds = self.data_stat()
         if ds is self.DataStat.CLOSED: raise TypeError('Cannot get length of a closed response')
         if ds is self.DataStat.COMPLETE: return len(self.data)
         raise RuntimeError('Cannot get length of an incomplete response (maybe you need `.clength()`?)')
