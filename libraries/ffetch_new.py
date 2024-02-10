@@ -98,8 +98,8 @@ class FlexiLynxHTTPResponse:
                 `Continue.CANCEL`: yields nothing
                 `Continue.BEGINNING`: yields already cached data, then yields newly read chunks
                     Yields a combination of already cached data and newly read chunks in the proper chunk size if `chunk_cached` is true, such that chunk size is consistent
-                `Continue.CONTINUE`: ignores already cached data, only yields newly read chunks
                     `Continue.BEGINNING_CONSISTENT` behaves the same
+                `Continue.CONTINUE`: ignores already cached data, only yields newly read chunks
                 Any other value results in a `TypeError`
             Note that this function is locked, along with `read()`. As such, it may deadlock whilst another read is in progress in a different thread
         '''
