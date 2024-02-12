@@ -77,13 +77,18 @@ class FlexiLynxHTTPResponse:
                 self._data = val
                 return
             self._data = BytesIO()
-        if self._len > self.DATA_COMPRESS_THRES:
+        if self._comp or (self._len > self.DATA_COMPRESS_THRES):
+            if self._comper is None:
+                self._comper = bz2.BZ2Compressor()
             self._comp = 2 - append
-            self._data.write(bz2.compress(val))
+            self._data.write(self._comper.compress(val))
         else: self._data.write(val)
     def _data_finish(self):
-        self._comp = self._comp and 2
+        if self._comp:
+            self._data.write(self._comper.flush())
+            self._comper = None
         self._data = self._data.getvalue()
+        self._comp = self._comp and 2
 
     Continue = Enum('Continue', ('RAISE', 'CANCEL', 'BEGINNING', 'BEGINNING_CONSISTENT', 'CONTINUE'))
     def read(self, amt: int | None = None, *, whence: Continue = Continue.CONTINUE) -> bytes | None:
