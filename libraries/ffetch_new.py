@@ -327,30 +327,34 @@ class URL:
 # Fancy fetching
 def _fetchx_aiter_on(h: int, flhr: FlexiLynxHTTPResponse, q: SimpleQueue, csize: int):
     for _ in flhr.chunks(csize): q.put(h)
-def _fetchx_update(request: int, requests: list[int], requestsmap: dict[int, FlexiLynxHTTPResponse], namemap: dict[int, str]) -> tuple[str]:
+def _fetchx_update(request: int | None, requests: list[int], requestsmap: dict[int, FlexiLynxHTTPResponse], namemap: dict[int, str]) -> tuple[str]:
     texts = []
-    if requestsmap[request].data_stat() is requestsmap[request].DataStat.COMPLETE:
-        if request in requests:
-            requests.remove(request)
-        texts.append(f'Download of {namemap[request]} complete as {requestsmap[request].length()} byte(s)')
+    if request is not None:
+        if requestsmap[request].data_stat() is requestsmap[request].DataStat.COMPLETE:
+            if request in requests:
+                requests.remove(request)
+            texts.append(f'Download of {namemap[request]} completed as {requestsmap[request].length()} byte(s)')
     for r in requests:
         texts.append(f'{"*" if r == request else " "} {namemap[r]} {requestsmap[r].clength()}/{requestsmap[r].rlength() or "?"} byte(s)')
     return tuple(texts)
-def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPResponse], requests: list[int], statuses: dict[int, int], **mangle_args):
-    for r in requests: print(f'Unstarted: {r}...')
+def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPResponse], requests: list[int], statuses: dict[int, int], fullscreen: bool, **mangle_args):
+    for r in requests: print(f'Waiting: {r}', flush=True)
     q = SimpleQueue()
     ns = {h: URL.mangle(flhr.url, **mangle_args) for h,flhr in requestsmap.items()}
     ts = {h: threading.Thread(target=_fetchx_aiter_on, args=(h, flhr, q, csize), daemon=True) for h,flhr in requestsmap.items()}
-    print('\x1b[{len(requests)+1}F\x1b[K', flush=True)
+    print('\x1b[2J\x1b[H' if fullscreen else f'\x1b[{len(requests)}F', end='', flush=True)
     for h in requests:
-        print(f'\x1b[KStarting: {h} -> {ns[h]}', flush=True)
+        print(f'\x1b[2K\rStarting: {h} -> {ns[h]}', flush=True)
         ts[h].start()
     while any(map(threading.Thread.is_alive, ts.values())):
-        t = _fetchx_update(h, requests, requestsmap, ns)
-        print(f'\x1b[{len(t)+1}F\x1b[K{"\n\x1b[K".join(t)}', flush=True)
+        tt = _fetchx_update(q.get(), requests, requestsmap, ns)
+        print(f'\x1b[{len(tt)}F', end='', flush=True)
+        for t in tt:
+            print(f'\x1b[2K\r{t}', flush=True)
+        #print(f'\x1b[{len(t)}F\x1b[K{"\n\x1b[K".join(t)}', flush=True)
 
 def fetchx(*urls: tuple[str], csize: int | None = 1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
-           target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, **mangle_args):
+           target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, alt_buff: bool = False, **mangle_args):
     # Copy cache target
     cache_dict = target_cache.copy()
     # Generate FlexiLynxHTTPResponses and tasks
@@ -358,7 +362,14 @@ def fetchx(*urls: tuple[str], csize: int | None = 1024, cache_limit_kib: int = 5
     requests = list(requestsmap.keys())
     statuses = dict.fromkeys(requests, 0)
     # Main event loop
-    _fetchx_runrun(csize, requestsmap, requests, statuses)
+    stored_e = None
+    if alt_buff: print('\x1b[?1049h', end='', flush=True)
+    try:
+        _fetchx_runrun(csize, requestsmap, requests, statuses, fullscreen=alt_buff)
+    except BaseException as e: stored_e = e
+    finally:
+        if alt_buff: print('\x1b[?1049l', end='', flush=True)
+    if stored_e is not None: raise stored_e
     # Finalize cache
     noadd = {h: cache_dict[h] for h,flhr in requestsmap.items() if flhr.length() >= (cache_limit_kib * 1024)}
     target_cache |= {h: cache_dict[h] for h in (cache_dict.keys()-noadd.keys())}
