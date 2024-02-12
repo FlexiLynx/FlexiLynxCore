@@ -220,16 +220,19 @@ def fetch_chunked(url: str, csize: int, *, chunk_cached: bool = True, no_cache: 
             ).chunks(csize, read_full_cache=True, chunk_cached=chunk_cached, whence_chunk=FlexiLynxHTTPResponse.Continue.BEGINNING)
 
 # URL manipulation
-def __URL_hash(url: str) -> int:
-    '''
-        Hashes a `url` for caching and other purposes
-            Uses Python's builtin `hash()`
-    '''
-    return hash(url)
-## URL namespace
-URL = SimpleNamespace(
-    hash=__URL_hash,
-)
+class URL:
+    '''Functions for manipulating URLs'''
+    # Class junk
+    __slots__ = ()
+    __new__ = None
+    # Functions
+    @staticmethod
+    def hash(url: str) -> int:
+        '''
+            Hashes a `url` for caching and other purposes
+                Uses Python's builtin `hash()`
+        '''
+        return hash(url)
 
 # Fancy fetching
 def _fetchx_aiter_on(q: SimpleQueue, h: int, flhr: FlexiLynxHTTPResponse, csize: int):
