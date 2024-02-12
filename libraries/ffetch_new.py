@@ -438,7 +438,7 @@ def fetchx(*urls: tuple[str], csize: int | None = 512*1024, cache_limit_kib: int
         if alt_buff: print('\x1b[?1049l', end='', flush=True)
     if stored_e is not None: raise stored_e
     # Get data
-    data = tuple(requestsmap[h].data for h in requests)
+    data = tuple(r.data for r in requestsmap.values())
     # Finalize cache
     noadd = {h: cache_dict[h] for h,flhr in requestsmap.items() if flhr.sizeof() >= (cache_limit_kib * 1024)}
     target_cache |= {h: cache_dict[h] for h in (cache_dict.keys()-noadd.keys())}
