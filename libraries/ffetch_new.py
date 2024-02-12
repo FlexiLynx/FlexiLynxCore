@@ -42,9 +42,12 @@ class FlexiLynxHTTPResponse:
             - Closes the underlying `HTTPResponse`, then deletes it
             - Deletes `data`
         '''
-        self._res.close()
-        del self._res
-        del self.data
+        try:
+            self._res.close()
+            del self._res
+        except AttributeError: pass
+        try: del self.data
+        except AttributeError: pass
 
     Continue = Enum('Continue', ('RAISE', 'CANCEL', 'BEGINNING', 'BEGINNING_CONSISTENT', 'CONTINUE'))
     def read(self, amt: int | None = None, *, whence: Continue = Continue.CONTINUE) -> bytes | None:
