@@ -354,7 +354,7 @@ def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPRespon
         #print(f'\x1b[{len(t)}F\x1b[K{"\n\x1b[K".join(t)}', flush=True)
 
 def fetchx(*urls: tuple[str], csize: int | None = 128*1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
-           target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, alt_buff: bool = False, **mangle_args):
+           target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, alt_buff: bool = True, **mangle_args):
     # Copy cache target
     cache_dict = target_cache.copy()
     # Generate FlexiLynxHTTPResponses and tasks
