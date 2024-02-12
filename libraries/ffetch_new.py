@@ -333,7 +333,7 @@ def _fetchx_update(request: int | None, requests: list[int], requestsmap: dict[i
         if requestsmap[request].data_stat() is requestsmap[request].DataStat.COMPLETE:
             if request in requests:
                 requests.remove(request)
-            texts.append(f'Download of {namemap[request]} completed as {requestsmap[request].length()} byte(s)')
+            texts.append(f'X {namemap[request]} completed as {requestsmap[request].length()} byte(s)')
     for r in requests:
         texts.append(f'{"*" if r == request else " "} {namemap[r]} {requestsmap[r].clength()}/{requestsmap[r].rlength() or "?"} byte(s)')
     return tuple(texts)
@@ -353,7 +353,7 @@ def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPRespon
             print(f'\x1b[2K\r{t}', flush=True)
         #print(f'\x1b[{len(t)}F\x1b[K{"\n\x1b[K".join(t)}', flush=True)
 
-def fetchx(*urls: tuple[str], csize: int | None = 1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
+def fetchx(*urls: tuple[str], csize: int | None = 128*1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
            target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, alt_buff: bool = False, **mangle_args):
     # Copy cache target
     cache_dict = target_cache.copy()
