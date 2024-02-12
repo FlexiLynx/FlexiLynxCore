@@ -6,12 +6,13 @@ import threading
 import itertools
 from enum import Enum
 from collections import deque
+from queue import SimpleQueue
 from urllib import request as urlrequest
 from http.client import HTTPResponse, HTTPMessage
 #</Imports
 
 #> Header >/
-__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request', 'fetch', 'fetch_chunked')
+__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request', 'fetch', 'fetch_chunked', 'fetchx')
 
 class FlexiLynxHTTPResponse:
     '''
@@ -90,7 +91,7 @@ class FlexiLynxHTTPResponse:
                 
     def chunks(self, csize: int, *, whence_chunk: Continue = Continue.RAISE, read_full_cache: bool = False, chunk_cached: bool = False) -> typing.Generator[bytes, None, None]:
         '''
-            Reads (and yields) the response body in chunks of `chunk_size` byte(s)
+            Reads (and yields) the response body in chunks of `csize` byte(s)
             If the data has already been cached, then raises a `RuntimeError` if `read_full_cache` is false, otherwise
                 yields a single `bytes`, or returns an iterator of `bytes` split into `csize` if `chunk_cached` is true
             If a chunk read is already in progress, then the behavior depends on the value of `whence_chunk`:
@@ -216,3 +217,42 @@ def fetch_chunked(url: str, csize: int, *, chunk_cached: bool = True, no_cache: 
     return (request(url, **(({'read_cache': False, 'write_cache': False}
                             if no_cache else {'write_cache': write_cache}) | kwargs))
             ).chunks(csize, read_full_cache=True, chunk_cached=chunk_cached, whence_chunk=FlexiLynxHTTPResponse.Continue.BEGINNING)
+
+# Fancy fetching
+def _fetchx_aiter_on(q: SimpleQueue, h: int, flhr: FlexiLynxHTTPResponse, csize: int):
+    for _ in flhr.chunks(csize): q.put(h)
+def _fetchx_update(requestsmap: dict[int, FlexiLynxHTTPResponse], request: int, requests: list[int]) -> tuple[str]:
+    texts = []
+    if requestsmap[request].data_stat() is requestsmap[request].DataStat.COMPLETE:
+        if request in requests:
+            requests.remove(request)
+        texts.append(f'Download of {requestsmap[request].url} complete as {requestsmap[request].length()} byte(s)')
+    for r in requests:
+        texts.append(f'{"*" if r == request else " "} {requestsmap[r].url} {requestsmap[r].clength()}/{requestsmap[r].rlength() or "?"} byte(s)')
+    return tuple(texts)
+def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPResponse], requests: list[int], statuses: dict[int, int]):
+    for r in requests: print(f'Unstarted: {r}...')
+    q = SimpleQueue()
+    ts = {h: threading.Thread(target=_fetchx_aiter_on, args=(q, h, flhr, csize), daemon=True) for h,flhr in requestsmap.items()}
+    print('\x1b[{len(requests)+1}F\x1b[K', flush=True)
+    for h in requests:
+        print(f'\x1b[KStarting: {h}', flush=True)
+        ts[h].start()
+    while any(map(threading.Thread.is_alive, ts.values())):
+        t = _fetchx_update(requestsmap, q.get(), requests)
+        print(f'\x1b[{len(t)+1}F\x1b[K{"\n\x1b[K".join(t)}', flush=True)
+
+def fetchx(*urls: tuple[str], csize: int | None = 1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
+           target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}):
+    # Copy cache target
+    cache_dict = target_cache.copy()
+    # Generate FlexiLynxHTTPResponses and tasks
+    requestsmap = {hash(url): request(url, cache_dict=cache_dict, **request_kwargs) for url in urls}
+    requests = list(requestsmap.keys())
+    statuses = dict.fromkeys(requests, 0)
+    # Main event loop
+    _fetchx_runrun(csize, requestsmap, requests, statuses)
+    # Finalize cache
+    noadd = {h: cache_dict[h] for h,flhr in requestsmap.items() if flhr.length() >= (cache_limit_kib * 1024)}
+    target_cache |= {h: cache_dict[h] for h in (cache_dict.keys()-noadd.keys())}
+    for flhr in noadd.values(): flhr.close()
