@@ -357,7 +357,7 @@ def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPRespon
         #print(f'\x1b[{len(t)}F\x1b[K{"\n\x1b[K".join(t)}', flush=True)
 
 def fetchx(*urls: tuple[str], csize: int | None = 128*1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
-           target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, alt_buff: bool = True, **mangle_args):
+           target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, alt_buff: bool = True, **mangle_args) -> tuple[bytes]:
     # Copy cache target
     cache_dict = target_cache.copy()
     # Generate FlexiLynxHTTPResponses and tasks
@@ -373,7 +373,11 @@ def fetchx(*urls: tuple[str], csize: int | None = 128*1024, cache_limit_kib: int
     finally:
         if alt_buff: print('\x1b[?1049l', end='', flush=True)
     if stored_e is not None: raise stored_e
+    # Get data
+    data = tuple(requestsmap[h].data for h in requests)
     # Finalize cache
     noadd = {h: cache_dict[h] for h,flhr in requestsmap.items() if flhr.length() >= (cache_limit_kib * 1024)}
     target_cache |= {h: cache_dict[h] for h in (cache_dict.keys()-noadd.keys())}
     for flhr in noadd.values(): flhr.close()
+    # Return data
+    return data
