@@ -1,11 +1,12 @@
 #!/bin/python3
 
 #> Imports
+import bz2
 import typing
 import threading
 import itertools
 from enum import Enum
-from collections import deque
+from io import BytesIO
 from queue import SimpleQueue
 from types import SimpleNamespace
 from urllib import request as urlrequest
@@ -23,7 +24,7 @@ class FlexiLynxHTTPResponse:
          - Various helpful properties
         Note that the original `HTTPResponse` object should *never* be used again; it will certainly cause problems both ways
     '''
-    __slots__ = ('url', 'data', '_res', '_lock')
+    __slots__ = ('url', '_data', '_comp', '_comper', '_len', '_res', '_lock')
 
     def __init__(self, res: HTTPResponse, url: str | None = None):
         if getattr(res, '_flhhtpresponse_owned', False):
@@ -32,7 +33,9 @@ class FlexiLynxHTTPResponse:
         self._res = res
         self._lock = threading.RLock()
         self.url = res.url if url is None else url
-        self.data = None
+        self._data = None
+        self._comp = 0; self._comper = None
+        self._len = None
 
     def __del__(self):
         self.close()
@@ -40,14 +43,47 @@ class FlexiLynxHTTPResponse:
         '''
             Closes the `FlexiLynxHTTPResponse`:
             - Closes the underlying `HTTPResponse`, then deletes it
-            - Deletes `data`
+            - Closes and deletes `data`
         '''
         try:
             self._res.close()
             del self._res
         except AttributeError: pass
-        try: del self.data
+        try: self._data.close()
+        except Exception: pass
+        try: del self._data
         except AttributeError: pass
+
+    DATA_COMPRESS_THRES = 512*1024
+    @property
+    def data(self) -> None | bytes | BytesIO:
+        if (not self._comp) and ((self._data is None) or isinstance(self._data, (bytes, BytesIO))):
+            return self._data
+        assert self._comp > 0
+        return bz2.decompress(self._data if isinstance(self._data, bytes) else self._data.getvalue())
+    def _data_write(self, val: None | bytes, append: bool):
+        if val is None:
+            self._data = None
+            self._comp = self._len = 0
+            return
+        if append:
+            if self._data is None:
+                self._data = BytesIO()
+                self._len = len(val)
+            else: self._len += len(val)
+        else:
+            self._len = len(val)
+            if self._len <= self.DATA_COMPRESS_THRES:
+                self._data = val
+                return
+            self._data = BytesIO()
+        if self._len > self.DATA_COMPRESS_THRES:
+            self._comp = 2 - append
+            self._data.write(bz2.compress(val))
+        else: self._data.write(val)
+    def _data_finish(self):
+        self._comp = self._comp and 2
+        self._data = self._data.getvalue()
 
     Continue = Enum('Continue', ('RAISE', 'CANCEL', 'BEGINNING', 'BEGINNING_CONSISTENT', 'CONTINUE'))
     def read(self, amt: int | None = None, *, whence: Continue = Continue.CONTINUE) -> bytes | None:
@@ -75,8 +111,8 @@ class FlexiLynxHTTPResponse:
                 return self.data
             # Not yet started
             if ds is self.DataStat.UNSTARTED:
-                self.data = self._res.read() if (amt is None) else deque(self._res.read(amt))
-                if self._res.isclosed(): self.data = bytes(self.data)
+                self._data_write(self._res.read() if (amt is None) else self._res.read(amt), amt is not None)
+                if self._res.isclosed(): self._data_finish()
                 return bytes(self.data)
             # Incomplete (the fun one)
             if whence is self.Continue.RAISE: raise RuntimeError('Refusing to resume a read when whence is Continue.RAISE')
@@ -85,11 +121,11 @@ class FlexiLynxHTTPResponse:
                 chunk = self._res.read()
             else:
                 if whence is self.Continue.BEGINNING_CONSISTENT:
-                    self.data.extend(self._res.read(max(amt - len(self.data), 0)))
+                    self._data_write(self._res.read(max(amt - len(self.data), 0)), True)
                     return bytes(self.data) # beginning_consistent where amt is None
                 chunk = self._res.read(amt)
-            self.data.extend(chunk)
-            if self._res.isclosed(): self.data = bytes(self.data)
+            self._data_write(chunk, True)
+            if self._res.isclosed(): self._data_finish()
             if whence is self.Continue.CONTINUE: return chunk # continue
             return bytes(self.data) # beginning
                 
@@ -158,11 +194,11 @@ class FlexiLynxHTTPResponse:
                 Could also be returned if the instance was improperly mutated (deleting `.data`) or improperly initialized (`.data` was never set)
             Will raise a `TypeError` if `data` is not a known type
         '''
-        if not hasattr(self, 'data'): return self.DataStat.CLOSED
-        if self.data is None: return self.DataStat.UNSTARTED
-        elif isinstance(self.data, deque): return self.DataStat.INCOMPLETE
-        elif isinstance(self.data, bytes): return self.DataStat.COMPLETE
-        else: raise TypeError('data is set, but is an unknown type: expect None, deque, or bytes, not `{type(self.data).__name__}`')
+        if not hasattr(self, '_data'): return self.DataStat.CLOSED
+        if self._data is None: return self.DataStat.UNSTARTED
+        elif isinstance(self._data, BytesIO): return self.DataStat.INCOMPLETE
+        elif isinstance(self._data, bytes): return self.DataStat.COMPLETE
+        else: raise TypeError('data is set, but is an unknown type: expect None, deque, or bytes, not `{type(self._data).__qualname__}`')
 
     @property
     def headers(self) -> HTTPMessage:
@@ -175,13 +211,20 @@ class FlexiLynxHTTPResponse:
     def clength(self) -> int:
         '''"cached" length, AKA size of `.data` (which may not be final)'''
         if self.data_stat() is self.DataStat.CLOSED: raise TypeError('Cannot get cached length of a closed response')
-        return 0 if self.data is None else len(self.data)
+        return 0 if self._data is None else self._len
     def length(self) -> int:
         '''Returns the length of `.data`, similar to `clength()`, but raises `RuntimeError` when `.data` is not finalized (`.data != DataStat.COMPLETE`)'''
         ds = self.data_stat()
         if ds is self.DataStat.CLOSED: raise TypeError('Cannot get length of a closed response')
         if ds is self.DataStat.COMPLETE: return len(self.data)
         raise RuntimeError('Cannot get length of an incomplete response (maybe you need `.clength()`?)')
+    def sizeof(self) -> int:
+        '''
+            Returns the actual size of the cached data, including compression where applicable
+                Returns `-1` when there is no data
+        '''
+        if self._data is None: return -1
+        return len(self._data) if isinstance(self._data, bytes) else self._data.getbuffer().nbytes
 
 # Requesting & cache
 cache = {}
@@ -330,21 +373,33 @@ class URL:
 # Fancy fetching
 def _fetchx_aiter_on(h: int, flhr: FlexiLynxHTTPResponse, q: SimpleQueue, csize: int):
     for _ in flhr.chunks(csize): q.put(h)
+def __fetchx_formatsize(size: int) -> tuple[float, str]:
+    size = float(size)
+    for u in ('B', 'KiB', 'MiB' ,'GiB', 'TiB', 'PiB', 'EiB', 'ZiB'): # forward proofing
+        if size < 1024.0:
+            return (size, u)
+        size /= 1024.0
+    return (size, u)
+def _fetchx_formatsize(flhr: FlexiLynxHTTPResponse, fmt: str = '{len:3.1f}{lenu}({size:3.1f}{sizeu})', size: bool = True) -> str:
+    len,lenu = __fetchx_formatsize(flhr.clength())
+    if not size: return fmt.format(len=len, lenu=lenu)
+    size,sizeu = __fetchx_formatsize(flhr.sizeof())
+    return fmt.format(len=len, lenu=lenu, size=size, sizeu=sizeu)
 def _fetchx_update(request: int | None, requests: list[int], requestsmap: dict[int, FlexiLynxHTTPResponse], namemap: dict[int, str]) -> tuple[str]:
     texts = []
     if request is not None:
         if requestsmap[request].data_stat() is requestsmap[request].DataStat.COMPLETE:
             if request in requests:
                 requests.remove(request)
-            texts.append(f'+ {namemap[request]} completed as {requestsmap[request].length()} byte(s)')
+            texts.append(f'+ {namemap[request]} completed as {_fetchx_formatsize(requestsmap[request])}')
     for r in requests:
-        texts.append(f'{">" if r == request else " "} {namemap[r]} {requestsmap[r].clength()}/{requestsmap[r].rlength() or "?"} byte(s)')
+        texts.append(f'{">" if r == request else " "} {namemap[r]} {_fetchx_formatsize(requestsmap[r])} / {"{:3.1f}({})".format(*__fetchx_formatsize(requestsmap[r].rlength())) if requestsmap[r].rlength() else "?"}')
     return tuple(texts)
 def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPResponse], requests: list[int], statuses: dict[int, int], fullscreen: bool, **mangle_args):
     ns = {h: URL.mangle(flhr.url, **mangle_args) for h,flhr in requestsmap.items()}
     for r in tuple(requests):
         if requestsmap[r].data_stat() is requestsmap[r].DataStat.COMPLETE:
-            print(f'+ {ns[r]} completed from cache as {requestsmap[r].length()} byte(s)')
+            print(f'+ {ns[r]} completed from cache as {_fetchx_formatsize(requestsmap[r])}')
             requests.remove(r)
     for r in requests: print(f'- Waiting: <{r}> {ns[r]}', flush=True)
     q = SimpleQueue()
@@ -360,7 +415,7 @@ def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPRespon
             print(f'\x1b[2K\r{t}', flush=True)
         #print(f'\x1b[{len(t)}F\x1b[K{"\n\x1b[K".join(t)}', flush=True)
 
-def fetchx(*urls: tuple[str], csize: int | None = 128*1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
+def fetchx(*urls: tuple[str], csize: int | None = 512*1024, cache_limit_kib: int = 512, unknown_chunk_limit_kib: int = 512,
            target_cache: dict[int, FlexiLynxHTTPResponse] = cache, request_kwargs: dict[str, typing.Any] = {}, alt_buff: bool = True, **mangle_args) -> tuple[bytes]:
     # Copy cache target
     cache_dict = target_cache.copy()
@@ -380,7 +435,7 @@ def fetchx(*urls: tuple[str], csize: int | None = 128*1024, cache_limit_kib: int
     # Get data
     data = tuple(requestsmap[h].data for h in requests)
     # Finalize cache
-    noadd = {h: cache_dict[h] for h,flhr in requestsmap.items() if flhr.length() >= (cache_limit_kib * 1024)}
+    noadd = {h: cache_dict[h] for h,flhr in requestsmap.items() if flhr.sizeof() >= (cache_limit_kib * 1024)}
     target_cache |= {h: cache_dict[h] for h in (cache_dict.keys()-noadd.keys())}
     for flhr in noadd.values(): flhr.close()
     # Return data
