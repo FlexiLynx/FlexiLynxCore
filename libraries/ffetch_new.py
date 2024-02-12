@@ -7,12 +7,13 @@ import itertools
 from enum import Enum
 from collections import deque
 from queue import SimpleQueue
+from types import SimpleNamespace
 from urllib import request as urlrequest
 from http.client import HTTPResponse, HTTPMessage
 #</Imports
 
 #> Header >/
-__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request', 'fetch', 'fetch_chunked', 'fetchx')
+__all__ = ('FlexiLynxHTTPResponse', 'cache', 'request', 'fetch', 'fetch_chunked', 'URL', 'fetchx')
 
 class FlexiLynxHTTPResponse:
     '''
@@ -190,7 +191,7 @@ def request(url: str, *, timeout: int | None = None, user_agent: str = 'Mozilla/
                 Setting `write_cache` to true whilst `read_cache` to false is a good way to refresh a cached entry
     '''
     if read_cache or write_cache:
-        hurl = hash(url)
+        hurl = URL.hash(url)
         if read_cache and ((c := cache_dict.get(hurl, None)) is not None):
             return c
     hr = FlexiLynxHTTPResponse(
@@ -217,6 +218,18 @@ def fetch_chunked(url: str, csize: int, *, chunk_cached: bool = True, no_cache: 
     return (request(url, **(({'read_cache': False, 'write_cache': False}
                             if no_cache else {'write_cache': write_cache}) | kwargs))
             ).chunks(csize, read_full_cache=True, chunk_cached=chunk_cached, whence_chunk=FlexiLynxHTTPResponse.Continue.BEGINNING)
+
+# URL manipulation
+def __URL_hash(url: str) -> int:
+    '''
+        Hashes a `url` for caching and other purposes
+            Uses Python's builtin `hash()`
+    '''
+    return hash(url)
+## URL namespace
+URL = SimpleNamespace(
+    hash=__URL_hash,
+)
 
 # Fancy fetching
 def _fetchx_aiter_on(q: SimpleQueue, h: int, flhr: FlexiLynxHTTPResponse, csize: int):
@@ -247,7 +260,7 @@ def fetchx(*urls: tuple[str], csize: int | None = 1024, cache_limit_kib: int = 5
     # Copy cache target
     cache_dict = target_cache.copy()
     # Generate FlexiLynxHTTPResponses and tasks
-    requestsmap = {hash(url): request(url, cache_dict=cache_dict, **request_kwargs) for url in urls}
+    requestsmap = {URL.hash(url): request(url, cache_dict=cache_dict, **request_kwargs) for url in urls}
     requests = list(requestsmap.keys())
     statuses = dict.fromkeys(requests, 0)
     # Main event loop
