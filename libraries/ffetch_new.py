@@ -336,14 +336,18 @@ def _fetchx_update(request: int | None, requests: list[int], requestsmap: dict[i
         if requestsmap[request].data_stat() is requestsmap[request].DataStat.COMPLETE:
             if request in requests:
                 requests.remove(request)
-            texts.append(f'X {namemap[request]} completed as {requestsmap[request].length()} byte(s)')
+            texts.append(f'+ {namemap[request]} completed as {requestsmap[request].length()} byte(s)')
     for r in requests:
-        texts.append(f'{"*" if r == request else " "} {namemap[r]} {requestsmap[r].clength()}/{requestsmap[r].rlength() or "?"} byte(s)')
+        texts.append(f'{">" if r == request else " "} {namemap[r]} {requestsmap[r].clength()}/{requestsmap[r].rlength() or "?"} byte(s)')
     return tuple(texts)
 def _fetchx_runrun(csize: int | None, requestsmap: dict[int, FlexiLynxHTTPResponse], requests: list[int], statuses: dict[int, int], fullscreen: bool, **mangle_args):
-    for r in requests: print(f'Waiting: {r}', flush=True)
-    q = SimpleQueue()
     ns = {h: URL.mangle(flhr.url, **mangle_args) for h,flhr in requestsmap.items()}
+    for r in tuple(requests):
+        if requestsmap[r].data_stat() is requestsmap[r].DataStat.COMPLETE:
+            print(f'+ {ns[r]} completed from cache as {requestsmap[r].length()} byte(s)')
+            requests.remove(r)
+    for r in requests: print(f'- Waiting: <{r}> {ns[r]}', flush=True)
+    q = SimpleQueue()
     ts = {h: threading.Thread(target=_fetchx_aiter_on, args=(h, flhr, q, csize), daemon=True) for h,flhr in requestsmap.items()}
     print('\x1b[2J\x1b[H' if fullscreen else f'\x1b[{len(requests)}F', end='', flush=True)
     for h in requests:
