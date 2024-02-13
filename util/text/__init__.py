@@ -3,4 +3,6 @@
 '''Libraries for text formatting and other text-related activities'''
 
 #> Package >/
-__all__ = ()
+__all__ = ('retools',)
+
+from . import (retools,)
