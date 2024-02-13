@@ -3,4 +3,6 @@
 '''Libraries for data processing and storage'''
 
 #> Package >/
-__all__ = ()
+__all__ = ('base85')
+
+from .._general import base85
