@@ -6,6 +6,11 @@
 '''
 
 #> Package >/
-__all__ = ('data', 'flexilynx', 'net', 'text', 'types')
+__all__ = (
+    # Sub-packages
+    'data', 'flexilynx', 'net', 'text',
+    # Sub-modules
+    'funcs', 'seqtool', 'typing',
+)
 
 from . import *

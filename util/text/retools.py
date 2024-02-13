@@ -6,7 +6,7 @@
 import re
 import typing
 
-from ..types.seqtool import sequential
+from ..seqtool import sequential
 #</Imports
 
 #> Header >/
