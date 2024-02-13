@@ -7,7 +7,8 @@
 '''
 
 #> Package >/
-__all__ = ('seqtool', 'typing')
+__all__ = ('funcs', 'seqtool', 'typing')
 
-from . import (seqtool,
+from . import (funcs,
+               seqtool,
                typing)
