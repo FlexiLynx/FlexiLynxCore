@@ -7,4 +7,6 @@
 '''
 
 #> Package >/
-__all__ = ()
+__all__ = ('seqtool',)
+
+from . import (seqtool,)
