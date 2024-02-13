@@ -61,3 +61,29 @@ class Config(UserDict):
             raise KeyError(f'Cannot set default for existing non-default {item!r} without override')
         self.data[item] = val
         self.defaults.add(item)
+
+    @mlock
+    def update(self, other: typing.Self, *, remove: bool = False, keep: bool = True):
+        '''
+            Updates this instance with config from `other`
+            Removes fields in this instance that aren't in `other` if `remove` is true
+            If `keep` is true, then this instance's values are preferred to `other`'s
+                If its a default in this instance, but not a default in `other`, it is overwritten anyway
+        '''
+        missing = object()
+        for k in self.keys() | other.keys():
+            s = self.data.get(k, missing)
+            o = other.data.get(k, missing)
+            assert not (s is o is missing)
+            if s is missing:
+                if k in other.defaults: self.default(k, o)
+                else: self[k] = o
+                continue
+            if o is missing:
+                if remove: del self[k]
+                continue
+            if k in self.defaults:
+                if k not in other.defaults: self[k] = o
+                elif not keep: self.default(k, o)
+                continue
+            if k in other.defaults: continue
