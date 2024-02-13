@@ -9,6 +9,4 @@
 #> Package >/
 __all__ = ('funcs', 'seqtool', 'typing')
 
-from . import (funcs,
-               seqtool,
-               typing)
+from . import *

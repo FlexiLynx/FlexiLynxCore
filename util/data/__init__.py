@@ -5,4 +5,5 @@
 #> Package >/
 __all__ = ('base85')
 
+from . import *
 from .._general import base85

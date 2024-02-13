@@ -8,8 +8,4 @@
 #> Package >/
 __all__ = ('data', 'flexilynx', 'net', 'text', 'types')
 
-from . import (data,
-               flexilynx,
-               net,
-               text,
-               types)
+from . import *
