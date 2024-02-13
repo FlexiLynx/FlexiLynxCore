@@ -16,6 +16,8 @@ from ..parallel import mlock
 #</Imports
 
 #> Header >/
+__all__ = ('Config',)
+
 class Config(UserDict):
     __slots__ = ('data', 'path', 'defaults', '_lock')
 
