@@ -21,6 +21,8 @@ from ..parallel import mlock
 #> Header >/
 __all__ = ('Config',)
 
+json_serializable = (dict, list, tuple, str, int, float, bool, type(None))
+
 class Config(UserDict):
     __slots__ = ('data', 'path', 'defaults', '_lock')
 
@@ -35,9 +37,52 @@ class Config(UserDict):
         if self.path is not None:
             path.parent.mkdir(exist_ok=True, parents=True)
 
+    @mlock
+    def to_map(self, delim: str = '.', *, _data: dict | None = None) -> dict[str, typing.Any]:
+        '''
+            Converts a configuration instance to an extruded `dict`
+                Does *not* populate the necessary `_metadata` fields or perform any conversions
+        '''
+        assert delim is not None
+        return extrude_map(self.data if _data is None else _data, delim)
+    @mlock
+    def export_dict(self, delim: str = '.') -> typing.Mapping[str, typing.Any]:
+        '''Exports this configuration instance to a dict suitable for JSON'''
+        encoded = []
+        packed = {}
+        data = self.data.copy()
+        for k,v in data.items():
+            if isinstance(v, json_serializable): continue
+            if isinstance(v, bytes):
+                data[k] = base85.encode(v)
+                encoded.append(k)
+                continue
+            if isinstance(v, typing.Iterable):
+                data[k] = list(v)
+                continue
+            raise NotImplementedError('packlib has not yet been implemented')
+        return self.to_map(delim, _data=data) | {
+            '_metadata': {
+                'defaults': list(self.defaults),
+                'encoded': encoded,
+                'packed': packed,
+            },
+        }
+    @mlock
+    def export(self, delim: str = '.', *, indent=4, **json_config) -> str:
+        '''Exports this configuration instance to JSON'''
+        return json.dumps(self.export_dict(delim), indent=indent, **json_config)
+
+    @mlock
+    def postprocess(self, encoded: typing.Iterable[str], packed: dict[str, str]):
+        '''Runs post-processing on this instance, decoding any keys in `encoded` and unpacking any keys in `packed`'''
+        for k in encoded:
+            self[k] = base85.decode(self[k])
+        for k,v in packed.items():
+            raise NotImplementedError('packlib has not yet been implemented')
     @classmethod
-    def from_map(cls, m: typing.Mapping[str, typing.Any], *, delim: str = '.', metadata: typing.Mapping[str, typing.Any] | None = None,
-                 instance: typing.Self | None = None, postprocess: bool = True) -> typing.Self:
+    def load_map(cls, m: typing.Mapping[str, typing.Any], delim: str = '.', *, metadata: typing.Mapping[str, typing.Any] | None = None,
+                   instance: typing.Self | None = None, postprocess: bool = True) -> typing.Self:
         '''
             Converts a mapping `m` into a configuration instance
             If `metadata` is given, it is used instead of the `_metadata` field in `m`
@@ -48,26 +93,15 @@ class Config(UserDict):
         self = cls(None) if instance is None else instance
         metadata = m['_metadata'] if metadata is None else metadata
         with self._lock:
-            self.data = flatten_map(m, delim)
+            self.data = flatten_map({k: v for k,v in m.items() if k != '_metadata'}, delim)
             self.defaults = set(metadata['defaults'])
             if '_metadata' in self: del self.data['_metadata']
             self.postprocess(metadata['encoded'], metadata['packed'])
             return self
-    @mlock
-    def postprocess(self, encoded: typing.Iterable[str], packed: dict[str, str]):
-        '''Runs post-processing on this instance, decoding any keys in `encoded` and unpacking any keys in `packed`'''
-        for k in encoded:
-            self[k] = base85.decode(self[k])
-        for k,v in packed.items():
-            raise NotImplementedError('packlib has not yet been implemented')
-    @mlock
-    def to_map(self, delim: str = '.') -> dict[str, typing.Any]:
-        '''
-            Converts a configuration instance to an extruded `dict`
-                Does *not* populate the necessary `_metadata` fields
-        '''
-        assert delim is not None
-        return extrude_map(self.data, delim)
+    @classmethod
+    def load(cls, jsn: str, delim: str = '.') -> typing.Self: # .import() is invalid...
+        '''Converts exported JSON `jsn` into a configuration instance'''
+        return cls.load_map(json.loads(jsn), delim)
 
     @mlock
     def __setitem__(self, item: str, val: typing.Any):
