@@ -153,3 +153,28 @@ class Packer:
         if ((let := self._try_encode_literal(o)) is None) \
                or (len(let) > len(ev)): return (et, ev)
         return (TypeKey.REPR, let.encode(self.STR_ENCODING))
+    # Archiving
+    def sarchive(self, data: typing.Iterable[tuple[TypeKey, bytes]], stream: typing.BinaryIO):
+        '''Archives encoded data into a stream'''
+        for t,d in data:
+            stream.write(self.encode_size(len(d)))
+            stream.write(self._type_to_pfx[t])
+            stream.write(d)
+    def iarchive(self, data: typing.Iterable[tuple[TypeKey, bytes]]) -> typing.Iterator[bytes]:
+        '''Archives encoded data, yielding each segment'''
+        for t,d in data:
+            yield self.encode_size(len(d)) + self._type_to_pfx[t] + d
+    def archive(self, data: tuple[tuple[TypeKey, bytes], ...]) -> bytes:
+        '''
+            Archives encoded data, returning the entirety of its bytes
+                Could use `.sarchive()` or `.iarchive()`, depending on the implementation
+                This implementation uses `.iarchive()`
+        '''
+        # Results of testing with CPython 3.12.1
+        # on system `Linux luthien 6.7.4-arch1-1 #1 SMP PREEMPT_DYNAMIC Mon, 05 Feb 2024 22:07:49 +0000 x86_64 GNU/Linux`
+        # over `10000000` iterations using `timeit.timeit()`
+        # on a simple data set: `('str', b'bytes', 0, 1, 1.5, 1.2)`:
+        # Method using `iarchive()` with `bytes.join()`: took ~142.56 seconds total, or an average of ~1.4256E-05 seconds per iteration
+        # Method using `sarchive()` with `io.BytesIO`: took ~150.50 seconds total, or an average of ~1.505E-05 seconds per iteration
+        # The difference seems to be negligable, but this implementation will use `.iarchive()` anyway
+        return b''.join(self.iarchive(data))
