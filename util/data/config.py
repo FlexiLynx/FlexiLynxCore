@@ -9,9 +9,12 @@
 import json
 import typing
 from pathlib import Path
+from copy import deepcopy
 from threading import RLock
 from collections import UserDict
 
+from ..text import base85
+from ..flatten import flatten_map, extrude_map
 from ..parallel import mlock
 #</Imports
 
@@ -21,12 +24,50 @@ __all__ = ('Config',)
 class Config(UserDict):
     __slots__ = ('data', 'path', 'defaults', '_lock')
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path | None):
         self.data = {}
-        self.path = path
-        path.parent.mkdir(exist_ok=True, parents=True)
+        self.set_path(path)
         self.defaults = set()
         self._lock = RLock()
+    def set_path(self, path: Path | None):
+        '''Sets `.path` and creates its parents if needed'''
+        self.path = path
+        if self.path is not None:
+            path.parent.mkdir(exist_ok=True, parents=True)
+
+    @classmethod
+    def from_map(cls, m: typing.Mapping[str, typing.Any], *, delim: str = '.', metadata: typing.Mapping[str, typing.Any] | None = None,
+                 instance: typing.Self | None = None, postprocess: bool = True) -> typing.Self:
+        '''
+            Converts a mapping `m` into a configuration instance
+            If `metadata` is given, it is used instead of the `_metadata` field in `m`
+            If `instance` is given, it is used instead of creating a new instance
+            If `postprocess` is false, then encoded and packed entries are not decoded
+        '''
+        assert delim is not None
+        self = cls(None) if instance is None else instance
+        metadata = m['_metadata'] if metadata is None else metadata
+        with self._lock:
+            self.data = flatten_map(m, delim)
+            self.defaults = set(metadata['defaults'])
+            if '_metadata' in self: del self.data['_metadata']
+            self.postprocess(metadata['encoded'], metadata['packed'])
+            return self
+    @mlock
+    def postprocess(self, encoded: typing.Iterable[str], packed: dict[str, str]):
+        '''Runs post-processing on this instance, decoding any keys in `encoded` and unpacking any keys in `packed`'''
+        for k in encoded:
+            self[k] = base85.decode(self[k])
+        for k,v in packed.items():
+            raise NotImplementedError('packlib has not yet been implemented')
+    @mlock
+    def to_map(self, delim: str = '.') -> dict[str, typing.Any]:
+        '''
+            Converts a configuration instance to an extruded `dict`
+                Does *not* populate the necessary `_metadata` fields
+        '''
+        assert delim is not None
+        return extrude_map(self.data, delim)
 
     @mlock
     def __setitem__(self, item: str, val: typing.Any):
