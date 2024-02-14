@@ -65,11 +65,11 @@ class Packer:
         return sum(d*(base**p) for p,d in enumerate(bn))
     def encode_size(self, s: int) -> bytes:
         '''Encodes an integer in self._size_base'''
-        return self._i_to_base(s, self._size_base) if s else b''
+        return self._n_to_base(s, self._size_base) if s else b''
     def decode_size(self, bs: bytes) -> int:
         '''Decodes an integer from self._size_base'''
-        return self._i_from_base(bs, self._size_base) if bs else 0
-
+        return self._n_from_base(bs, self._size_base) if bs else 0
+    # Object encoding
     def _try_encode_literal(self, o: object) -> str | None:
         r = repr(o)
         try: lo = literal_eval(r)
@@ -107,7 +107,7 @@ class Packer:
                 n,d = o.limit_denominator(self.fraction_precision).as_integer_ratio()
                 np = n.to_bytes((n.bit_length() + 8) // 8, signed=True) \
                      if (n or not self.optimize_do_blanking) else b'' # numerator is signed and could be 0
-                dp = self._i_to_base(d, 254) # denominator is not and can't be 0, use the extra bit gained from signing for delimiter
+                dp = self._n_to_base(d, 254) # denominator is not and can't be 0, use the extra bit gained from signing for delimiter
                 return (TypeKey.FRACTION, np + b'\xFF' + dp)
             # Sequences
             ## Simple
@@ -145,5 +145,11 @@ class Packer:
                 return self.encode(getattr(o, '__dict__', {}) | {a: getattr(o, a) for a in getattr(o, '__slots__', ())})
         # Fail
         raise TypeError(f'Cannot encode object {o!r} of type {type(o).__qualname__!r}')
-
-            
+    DONT_TRY_REPR = {TypeKey.FALSE, TypeKey.TRUE, TypeKey.BYTES, TypeKey.STR, TypeKey.REPR}
+    def encode_plus(self, o: object) -> tuple[TypeKey, bytes]:
+        '''Encodes the object `o`, then tries representing it in literal form; returns the shortest'''
+        et,ev = self.encode(o)
+        if et in self.DONT_TRY_REPR: return (et, ev)
+        if ((let := self._try_encode_literal(o)) is None) \
+               or (len(let) > len(ev)): return (et, ev)
+        return (TypeKey.REPR, let.encode(self.STR_ENCODING))
