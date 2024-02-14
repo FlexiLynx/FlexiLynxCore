@@ -135,7 +135,7 @@ class Packer:
             return (TypeKey.CONSTANT, b'' if (o is None) and self.optimize_do_blanking else bytes((Constants.index(o),)))
         # Literals
         if (r := self._try_encode_literal(o)) is not None: # object can be literalized
-            return (TypeKey.REPR, r.encode(self.STR_ENCODING))
+            return (TypeKey.REPR, r.encode(self.str_encoding))
         # Try reducing objects
         if self.try_reduce_objects:
             # Dataclasses
@@ -153,7 +153,7 @@ class Packer:
         if et in self.DONT_TRY_REPR: return (et, ev)
         if ((let := self._try_encode_literal(o)) is None) \
                or (len(let) > len(ev)): return (et, ev)
-        return (TypeKey.REPR, let.encode(self.STR_ENCODING))
+        return (TypeKey.REPR, let.encode(self.str_encoding))
     # Archiving
     def sarchive(self, data: typing.Iterable[tuple[TypeKey, bytes]], stream: typing.BinaryIO):
         '''Archives encoded data into a stream'''
@@ -235,7 +235,7 @@ class Packer:
             # Sequences
             ## Simple
             case TypeKey.BYTES: return e
-            case TypeKey.STR: return e.decode(self.STR_ENCODING)
+            case TypeKey.STR: return e.decode(self.str_encoding)
             ## Recursive
             case TypeKey.TUPLE: return self.unpack(e)
             case TypeKey.SET: return frozenset(self.unpack(e))
@@ -248,5 +248,5 @@ class Packer:
                 if len(e) != 1: raise ValueError(f'Too much data for {t!r}: {e!r}')
                 return Constants[e[0]]
             case TypeKey.REPR:
-                return literal_eval(e.decode(self.STR_ENCODING))
+                return literal_eval(e.decode(self.str_encoding))
         raise TypeError(f'TypeKey {t!r} not recognized')
