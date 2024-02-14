@@ -3,6 +3,7 @@
 '''Supplies a Packer object that exports data in a compacted form'''
 
 #> Imports
+import math
 import typing
 from ast import literal_eval
 from fractions import Fraction
@@ -48,3 +49,11 @@ class Packer:
         self._size_base = 255 - len(TypeKey)
         self._type_to_pfx = {t: bytes((self._size_base + n,)) for n,t in enumerate(TypeKey)}
         self._pfx_to_type = {p: t for t,p in self._type_to_pfx.items()}
+
+    @staticmethod
+    def _n_to_base(n: int, base: int) -> bytes:
+        return bytes(((n % (base**p))) // (base**(p-1)) for p in range(1, math.ceil(1+math.log(n+1, base))))
+    @staticmethod
+    def _n_from_base(bn: bytes, base: int) -> int:
+        if not bn: return 0
+        return sum(d*(base**p) for p,d in enumerate(bn))
