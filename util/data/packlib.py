@@ -55,7 +55,7 @@ class Packer:
         self._type_to_pfx = {t: bytes((self._size_base + n,)) for n,t in enumerate(TypeKey)}
         self._pfx_to_type = {p: t for t,p in self._type_to_pfx.items()}
 
-    # Size encoding
+    # Size encoding / decoding
     @staticmethod
     def _n_to_base(n: int, base: int) -> bytes:
         return bytes(((n % (base**p))) // (base**(p-1)) for p in range(1, math.ceil(1+math.log(n+1, base))))
@@ -69,6 +69,7 @@ class Packer:
     def decode_size(self, bs: bytes) -> int:
         '''Decodes an integer from self._size_base'''
         return self._n_from_base(bs, self._size_base) if bs else 0
+
     # Object encoding
     def _try_encode_literal(self, o: object) -> str | None:
         r = repr(o)
@@ -192,3 +193,60 @@ class Packer:
                 This implementation uses `.archive()`
         '''
         return self.archive(map(self.encode_plus, objects))
+
+    # Decoding
+    TYPEKEY_TO_NULL_CONSTRUCTOR = {
+        TypeKey.FALSE: False.__bool__, TypeKey.TRUE: True.__bool__,
+        TypeKey.INT: int, TypeKey.FLOAT: float, TypeKey.COMPLEX: complex, TypeKey.FRACTION: Fraction,
+        TypeKey.BYTES: bytes, TypeKey.STR: str,
+        TypeKey.TUPLE: tuple, TypeKey.SET: frozenset, TypeKey.DICT: dict,
+        TypeKey.NAMEDTUPLE: NotImplemented, # namedtuple reduction should never result in blanked data
+        TypeKey.CONSTANT: type(None),
+        TypeKey.REPR: NotImplemented, # literal reduction should never result in blanked data
+    }
+    def decode(self, t: TypeKey, e: bytes) -> object:
+        '''
+            Given a `TypeKey` `t`, and its data `e`, returns the original[1] object
+             [1]Note that this will not be the exact same object if it has been reduced in any way,
+                as well as that mutable objects will be different and may be converted to be immutable
+        '''
+        if not e:
+            # blanked data, or some singleton values
+            if (c := self.TYPEKEY_TO_NULL_CONSTRUCTOR[t]) is not NotImplemented:
+                return c()
+            raise TypeError(f'Corrupted data: TypeKey {t!r} does not support blanked data')
+        match t:
+            # Numeric
+            case TypeKey.TRUE | TypeKey.FALSE:
+                raise ValueError(f'TypeKey {t!r} does not support arguments: `e`')
+            case TypeKey.INT:
+                int.from_bytes(e, signed=True)
+            case TypeKey.FLOAT:
+                if len(e) == self.S_FLOAT.size: # must be packed
+                    return self.S_FLOAT.unpack(e)
+                return float(self.decode(TypeKey.FRACTION, e))
+            case TypeKey.COMPLEX:
+                if len(e) == self.S_COMPLEX.size: # must be packed
+                    return complex(*self.S_COMPLEX.unpack(e))
+                return complex(*self.unpack(e))
+            case TypeKey.FRACTION:
+                n,d = e.rsplit(b'\xFF', 1)
+                return Fraction(int.from_bytes(n, signed=True), int.from_bytes(d, signed=False))
+            # Sequences
+            ## Simple
+            case TypeKey.BYTES: return e
+            case TypeKey.STR: return e.decode(self.STR_ENCODING)
+            ## Recursive
+            case TypeKey.TUPLE: return self.unpack(e)
+            case TypeKey.SET: return frozenset(self.unpack(e))
+            case TypeKey.DICT: return dict(zip(e[::2], e[1::2]))
+            case TypeKey.NAMEDTUPLE:
+                clsname,modname,*items = self.unpack(e)
+                return namedtuple(clsname, items[::2], module=modname)(items[1::2])
+            # Constants
+            case TypeKey.CONSTANT:
+                if len(e) != 1: raise ValueError(f'Too much data for {t!r}: {e!r}')
+                return Constants[e[0]]
+            case TypeKey.REPR:
+                return literal_eval(e.decode(self.STR_ENCODING))
+        raise TypeError(f'TypeKey {t!r} not recognized')
