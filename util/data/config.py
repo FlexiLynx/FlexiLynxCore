@@ -13,6 +13,7 @@ from copy import deepcopy
 from threading import RLock
 from collections import UserDict
 
+from . import packlib
 from ..text import base85
 from ..flatten import flatten_map, extrude_map
 from ..parallel import mlock
@@ -57,10 +58,11 @@ class Config(UserDict):
                 data[k] = base85.encode(v)
                 encoded.append(k)
                 continue
-            if isinstance(v, typing.Iterable):
+            if isinstance(v, typing.Iterable): # TODO: make iterables recursively check for encodable data
                 data[k] = list(v)
                 continue
-            raise NotImplementedError('packlib has not yet been implemented')
+            packed[k] = base85.encode(packlib.pack(data[k]))
+            data[k] = '<packed>'
         return self.to_map(delim, _data=data) | {
             '_metadata': {
                 'defaults': list(self.defaults),
@@ -79,7 +81,7 @@ class Config(UserDict):
         for k in encoded:
             self[k] = base85.decode(self[k])
         for k,v in packed.items():
-            raise NotImplementedError('packlib has not yet been implemented')
+            self[k] = packlib.unpack(base85.decode(v))[0]
     @classmethod
     def load_map(cls, m: typing.Mapping[str, typing.Any], delim: str = '.', *, metadata: typing.Mapping[str, typing.Any] | None = None,
                    instance: typing.Self | None = None, postprocess: bool = True) -> typing.Self:
