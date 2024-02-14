@@ -5,10 +5,13 @@
 #> Imports
 import typing
 import itertools
+
+from .funcs import noop
 #</Imports
 
 #> Header >/
-__all__ = ('flatten_map', 'extrude_map')
+__all__ = ('flatten_map', 'extrude_map',
+           'iflatten_seq', 'flatten_seq')
 
 # Maps
 def flatten_map(m: typing.Mapping[str, typing.Any], delim: str | None = None) -> dict[tuple[str, ...] | str, typing.Any]:
@@ -40,3 +43,20 @@ def extrude_map(m: typing.Mapping[tuple[str, ...] | str, typing.Any], delim: str
             new[ks[0]] = {}
         new[ks[0]][ks[1:]] = m[k]
     return {k: (extrude_map(v) if isinstance(v, dict) else v) for k,v in new.items()}
+# Sequences
+def iflatten_seq(s: typing.Sequence, type_: type = typing.Sequence) -> typing.Iterator:
+    '''
+        Flattens `s` into a sequence with no depth
+        Sequences are checked (`isinstance()`) against `type_`
+    '''
+    for v in s:
+        if isinstance(v, type_):
+            yield from iflatten_seq(v)
+        else: yield v
+def flatten_seq(s: typing.Sequence, type_: type[typing.Sequence] = typing.Sequence, coerce: type = tuple) -> typing.Sequence | typing.Any:
+    '''
+        Flattens `s` into a sequence with no depth, using `iflatten_seq()`
+        Sequences are checked (`isinstance()`) against `type_`
+        The result is converted to `coerce`
+    '''
+    return coerce(iflatten_seq(s, type_))
