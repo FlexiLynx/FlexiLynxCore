@@ -301,3 +301,10 @@ class Packer:
                 Uses `.itoiunarchive()`
         '''
         return itertools.starmap(self.decode, self.itoiunarchive(it))
+    def unpack(self, encd: bytes) -> tuple[object, ...]:
+        '''
+            Unpacks archived bytes, returning a tuple of the decoded object(s)
+                Could use `.stoiunpack()` or `.itoiunpack()`,
+                this implementation uses `.itoiunpack()`
+        '''
+        return tuple(self.itoiunpack(iter(encd)))
