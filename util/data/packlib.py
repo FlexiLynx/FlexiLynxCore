@@ -281,3 +281,10 @@ class Packer:
     def itoiunarchive(self, it: typing.Iterator[int]) -> typing.Iterator[tuple[TypeKey, bytes]]:
         '''Unarchives archived bytes from an iterator until done, returning an iterator of `(TypeKey, bytes)` tuples'''
         return itertools.takewhile(lambda tb: tb is not None, (self.iunarchive_one(it) for _ in itertools.repeat(None)))
+    def unarchive(self, data: bytes) -> typing.Iterator[tuple[TypeKey, bytes]]:
+        '''
+            Unarchives archived bytes until done, returning an iterator of `(TypeKey, bytes)` tuples
+                Could use `.stoiunarchive()` or `.itoiunarchive()`,
+                this implementation uses `.itoiunarchive()`
+        '''
+        return itoiunarchive(iter(data))
