@@ -3,6 +3,6 @@
 '''Libraries for data processing and storage'''
 
 #> Package >/
-__all__ = ('config',)
+__all__ = ('config', 'packlib')
 
 from . import *
