@@ -164,7 +164,7 @@ class Packer:
         '''Archives encoded data, yielding each segment'''
         for t,d in data:
             yield self.encode_size(len(d)) + self._type_to_pfx[t] + d
-    def archive(self, data: tuple[tuple[TypeKey, bytes], ...]) -> bytes:
+    def archive(self, data: typing.Iterable[tuple[TypeKey, bytes]]) -> bytes:
         '''
             Archives encoded data, returning the entirety of its bytes
                 Could use `.sarchive()` or `.iarchive()`, depending on the implementation.
