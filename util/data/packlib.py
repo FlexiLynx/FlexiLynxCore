@@ -6,6 +6,7 @@
 import math
 import typing
 import struct
+import itertools
 import dataclasses
 from ast import literal_eval
 from fractions import Fraction
@@ -53,7 +54,7 @@ class Packer:
         # Type
         self._size_base = 255 - len(TypeKey)
         self._type_to_pfx = {t: bytes((self._size_base + n,)) for n,t in enumerate(TypeKey)}
-        self._pfx_to_type = {p: t for t,p in self._type_to_pfx.items()}
+        self._pfx_to_type = {p[0]: t for t,p in self._type_to_pfx.items()}
 
     # Size encoding / decoding
     @staticmethod
@@ -250,3 +251,26 @@ class Packer:
             case TypeKey.REPR:
                 return literal_eval(e.decode(self.str_encoding))
         raise TypeError(f'TypeKey {t!r} not recognized')
+    # Unarchiving
+    ## Single unarchiving
+    def sunarchive_one(self, stream: typing.BinaryIO) -> tuple[TypeKey, bytes] | None:
+        '''Unarchives a single set of archived bytes from a stream into a `TypeKey` and bytes'''
+        size = 0
+        b = stream.read(1)
+        for p in itertools.count():
+            if not b: return None
+            if b[0] >= self._size_base: break
+            size += self._size_base**p*b[0]
+            b = stream.read(1)
+        return (self._pfx_to_type[b[0]], stream.read(size))
+    def iunarchive_one(self, it: typing.Iterator[int]) -> tuple[TypeKey, bytes] | None:
+        '''Unarchives a single set of archived bytes from an iterator into a `TypeKey` and bytes'''
+        size = 0
+        try: b = next(it)
+        except StopIteration: return None # empty
+        for p in itertools.count():
+            if not b: return None
+            if b >= self._size_base: break
+            size += self._size_base**p*b
+            b = next(it)
+        return (self._pfx_to_type[b], bytes(itertools.islice(it, size)))
