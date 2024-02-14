@@ -167,7 +167,7 @@ class Packer:
     def archive(self, data: tuple[tuple[TypeKey, bytes], ...]) -> bytes:
         '''
             Archives encoded data, returning the entirety of its bytes
-                Could use `.sarchive()` or `.iarchive()`, depending on the implementation
+                Could use `.sarchive()` or `.iarchive()`, depending on the implementation.
                 This implementation uses `.iarchive()`
         '''
         # Results of testing with CPython 3.12.1
@@ -178,3 +178,17 @@ class Packer:
         # Method using `sarchive()` with `io.BytesIO`: took ~150.50 seconds total, or an average of ~1.505E-05 seconds per iteration
         # The difference seems to be negligable, but this implementation will use `.iarchive()` anyway
         return b''.join(self.iarchive(data))
+    # Packing
+    def spack(self, stream: typing.BinaryIO, *objects: object):
+        '''Packs a sequence of objects into a stream'''
+        self.sarchive(stream, map(self.encode_plus, objects))
+    def ipack(self, *objects: object) -> typing.Iterator[bytes]:
+        '''Packs a sequence of objects into bytes, yielding each set of bytes'''
+        return self.iarchive(map(self.encode_plus, objects))
+    def pack(self, *objects) -> bytes:
+        '''
+            Packs a sequence of objects into bytes
+                Could use `.sarchive()`, `.iarchive()`, or `.archive()`, depending on the implementation.
+                This implementation uses `.archive()`
+        '''
+        return self.archive(map(self.encode_plus, objects))
