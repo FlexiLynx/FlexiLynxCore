@@ -15,7 +15,7 @@ from collections import abc, namedtuple
 #</Imports
 
 #> Header >/
-__all__ = ('Packer', 'ReduceNamedtuple')
+__all__ = ('Packer', 'packer', 'pack', 'unpack', 'ReduceNamedtuple')
 
 ReduceNamedtuple = Enum('ReduceNamedTuple', ('FAIL', 'AS_DICT', 'AS_TUPLE', 'AS_NAMEDTUPLE'))
 TypeKey = IntEnum('TypeKey', (
@@ -308,3 +308,11 @@ class Packer:
                 this implementation uses `.itoiunpack()`
         '''
         return tuple(self.itoiunpack(iter(encd)))
+
+packer = Packer()
+def pack(*o: object) -> bytes:
+    '''Packs given objects into bytes with the default settings; see `packer` and `Packer`'''
+    return packer.pack(*o)
+def unpack(b: bytes) -> tuple[object, ...]:
+    '''Unpacks objects from given bytes with the default settings; see `packer` and `Packer`'''
+    return packer.unpack(b)
