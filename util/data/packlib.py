@@ -288,3 +288,16 @@ class Packer:
                 this implementation uses `.itoiunarchive()`
         '''
         return itoiunarchive(iter(data))
+    # Unpacking
+    def stoiunpack(self, stream: typing.BinaryIO) -> typing.Iterator[object]:
+        '''
+            Unpacks archived bytes from a stream until done, returning an iterator of the decoded objects
+                Uses `.stoiunarchive()`
+        '''
+        return itertools.starmap(self.decode, self.stoiunarchive(stream))
+    def itoiunpack(self, it: typing.Iterator[int]) -> typing.Iterator[object]:
+        '''
+            Unpacks archived bytes from an iterator until done, returning an iterator of the decoded objects
+                Uses `.itoiunarchive()`
+        '''
+        return itertools.starmap(self.decode, self.itoiunarchive(it))
