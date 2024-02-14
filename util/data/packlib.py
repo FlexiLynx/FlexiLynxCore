@@ -274,3 +274,10 @@ class Packer:
             size += self._size_base**p*b
             b = next(it)
         return (self._pfx_to_type[b], bytes(itertools.islice(it, size)))
+    ## Full unarchiving
+    def stoiunarchive(self, stream: typing.BinaryIO) -> typing.Iterator[tuple[TypeKey, bytes]]:
+        '''Unarchives archived bytes from a stream until done, returning an iterator of `(TypeKey, bytes)` tuples'''
+        return itertools.takewhile(lambda tb: tb is not None, (self.sunarchive_one(stream) for _ in itertools.repeat(None)))
+    def itoiunarchive(self, it: typing.Iterator[int]) -> typing.Iterator[tuple[TypeKey, bytes]]:
+        '''Unarchives archived bytes from an iterator until done, returning an iterator of `(TypeKey, bytes)` tuples'''
+        return itertools.takewhile(lambda tb: tb is not None, (self.iunarchive_one(it) for _ in itertools.repeat(None)))
