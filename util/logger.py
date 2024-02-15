@@ -11,6 +11,8 @@ import logging
 import logging.config
 import logging.handlers
 from configparser import RawConfigParser
+
+from .tools.functools import mpartial
 #</Imports
 
 #> Header >/
@@ -28,6 +30,12 @@ logging.TRACE = (logging.DEBUG - logging.NOTSET) // 2
 logging.VERBOSE = (logging.INFO - logging.DEBUG) // 2
 logging.TERSE = (logging.WARNING - logging.INFO) // 2
 logging.FATAL = logging.CRITICAL * 2
+## Add level functions
+lc = logging.getLoggerClass()
+lc.trace = mpartial(lc.log, logging.TRACE)
+lc.verbose = mpartial(lc.log, logging.VERBOSE)
+lc.terse = mpartial(lc.log, logging.TERSE)
+lc.fatal = mpartial(lc.log, logging.FATAL)
 # Name levels
 logging.addLevelName(logging.TRACE, 'TRC')
 logging.addLevelName(logging.DEBUG, 'DBG')
