@@ -11,6 +11,8 @@ from importlib import import_module
 from importlib.abc import Loader, MetaPathFinder
 from importlib.util import spec_from_loader
 from importlib.machinery import ModuleSpec
+
+from .funcs import reach
 #</Imports
 
 #> Header >/
@@ -73,16 +75,18 @@ class PseudoPackage(types.ModuleType):
 
 # Deferred imports
 class deferred_import(types.ModuleType):
-    __slots__ = ('_deferred_name', '_deferred_package', '_deferred_module')
-    def __init__(self, name: str, package: str | None = None):
+    __slots__ = ('_deferred_name', '_deferred_package', '_deferred_stack_reacher', '_deferred_module')
+    def __init__(self, name: str, package: str | None = None, *, stack_reacher: bool = True):
         super().__setattr__('_deferred_name', name)
         super().__setattr__('_deferred_package', package)
+        super().__setattr__('_deferred_stack_reacher', stack_reacher)
         super().__setattr__('_deferred_module', None)
         if f'{package or ""}{name}' in sys.modules:
             self._deferred_realize()
         else:
             sys.modules[f'{package or ""}{name}'] = self
-    def _deferred_realize(self) -> types.ModuleType:
+    def _deferred_realize(self, stack_reach: bool | None = None) -> types.ModuleType:
+        if stack_reach is None: stack_reach = self._deferred_stack_reacher
         if self._deferred_module is not None:
             return self._deferred_module
         if sys.modules[f'{self._deferred_package or ""}{self._deferred_name}'] is not self:
@@ -90,6 +94,15 @@ class deferred_import(types.ModuleType):
         else:
             del sys.modules[f'{self._deferred_package or ""}{self._deferred_name}']
             super().__setattr__('_deferred_module', import_module(self._deferred_name, self._deferred_package))
+        if stack_reach:
+            # replace this module with the real one in the caller's globals and locals
+            out = reach(1) # reach out twice, once to get to the operator (__init__, __get/set/delattr__, __dir__) and the second time for its caller
+            for n,g in out.f_globals.items():
+                if g is not self: continue
+                out.f_globals[n] = self._deferred_module
+            for n,l in out.f_locals.items():
+                if l is not self: continue
+                out.f_locals[n] = self._deferred_module
         return self._deferred_module
     def __getattr__(self, attr: str) -> typing.Any:
         return getattr(self._deferred_realize(), attr)
