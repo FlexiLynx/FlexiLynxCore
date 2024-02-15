@@ -12,7 +12,7 @@ from importlib.abc import Loader, MetaPathFinder
 from importlib.util import spec_from_loader
 from importlib.machinery import ModuleSpec
 
-from .funcs import reach
+from .functools import reach
 #</Imports
 
 #> Header >/

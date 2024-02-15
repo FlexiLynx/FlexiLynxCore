@@ -7,10 +7,20 @@
 
 #> Package >/
 __all__ = (
-    # Sub-packages
-    'data', 'flexilynx', 'net', 'text',
-    # Sub-modules
-    'flatten', 'funcs', 'module', 'parallel', 'seqtool', 'typing',
+    # top-level
+    'base85', 'pack', 'parallel', 'typing',
+    # in folders
+    ## tools
+    'flattools', 'functools', 'moduletools', 'retools', 'seqtools'
+    # singleton
+    'Config',
 )
 
-from . import *
+# Top-level modules
+from . import base85, pack, parallel, typing
+
+# Modules in folders
+from .tools import flattools, functools, moduletools, retools, seqtools
+
+# Singleton modules
+from .singleton.config import Config

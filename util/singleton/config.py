@@ -13,10 +13,9 @@ from copy import deepcopy
 from threading import RLock
 from collections import UserDict
 
-from . import packlib
-from ..text import base85
-from ..flatten import flatten_map, extrude_map
+from .. import base85, pack
 from ..parallel import mlock
+from ..tools.flattools import flatten_map, extrude_map
 #</Imports
 
 #> Header >/

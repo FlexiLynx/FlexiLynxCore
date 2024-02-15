@@ -12,7 +12,7 @@ import time
 import itertools
 import functools
 
-import packlib
+from .. import packlib
 #</Imports
 
 #> Header >/

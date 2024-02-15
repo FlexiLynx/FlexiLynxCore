@@ -14,7 +14,7 @@ import re
 import base64
 import typing
 
-from ..text.retools import char_patt
+from .tools.retools import char_patt
 #</Imports
 
 #> Header >/
