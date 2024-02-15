@@ -75,7 +75,12 @@ class PseudoPackage(types.ModuleType):
 
 # Deferred imports
 class deferred_import(types.ModuleType):
+    '''
+        Allows deferring the import of a module until it is accessed
+        The `stack_reacher` parameter allows the module to replace its name in the caller's frame in some situations when it is imported
+    '''
     __slots__ = ('_deferred_name', '_deferred_package', '_deferred_stack_reacher', '_deferred_module')
+
     def __init__(self, name: str, package: str | None = None, *, stack_reacher: bool = True):
         super().__setattr__('_deferred_name', name)
         super().__setattr__('_deferred_package', package)
@@ -85,6 +90,7 @@ class deferred_import(types.ModuleType):
             self._deferred_realize()
         else:
             sys.modules[f'{package or ""}{name}'] = self
+
     def _deferred_realize(self, stack_reach: bool | None = None) -> types.ModuleType:
         if stack_reach is None: stack_reach = self._deferred_stack_reacher
         if self._deferred_module is not None:
@@ -104,6 +110,7 @@ class deferred_import(types.ModuleType):
                 if l is not self: continue
                 out.f_locals[n] = self._deferred_module
         return self._deferred_module
+
     def __getattr__(self, attr: str) -> typing.Any:
         return getattr(self._deferred_realize(), attr)
     def __setattr__(self, attr: str, val: typing.Any):
