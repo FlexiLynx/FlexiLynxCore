@@ -10,7 +10,7 @@ __all__ = (
     # Sub-packages
     'data', 'flexilynx', 'net', 'text',
     # Sub-modules
-    'flatten', 'funcs', 'parallel', 'seqtool', 'typing',
+    'flatten', 'funcs', 'module', 'parallel', 'seqtool', 'typing',
 )
 
 from . import *
