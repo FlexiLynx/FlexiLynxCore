@@ -13,7 +13,7 @@ __all__ = (
     ## tools
     'flattools', 'functools', 'moduletools', 'retools', 'seqtools'
     # singleton
-    'Config',
+    'Config', 'FlexiSpace',
 )
 
 # Top-level modules
@@ -24,3 +24,4 @@ from .tools import flattools, functools, moduletools, retools, seqtools
 
 # Singleton modules
 from .singleton.config import Config
+from .singleton.flexispace import FlexiSpace
