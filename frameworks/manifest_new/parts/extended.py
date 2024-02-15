@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 
 from . import base
 
-from FlexiLynx.core.encodings import decode, encode
+from FlexiLynx.core.util.base85 import decode, encode
 #</Imports
 
 #> Header >/
@@ -24,10 +24,10 @@ class KeyCascadePart:
             self.ring = {}
             return # unnecessary but may save a tiny bit of time in the loop below
         self.ring = {(k := self.transform_key(ok)).public_bytes_raw():
-                     (k, self.transform_key(nk), s if isinstance(s, bytes) else decode('b85', s))
+                     (k, self.transform_key(nk), s if isinstance(s, bytes) else decode(s))
                      for ok,(nk,s) in self.ring.items()}
     def __repr__(self) -> str:
-        return f'{type(self).__name__}({", ".join(f"""{encode("b85", k)} -> {encode("b85", c[1].public_bytes_raw())}""" for k,c in self.ring.items())})'
+        return f'{type(self).__name__}({", ".join(f"""{encode(k)} -> {encode(c[1].public_bytes_raw())}""" for k,c in self.ring.items())})'
 
     def p_export(self) -> dict[str, [bool | int | float | complex | bytes | str | tuple | frozenset | dict | None]]:
         '''Exports this `KeyCascadePart`'''
@@ -39,7 +39,7 @@ class KeyCascadePart:
         '''Transforms `key` into an `EdPubK`'''
         if isinstance(key, EdPubK): return key
         if isinstance(key, EdPrivK): return key.public_key()
-        if isinstance(key, str): key = decode('b85', key)
+        if isinstance(key, str): key = decode(key)
         if isinstance(key, bytes): return EdPubK.from_public_bytes(key)
         raise TypeError(f'Cannot transform {key!r}')
 
