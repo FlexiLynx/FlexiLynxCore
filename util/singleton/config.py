@@ -9,7 +9,6 @@
 import json
 import typing
 from pathlib import Path
-from copy import deepcopy
 from threading import RLock
 from collections import UserDict
 
