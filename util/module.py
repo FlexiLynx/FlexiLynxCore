@@ -7,13 +7,14 @@ import sys
 import types
 import typing
 import inspect
+from importlib import import_module
 from importlib.abc import Loader, MetaPathFinder
 from importlib.util import spec_from_loader
 from importlib.machinery import ModuleSpec
 #</Imports
 
 #> Header >/
-__all__ = ('register_pseudomodule', 'unregister_pseudomodule', 'PseudoPackage')
+__all__ = ('register_pseudomodule', 'unregister_pseudomodule', 'PseudoPackage', 'deferred_import')
 
 # Pseudo modules
 pseudomodules = {}
@@ -69,3 +70,32 @@ class PseudoPackage(types.ModuleType):
     '''A simple module subclass that adds a null `__path__` attribute to allow package importing'''
     __slots__ = ()
     __path__ = None
+
+# Deferred imports
+class deferred_import(types.ModuleType):
+    __slots__ = ('_deferred_name', '_deferred_package', '_deferred_module')
+    def __init__(self, name: str, package: str | None = None):
+        super().__setattr__('_deferred_name', name)
+        super().__setattr__('_deferred_package', package)
+        super().__setattr__('_deferred_module', None)
+        if f'{package or ""}{name}' in sys.modules:
+            self._deferred_realize()
+        else:
+            sys.modules[f'{package or ""}{name}'] = self
+    def _deferred_realize(self) -> types.ModuleType:
+        if self._deferred_module is not None:
+            return self._deferred_module
+        if sys.modules[f'{self._deferred_package or ""}{self._deferred_name}'] is not self:
+            super().__setattr__('_deferred_module', f'{self._deferred_package or ""}{self._deferred_name}')
+        else:
+            del sys.modules[f'{self._deferred_package or ""}{self._deferred_name}']
+            super().__setattr__('_deferred_module', import_module(self._deferred_name, self._deferred_package))
+        return self._deferred_module
+    def __getattr__(self, attr: str) -> typing.Any:
+        return getattr(self._deferred_realize(), attr)
+    def __setattr__(self, attr: str, val: typing.Any):
+        setattr(self._deferred_realize(), attr, val)
+    def __delattr__(self, attr: str):
+        delattr(self._deferred_realize(), attr)
+    def __dir__(self) -> list[str]:
+        return dir(self._deferred_realize())
