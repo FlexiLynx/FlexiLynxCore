@@ -8,9 +8,9 @@
 #> Package >/
 __all__ = (
     # Sub-packages
-    'data', 'flatten', 'flexilynx', 'net', 'parallel', 'text',
+    'data', 'flexilynx', 'net', 'text',
     # Sub-modules
-    'funcs', 'seqtool', 'typing',
+    'flatten', 'funcs', 'parallel', 'seqtool', 'typing',
 )
 
 from . import *
