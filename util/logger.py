@@ -10,9 +10,8 @@ import typing
 import logging
 import logging.config
 import logging.handlers
+from functools import partialmethod
 from configparser import RawConfigParser
-
-from .tools.functools import mpartial
 #</Imports
 
 #> Header >/
@@ -26,16 +25,16 @@ def config(d: dict):
     '''Configure Python's logging with a dict. You probably don't need to use this'''
     logging.config.dictConfig(d)
 # Add new levels
-logging.TRACE = (logging.DEBUG - logging.NOTSET) // 2
-logging.VERBOSE = (logging.INFO - logging.DEBUG) // 2
-logging.TERSE = (logging.WARNING - logging.INFO) // 2
+logging.TRACE = logging.NOTSET + ((logging.DEBUG - logging.NOTSET) // 2)
+logging.VERBOSE = logging.DEBUG + ((logging.INFO - logging.DEBUG) // 2)
+logging.TERSE = logging.INFO + ((logging.WARNING - logging.INFO) // 2)
 logging.FATAL = logging.CRITICAL * 2
 ## Add level functions
 lc = logging.getLoggerClass()
-lc.trace = mpartial(lc.log, logging.TRACE)
-lc.verbose = mpartial(lc.log, logging.VERBOSE)
-lc.terse = mpartial(lc.log, logging.TERSE)
-lc.fatal = mpartial(lc.log, logging.FATAL)
+lc.trace = partialmethod(lc.log, logging.TRACE)
+lc.verbose = partialmethod(lc.log, logging.VERBOSE)
+lc.terse = partialmethod(lc.log, logging.TERSE)
+lc.fatal = partialmethod(lc.log, logging.FATAL)
 # Name levels
 logging.addLevelName(logging.TRACE, 'TRC')
 logging.addLevelName(logging.DEBUG, 'DBG')
