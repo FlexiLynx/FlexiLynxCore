@@ -42,33 +42,36 @@ class Config(UserDict):
     def to_map(self, delim: str = '.', *, _data: dict | None = None) -> dict[str, typing.Any]:
         '''
             Converts a configuration instance to an extruded `dict`
-                Does *not* populate the necessary `_metadata` fields or perform any conversions
+                Does *not* populate the necessary `_defaults` field or perform any conversions
         '''
         assert delim is not None
         return extrude_map(self.data if _data is None else _data, delim)
+
+    DATA_PFX         = '\x00'
+    DATA_PFX_ESC     = '\x00\x00'
+    DATA_SUFF        = ':'
+    DATA_PFX_ENCODED = f'{DATA_PFX}b85{DATA_SUFF}'
+    DATA_PFX_PACKED  = f'{DATA_PFX}packed{DATA_SUFF}'
+
     @mlock
     def export_dict(self, delim: str = '.') -> typing.Mapping[str, typing.Any]:
         '''Exports this configuration instance to a dict suitable for JSON'''
-        encoded = []
-        packed = {}
-        data = self.data.copy()
-        for k,v in data.items():
-            if isinstance(v, json_serializable): continue
+        def safe_v(v: object) -> object:
+            if isinstance(v, json_serializable):
+                if isinstance(v, str) and v.startswith(self.DATA_PFX):
+                    return f'{self.DATA_PFX_ESC}{v[len(self.DATA_PFX):]}'
+                return v
+            if isinstance(v, typing.Mapping):
+                return safe_dict(dict(v))
             if isinstance(v, bytes):
-                data[k] = base85.encode(v)
-                encoded.append(k)
-                continue
-            if isinstance(v, typing.Iterable): # TODO: make iterables recursively check for encodable data
-                data[k] = list(v)
-                continue
-            packed[k] = base85.encode(packlib.pack(data[k]))
-            data[k] = '<packed>'
-        return self.to_map(delim, _data=data) | {
-            '_metadata': {
-                'defaults': list(self.defaults),
-                'encoded': encoded,
-                'packed': packed,
-            },
+                return f'{self.DATA_PFX_ENCODED}{base85.encode(v)}'
+            if isinstance(v, typing.Iterable):
+                return list(map(safe_v, v))
+            return f'{self.DATA_PFX_PACKED}{base85.encode(packlib.pack(v))}'
+        def safe_dict(d: dict) -> typing.Iterator[tuple[str, typing.Any]]:
+            for k,v in d.items(): yield (k, safe_v(v))
+        return self.to_map(delim, _data=dict(safe_dict(self.data))) | {
+            '_defaults': list(self.defaults),
         }
     @mlock
     def export(self, delim: str = '.', *, indent=4, **json_config) -> str:
@@ -76,29 +79,36 @@ class Config(UserDict):
         return json.dumps(self.export_dict(delim), indent=indent, **json_config)
 
     @mlock
-    def postprocess(self, encoded: typing.Iterable[str], packed: dict[str, str]):
-        '''Runs post-processing on this instance, decoding any keys in `encoded` and unpacking any keys in `packed`'''
-        for k in encoded:
-            self[k] = base85.decode(self[k])
-        for k,v in packed.items():
-            self[k] = packlib.unpack(base85.decode(v))[0]
+    def postprocess(self):
+        '''Runs post-processing on this instance, decoding any encoded or packed values'''
+        for k,v in self.data.items():
+            if not isinstance(v, str): continue
+            if not v.startswith(self.DATA_PFX): continue
+            if v.startswith(self.DATA_PFX_ESC):
+                self.data[k] = f'{self.DATA_PFX}{v[len(self.DATA_PFX_ESC):]}'
+            elif v.startswith(self.DATA_PFX_ENCODED):
+                self.data[k] = base85.decode(v.split(self.DATA_SUFF, 1)[1])
+            elif v.startswith(self.DATA_PFX_PACKED):
+                self.data[k] = packlib.unpack(base85.decode(v.split(self.DATA_SUFF, 1)[1]))[0]
+            else:
+                raise ValueError(f'Found DATA_PFX {self.DATA_PFX!r}, but with an unknown reason, in key {k!r}\n value: {v!r}')
     @classmethod
-    def load_map(cls, m: typing.Mapping[str, typing.Any], delim: str = '.', *, metadata: typing.Mapping[str, typing.Any] | None = None,
+    def load_map(cls, m: typing.Mapping[str, typing.Any], delim: str = '.', *, defaults: typing.Mapping[str, typing.Any] | None = None,
                    instance: typing.Self | None = None, postprocess: bool = True) -> typing.Self:
         '''
             Converts a mapping `m` into a configuration instance
-            If `metadata` is given, it is used instead of the `_metadata` field in `m`
+            If `defaults` is given, it is used instead of the `_defaults` field in `m`
             If `instance` is given, it is used instead of creating a new instance
             If `postprocess` is false, then encoded and packed entries are not decoded
         '''
         assert delim is not None
         self = cls(None) if instance is None else instance
-        metadata = m['_metadata'] if metadata is None else metadata
+        defaults = m['_defaults'] if defaults is None else defaults
         with self._lock:
-            self.data = flatten_map({k: v for k,v in m.items() if k != '_metadata'}, delim)
-            self.defaults = set(metadata['defaults'])
-            if '_metadata' in self: del self.data['_metadata']
-            self.postprocess(metadata['encoded'], metadata['packed'])
+            self.data = flatten_map({k: v for k,v in m.items() if k != '_defaults'}, delim)
+            self.defaults = set(defaults)
+            if '_defaults' in self: del self.data['_defaults']
+            self.postprocess()
             return self
     @classmethod
     def load(cls, jsn: str, delim: str = '.') -> typing.Self: # .import() is invalid...
