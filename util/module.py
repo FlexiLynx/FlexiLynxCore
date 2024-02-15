@@ -112,3 +112,8 @@ class deferred_import(types.ModuleType):
         delattr(self._deferred_realize(), attr)
     def __dir__(self) -> list[str]:
         return dir(self._deferred_realize())
+
+    def __repr__(self) -> str:
+        return (f'<deferred module {f"""{self._deferred_package or ""}{self._deferred_name}"""!r}'
+                f'{"" if self._deferred_module is None else " realized"}'
+                f'{" stack-reacher" if self._deferred_stack_reacher else ""}>')
