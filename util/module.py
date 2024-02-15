@@ -96,7 +96,7 @@ class deferred_import(types.ModuleType):
             super().__setattr__('_deferred_module', import_module(self._deferred_name, self._deferred_package))
         if stack_reach:
             # replace this module with the real one in the caller's globals and locals
-            out = reach(1) # reach out twice, once to get to the operator (__init__, __get/set/delattr__, __dir__) and the second time for its caller
+            out = reach(2) # reach out twice, once to get to the operator (__init__, __get/set/delattr__, __dir__) and the second time for its caller
             for n,g in out.f_globals.items():
                 if g is not self: continue
                 out.f_globals[n] = self._deferred_module
