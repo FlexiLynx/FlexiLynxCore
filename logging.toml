@@ -1,0 +1,61 @@
+version = 1
+disable_existing_loggers = false
+
+[loggers]
+
+[loggers.root]
+level = 'NOTSET'
+handlers = []
+
+[loggers.FL]
+level = 'NOTSET'
+handlers = ['stderr', 'file']
+propogate = false
+qualname = 'FL'
+
+
+[handlers]
+
+[handlers.stderr]
+class = 'logging.StreamHandler'
+# the following line can be changed to set what level of logs are shown in the console
+# acceptable values are, in order of most to least detailed:
+# TRACE
+# DEBUG
+# VERBOSE
+# INFO
+# TERSE
+# WARNING
+# ERROR
+# CRITICAL
+# FATAL
+level = 'INFO'
+formatter = 'stderr'
+stream = 'ext://sys.stderr'
+
+[handlers.file]
+class = 'logging.handlers.RotatingFileHandler'
+# similar to the level field in "handlers.stderr", but instead pertains to the
+# level of logs that are saved to a file
+level = 'DEBUG'
+# the file path to save logs to
+filename = 'FlexiLynx.log'
+# the file size (in bytes) to rotate files once reached
+maxBytes = 10485760
+# the maximum amount of files to keep before deleting the oldest
+backupCount = 8
+
+
+[formatters]
+
+[formatters.stderr]
+# the format applied to the "stderr" (console error stream) handler
+# see https://docs.python.org/3/library/logging.html#logrecord-attributes
+format = '%(name)s/%(levelname)s: %(message)s'
+datefmt = '%H:%M:%S'
+'()' = 'logging._ColoredLogger'
+
+[formatters.file]
+# the format applied to the logs saved to a file
+format = '[%(asctime)s] %(name)s/%(levelname)s [%(module)s:%(lineno)s]: %(message)s'
+datefmt = '%Y-%m-%dT%H:%M:%S'
