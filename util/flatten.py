@@ -5,8 +5,6 @@
 #> Imports
 import typing
 import itertools
-
-from .funcs import noop
 #</Imports
 
 #> Header >/
