@@ -11,7 +11,7 @@ __all__ = (
     'base85', 'logger', 'pack', 'parallel', 'typing',
     # in folders
     ## tools
-    'flattools', 'functools', 'moduletools', 'retools', 'seqtools'
+    'flattools', 'functools', 'maptools', 'moduletools', 'retools', 'seqtools'
     # singleton
     'Config', 'FlexiSpace',
 )
@@ -20,7 +20,7 @@ __all__ = (
 from . import base85, logger, pack, parallel, typing
 
 # Modules in folders
-from .tools import flattools, functools, moduletools, retools, seqtools
+from .tools import flattools, functools, maptools, moduletools, retools, seqtools
 
 # Singleton modules
 from .singleton.config import Config
