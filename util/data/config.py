@@ -115,6 +115,32 @@ class Config(UserDict):
         '''Converts exported JSON `jsn` into a configuration instance'''
         return cls.load_map(json.loads(jsn), delim)
 
+    @classmethod
+    def loadf(cls, f: typing.TextIO | Path) -> typing.Self:
+        '''Loads an instance of self from a file or path `f`'''
+        self = cls.load(f.read_text() if isinstance(f, Path) else f.read())
+        if isinstance(f, Path):
+            self.path = f
+        elif (((p := getattr(f, 'name', None)) is not None)
+              and (p := Path(p)).exists()):
+            self.path = p
+        return self
+    @mlock
+    def save(self, f: typing.TextIO | Path | None = None):
+        '''
+            Saves this class to `f`
+                `f` can be a file or `Path`, or `None`
+                If `f` is `None`, the configured path (`self.path`) is used
+                    If `self.path` is `None`, `TypeError` is thrown
+        '''
+        if f is None: f = self.path
+        if f is None:
+            raise TypeError('This instance was not configured with a path, so one must be provided')
+        if isinstance(f, Path):
+            f.write_text(self.export())
+        else:
+            f.write(self.export())
+
     @mlock
     def __setitem__(self, item: str, val: typing.Any):
         if item in self.defaults:
