@@ -3,6 +3,7 @@
 #> Imports
 import sys
 import typing
+import tomllib
 import logging
 import importlib
 from types import ModuleType
@@ -19,28 +20,21 @@ def __init__():
     '''Load core Python modules'''
     # Check for minimum version
     assert sys.version_info[:3] >= MIN_PYTHON_VERSION, f'Minimum Python version not met! Need {".".join(map(str, MIN_PYTHON_VERSION))}, got {".".join(map(str, sys.version_info[:3]))}'
-    # Setup FlexiSpaces #
+    # Import util
+    util = _resolve_import('util')
+    # Setup FlexiSpaces
     global FlexiLynx
-    flexispacelib = _resolve_import('libraries.flexispacelib')
-    # Base namespace
-    FlexiLynx = flexispacelib.TFlexiSpace('FlexiLynx', 'The shared library across FlexiLynx', assimilate=True)
-    ## Core namespace
-    _core = FlexiLynx/'core'
-    ### Add env-config library
-    _core.envconfiglib = _resolve_import('libraries.envconfiglib')
-    ### Setup logger
-    FlexiLynx.core.loglib = _resolve_import('libraries.loglib')
-    FlexiLynx.logger = FlexiLynx.core.loglib.mklogger()
-    ### Add other libraries
-    _core.encodings = _resolve_import('libraries.encodings')
-    _core.ffetch = _resolve_import('libraries.ffetch')
-    _core.flexispacelib = flexispacelib
-    _core.packlib = _resolve_import('libraries.packlib')
-    _core.util = _resolve_import('libraries.util')
-    ### Add framewarks
-    _core/'frameworks'
-    #### "manifest" framework
-    _core.frameworks.manifest = _resolve_import('frameworks.manifest_new')
+    FlexiLynx = util.FlexiSpace('FlexiLynx', 'The shared library across FlexiLynx')
+    (FlexiLynx@'core').util = util
+    # Setup logger
+    with open('logging.toml', 'rb') as f:
+        FlexiLynx.core.util.logger.config(tomllib.load(f))
+    FlexiLynx.logger = FlexiLynx.core.util.logger.root_logger
+    FlexiLynx.core.logger = FlexiLynx.core.util.logger.core_logger
+    # Add frameworks
+    FlexiLynx.core@'frameworks'
+    ## Add "manifest" framework
+    FlexiLynx.core.frameworks.manifest = _resolve_import('frameworks.manifest_new')
 def __setup__():
     ...
 #</Header
