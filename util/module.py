@@ -90,7 +90,7 @@ class deferred_import(types.ModuleType):
         if self._deferred_module is not None:
             return self._deferred_module
         if sys.modules[f'{self._deferred_package or ""}{self._deferred_name}'] is not self:
-            super().__setattr__('_deferred_module', f'{self._deferred_package or ""}{self._deferred_name}')
+            super().__setattr__('_deferred_module', sys.modules[f'{self._deferred_package or ""}{self._deferred_name}'])
         else:
             del sys.modules[f'{self._deferred_package or ""}{self._deferred_name}']
             super().__setattr__('_deferred_module', import_module(self._deferred_name, self._deferred_package))
