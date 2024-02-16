@@ -18,6 +18,7 @@ def _resolve_import(modname: str, *, fn: typing.Callable = importlib.import_modu
     return fn(f'.{modname}', package=__package__)
 def __init__():
     '''Load core Python modules'''
+    print('__init__')
     # Check for minimum version
     assert sys.version_info[:3] >= MIN_PYTHON_VERSION, f'Minimum Python version not met! Need {".".join(map(str, MIN_PYTHON_VERSION))}, got {".".join(map(str, sys.version_info[:3]))}'
     # Import util
@@ -47,21 +48,21 @@ def _test():
     __init__()
     print('_test() after __init__()')
     from FlexiLynx.core.frameworks import manifest
-    test = manifest.ContentManifest(
-        'testid',
-        0,
-        manifest.parts.ContentManifestPart(
-            upstream=None,
-            files=manifest.parts.ContentManifestPart.Files(),
-        ),
-        manifest.parts.MetadataManifestPart(
-            name='Test Manifest',
-            desc=None,
-            upstream=None,
-            creator='Shae',
-        ),
-        manifest.parts.extended.KeyCascadePart(),
-    )
+    #test = manifest.ContentManifest(
+    #    'testid',
+    #    0,
+    #    manifest.parts.ContentManifestPart(
+    #        upstream=None,
+    #        files=manifest.parts.ContentManifestPart.Files(),
+    #    ),
+    #    manifest.parts.MetadataManifestPart(
+    #        name='Test Manifest',
+    #        desc=None,
+    #        upstream=None,
+    #        creator='Shae',
+    #    ),
+    #    manifest.parts.extended.KeyCascadePart(),
+    #)
     def test_dualcascade():
         global kr_0, kr_1, keyspr, keyspb, badk, badkp, frm, to
         CTEST_BRK = True
@@ -141,6 +142,6 @@ def _test():
         FlexiLynx.logger.warning('test 3')
         FlexiLynx.logger.error('test 4')
         FlexiLynx.logger.critical('test 5')
-        FlexiLynx.logger.irrec('test 6')
+        FlexiLynx.logger.fatal('test 6')
     test_logger()
 if __name__ == '__main__': _test()
