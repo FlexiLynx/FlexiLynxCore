@@ -53,7 +53,7 @@ class URL:
     @classmethod
     def _mangle(cls, url: str, width: int, delim: str,
                 shorten_protocol: bool, protocol_fmt: str, protocol_split: str, protocol_join: str, protocol_map: dict[str | None, str], protocol_unknown: str,
-                cut_url: bool, cut_txt: str, cut_delim_txt: bool, cut_to: typing.Literal[-1, 0, 1], cut_reverse: bool, cut_aggressive: bool, cut_aggro_bias: int | None) -> tuple[str, ...]:
+                cut_url: bool, cut_txt: str, cut_delim_txt: bool, cut_to: typing.Literal[-1, 0, 1], cut_reverse: bool) -> tuple[str, ...]:
         # Protocol mangling
         if shorten_protocol:
             if protocol_split not in url:
@@ -81,8 +81,6 @@ class URL:
         start,end = cls._mangle_cut(url, cut_to)
         ## Cut to size
         url = cut_txt.join(map(delim.join, cls._mangle_cut_size(url, target - sum(map(len, url)) - len(cut_txt), len(delim), cut_reverse)))
-        ## Aggressive cut
-        ### NOT IMPLEMENTED ###
         # Return
         return (prefix, start, url, end)
     @classmethod
@@ -91,8 +89,7 @@ class URL:
                shorten_protocol: bool = True, protocol_fmt: str = '[{}]', protocol_split: str = '://', protocol_join: str = ' ',
                protocol_map: dict[str | None, str] = {'http': ' ', 'https': 'S', 'ftp': 'F'}, protocol_unknown: str = '?',
                # Cutting options
-               cut_url: bool = True, cut_txt: str = '/.../', cut_delim_txt: bool = False, cut_to: typing.Literal[-1, 0, 1] = 0, cut_reverse: bool = True,
-               cut_aggressive: bool = True, cut_aggro_bias: int | None = -20) -> str:
+               cut_url: bool = True, cut_txt: str = '/.../', cut_delim_txt: bool = False, cut_to: typing.Literal[-1, 0, 1] = 0, cut_reverse: bool = True) -> str:
         '''
             Tries its very best to make `url` take up at most `width` characters
                 Used for display/formatting purposes (the resulting URL is not usually valid)
@@ -102,16 +99,11 @@ class URL:
               - `0`: Cut from the "middle", try to keep both the domain name and last part of the url
               - `1`: Cut from the "end", try to keep the last part of the URL
                 Anything else raises a `TypeError`
-            `cut_aggressive` will allow the domain name and the last part of the URL to be truncated if cutting the middle doesn't remove enough
-                `cut_aggro_bias`:
-                  - `-x`: Keep (up to) `x` characters of the last part, then keep as much of the first part as possible
-                  - `0` or `None`: Equally truncate the first and last parts
-                  - `x`: Keep (up to) `x` characters of the first part, then keep as much of the last part as possible
         '''
         pre,*url = cls._mangle(
             url, width, delim,
             shorten_protocol, protocol_fmt, protocol_split, protocol_join, protocol_map, protocol_unknown,
-            cut_url, cut_txt, cut_delim_txt, cut_to, cut_reverse, cut_aggressive, cut_aggro_bias,
+            cut_url, cut_txt, cut_delim_txt, cut_to, cut_reverse,
         )
         return f'{pre}{delim.join((p.strip(delim) for p in url))}'
 
