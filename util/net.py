@@ -301,6 +301,7 @@ def _fetchx_update(target: int | None, order: list[int], rmap: dict[int, HTTPRes
     for r in order:
         yield (f'{">" if r == target else " "} {nmap[r]} {_fetchx_rsize(rmap[r])}')
 def _fetchx(csize: int, urls: dict[int, str], rmap: dict[int, HTTPResponseCacher], nmap: dict[int, str], fullscreen: bool):
+    if fullscreen: print('\x1b[2J\x1b[H', end='', flush=True)
     order = list(urls.keys())
     for r in order:
         if rmap[r].stat() is rmap[r].Stat.COMPLETE:
@@ -309,12 +310,14 @@ def _fetchx(csize: int, urls: dict[int, str], rmap: dict[int, HTTPResponseCacher
     for r in order: print(f'- Waiting: <{r}> {nmap[r]}')
     queue = SimpleQueue()
     threads = {r: threading.Thread(target=_fetchx_achunk, args=(r, rmap[r], csize, queue), daemon=True) for r in order}
-    print('\x1b[2J\x1b[H' if fullscreen else f'\x1b[{len(order)}F', end='', flush=True)
+    print(f'\x1b[{len(order)}F', end='', flush=True)
     for r in order:
         print(f'\x1b[2K\r~ Starting: <{r}> -> {nmap[r]}')
         threads[r].start()
     while any(map(threading.Thread.is_alive, threads.values())):
         lines = tuple(_fetchx_update(queue.get(), order, rmap, nmap))
+        print(f'\x1b[{len(lines)}F\x1b[2K\r{"\n\x1b[2K\r".join(lines)}', flush=True)
+    if (lines := tuple(_fetchx_update(None if queue.empty() else queue.get(), order, rmap, nmap))):
         print(f'\x1b[{len(lines)}F\x1b[2K\r{"\n\x1b[2K\r".join(lines)}', flush=True)
 def fetchx(*urls: str, csize: int = 512*1024, cache_limit_kib: int = 512, target_cache: dict[int, HTTPResponseCacher] = cache,
            request_kwargs: dict[str, typing.Any] = {}, mangle_kwargs: dict[str, typing.Any] = {},
