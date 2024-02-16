@@ -3,7 +3,7 @@
 '''
     Code relating to manifest files themselves
 
-    Manifest files are often INI (.ini) files, but can also be JSON (.json) and PackLib-packed (.pakd) files
+    Manifest files are often INI (.ini) files, but can also be JSON (.json) and packed (.pakd) files
 
     Note that, while not being in `__all__` due to probable lack of use, the `*_preprocess()` and `*_postprocess()` symbols are considered public
 '''
@@ -20,8 +20,7 @@ from collections import abc as cabc
 
 from .. import base
 
-from FlexiLynx.core import packlib, encodings
-from FlexiLynx.core.util import concat_mappings, map_vals
+from FlexiLynx.core.util import base85, pack, maptools
 #</Imports
 
 #> Header >/
@@ -35,7 +34,7 @@ SIG_JSON   = b'{"_FLMAN_SIG": null,'
 SIG_PAKD   = b'\xFFFLMAN\xFF'
 SIG_PAKD_P = b'FLMAN_P\n'
 
-def _reduce(s: typing.Sequence | typing.Mapping, *, bytearray_convert: bool, encode_bytes: None | str, set_convert: bool) -> typing.Iterator:
+def _reduce(s: typing.Sequence | typing.Mapping, *, bytearray_convert: bool, encode_bytes: bool, set_convert: bool) -> typing.Iterator:
     '''Converts `s` into primitive Python types`'''
     assert not bytearray_convert and encode_bytes, 'Cannot both convert bytearrays to tuples and encode them at once'
     if isinstance(s, cabc.Mapping):
@@ -44,7 +43,7 @@ def _reduce(s: typing.Sequence | typing.Mapping, *, bytearray_convert: bool, enc
         return
     for v in s:
         if encode_bytes and isinstance(v, (bytes, bytearray)):
-            yield encodings.encode(encode_bytes, v)
+            yield base85.encode(v)
         elif isinstance(v, str): yield v
         elif isinstance(v, cabc.Sequence):
             yield tuple(_reduce(v, bytearray_convert=bytearray_convert, encode_bytes=encode_bytes, set_convert=set_convert))
@@ -86,7 +85,7 @@ def _ini_preprocess(d: typing.Mapping, _kl: tuple[str, ...] = ()) -> typing.Iter
             if literal_eval(repr(v)) != v:
                 raise ValueError(f'Literal representation of {v!r} does not match actual representation')
         except Exception as le:
-            #try: m[repr(k)] = packlib.pack(v)
+            #try: m[repr(k)] = pack.pack(v)
             #except TypeError as pe:
             le.add_note(f'Could not convert {v!r} to a literal')
             raise le
@@ -97,7 +96,7 @@ def ini_preprocess(man: base.Manifest) -> dict:
     '''Convert `man.m_export()` into a suitable format to be read by `RawConfigParser`'''
     mexp = man.m_export()
     procd = {'!': {k: repr(v) for k,v in mexp.items() if not isinstance(v, cabc.Mapping)},
-             **concat_mappings(*(dict(_ini_preprocess(v, (k,))) for k,v in mexp.items() if isinstance(v, cabc.Mapping)))}
+             **maptools.concat_mappings(*(dict(_ini_preprocess(v, (k,))) for k,v in mexp.items() if isinstance(v, cabc.Mapping)))}
     return procd
 def ini_render(man: base.Manifest) -> bytes:
     '''Render the manifest in INI format'''
@@ -113,7 +112,7 @@ def _ini_postprocess(m: typing.Mapping[str, str]) -> dict[str, dict | typing.Any
     for n,s in m.items():
         if n == 'DEFAULT': continue
         elif n == '!':
-            d.update(map_vals(literal_eval, s, type_=iter))
+            d.update(maptools.map_vals(literal_eval, s, type_=iter))
             continue
         cwd = d
         for k in n.split('.'): cwd[k] = cwd = cwd.get(k, {})
@@ -153,22 +152,21 @@ def json_extract(data: bytes | Path) -> base.Manifest | None:
     if not data.startswith(SIG_JSON): return None
     return base.Manifest.m_from_map(json.loads(json_postprocess(data)))
 # Pakd stream
-_PRINTABLE_PAKD_ENC = 'b85'
 def pakd_preprocess(man: base.Manifest) -> typing.Any:
     '''Simply returns `man.m_export()`'''
     return man.m_export()
 def pakd_render(man: base.Manifest, printable: bool = False) -> bytes:
     '''Render the manifest into PacLib-packed bytes'''
-    if not printable: return SIG_PAKD + packlib.pack(pakd_preprocess(man))
-    return SIG_PAKD_P + encodings.encode(_PRINTABLE_PAKD_ENC, packlib.pack(pakd_preprocess(man))).encode()
+    if not printable: return SIG_PAKD + pack.pack(pakd_preprocess(man))
+    return SIG_PAKD_P + base85.encode(pack.pack(pakd_preprocess(man))).encode()
 def pakd_postprocess(data: bytes, printable: bool) -> bytes:
     '''Decodes (base85) printable bytes if necessary and strips `SIG_PAKD`/`SIG_PAKD_P`'''
     data = data[len(SIG_PAKD_P if printable else SIG_PAKD):]
     if not printable: return data
-    return encodings.decode(_PRINTABLE_PAKD_ENC, data.decode())
+    return base85.decode(data.decode())
 def pakd_extract(data: bytes | Path, printable: bool | None = None) -> base.Manifest | None:
     '''
-        Extracts a manifest from PackLib-packed bytes
+        Extracts a manifest from packed bytes
             Returns `None` for contents without a `SIG_PAKD` or `SIG_PAKD_P` (depending on `printable`)
     '''
     if isinstance(data, Path): data = data.read_bytes()
@@ -179,4 +177,4 @@ def pakd_extract(data: bytes | Path, printable: bool | None = None) -> base.Mani
         if printable is False: return None
         printable = True
     else: return None
-    return base.Manifest.m_from_map(packlib.unpack(pakd_postprocess(data, printable))[0])
+    return base.Manifest.m_from_map(pack.unpack(pakd_postprocess(data, printable))[0])

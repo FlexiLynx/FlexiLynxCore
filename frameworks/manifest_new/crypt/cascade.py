@@ -27,7 +27,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 from .. import parts
 from .. import exceptions
 
-from FlexiLynx.core.encodings import encode
+from FlexiLynx.core.util.base85 import encode
 #</Imports
 
 #> Header >/
@@ -111,26 +111,26 @@ def run_cascade(ring: KeyRing, target: EdPubK, source: EdPubK, *,
         # Get it from the ring
         if cb not in ring:
             if fail_return: return CascadeResult.BROKEN_CASCADE
-            raise BrokenCascadeError(f'The cascade was broken off at key: {encode("b85", cb)!r}')
+            raise BrokenCascadeError(f'The cascade was broken off at key: {encode(cb)!r}')
         rc,rn,rs = ring[cb]
         # Check if something went wrong
         if rc.public_bytes_raw() != cb:
             if fail_return: return CascadeResult.UNKNOWN_FAILURE
             e = CascadeException('A should-be-impossible mismatch was detected; maybe the ring was not created properly?')
-            e.add_note(f'(key) {encode("b85", cb)!r} != (val[0]) {encode("b85", rc.public_bytes_raw())!r}')
+            e.add_note(f'(key) {encode(cb)!r} != (val[0]) {encode(rc.public_bytes_raw())!r}')
             raise e
         # Check the trust
         if info_callback is not None: info_callback('check', (cb, rn.public_bytes_raw(), rs))
         try: rc.verify(rs, cb+rn.public_bytes_raw())
         except InvalidSignature:
             if fail_return: return CascadeResult.INVALID_CASCADE
-            raise InvalidCascadeError(f'A key failed verification: {encode("b85", rn.public_bytes_raw())}')
+            raise InvalidCascadeError(f'A key failed verification: {encode(rn.public_bytes_raw())}')
         # Accept the key
         if info_callback is not None: info_callback('accept', (rn.public_bytes_raw(),))
         c = rn
         if c == target: return None # success
     if fail_return: return CascadeResult.CIRCULAR_CASCADE
-    raise CircularCascadeError(f'A key was seen twice whilst walking the cascade: {encode("b85", cb)!r}')
+    raise CircularCascadeError(f'A key was seen twice whilst walking the cascade: {encode(cb)!r}')
 def run(m: CascadeHolder, target: EdPubK, source: EdPubK | None = None, *,
         fail_return: bool = False, info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept'], tuple[bytes, ...]], None] = None) -> None | CascadeResult:
     '''
@@ -183,7 +183,7 @@ def dualrun(target: EdPubK, source: EdPubK, a: KeyRing, b: KeyRing, *, fail_retu
             if cb not in a:
                 if _depth: return CascadeResult._DUALRUN_UNSPLIT # report broken cascade to parent split
                 if fail_return: return CascadeResult.BROKEN_CASCADE
-                raise BrokenCascadeError(f'Both cascades broke off at key: {encode("b85", cb)!r}')
+                raise BrokenCascadeError(f'Both cascades broke off at key: {encode(cb)!r}')
         elif (cb in b) and (cb != _spliton): # (cb in a) and (cb in b) and (cb != _spliton)
             # dual-cascade situation, split and follow both
             if info_callback is not None: info_callback('split', not _state, _depth+1, (cb,))
@@ -200,19 +200,19 @@ def dualrun(target: EdPubK, source: EdPubK, a: KeyRing, b: KeyRing, *, fail_retu
         if rc.public_bytes_raw() != cb:
             if fail_return: return CascadeResult.UNKNOWN_FAILURE
             e = CascadeException('A should-be-impossible mismatch was detected; maybe the ring was not created properly?')
-            e.add_note(f'(key) {encode("b85", cb)!r} != (val[0]) {encode("b85", rc.public_bytes_raw())!r}')
+            e.add_note(f'(key) {encode(cb)!r} != (val[0]) {encode(rc.public_bytes_raw())!r}')
             raise e
         # Check the trust
         if info_callback is not None: info_callback('check', _state, _depth, (cb, rn.public_bytes_raw(), rs))
         try: rc.verify(rs, cb+rn.public_bytes_raw())
         except InvalidSignature:
             if fail_return: return CascadeResult.INVALID_CASCADE
-            raise InvalidCascadeError(f'A key failed verification: {encode("b85", rn.public_bytes_raw())}')
+            raise InvalidCascadeError(f'A key failed verification: {encode(rn.public_bytes_raw())}')
         # Accept the key
         if info_callback is not None: info_callback('accept', _state, _depth, (rn.public_bytes_raw(),))
         c = rn
     if fail_return: return CascadeResult.CIRCULAR_CASCADE
-    raise CircularCascadeError(f'A key was seen twice whilst walking both cascades: {encode("b85", cb)!r}')
+    raise CircularCascadeError(f'A key was seen twice whilst walking both cascades: {encode(cb)!r}')
 
 # In-dev / abandoned (for now) code to run more than two cascades at the same time #
 
@@ -228,7 +228,7 @@ def dualrun(target: EdPubK, source: EdPubK, a: KeyRing, b: KeyRing, *, fail_retu
 #              info_callback: None | typing.Callable[[typing.Literal['saw', 'check', 'accept', 'swap', 'break'], int, tuple[bytes, ...]], None]) -> typing.Generator[tuple[int, Trust], None, None]:
 #    # ...
 #    if key in seens[casc+offset]:
-#        raise CircularCascadeError(f'A key was seen twice whilst walking (non-empty) cascade #{casc+offest}: {encode("b85", key)!r}')
+#        raise CircularCascadeError(f'A key was seen twice whilst walking (non-empty) cascade #{casc+offest}: {encode(key)!r}')
 #    seens[casc+offset].add(key)
 #    if info_callback is not None: info_callback('saw', casc+offset, 
 #    if (t := cascs[casc].get(key, None)) is not None:

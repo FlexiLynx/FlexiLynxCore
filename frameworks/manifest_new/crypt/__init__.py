@@ -12,7 +12,7 @@ from .. import exceptions
 from ..base import logger
 from . import cascade # re-exposed
 
-from FlexiLynx.core.encodings import encode
+from FlexiLynx.core.util.base85 import encode
 #</Imports
 
 #> Header >/
@@ -46,22 +46,22 @@ def verify(m: base.Manifest, key: EdPubK | None = None, fail_on_missing: bool = 
 def _migrate_cascaderun_icallb(loc: typing.Literal['saw', 'check', 'accept'], args: tuple[bytes, ...]):
     match loc:
         case 'saw':
-            logger.debug(f'Cascade: Saw key {encode("b85", args[0])}')
+            logger.debug(f'Cascade: Saw key {encode(args[0])}')
         case 'check':
-            logger.verbose(f'Cascade: Checking new key {encode("b85", args[1])}')
-            logger.debug(f'Cascade: Checking below signature with key: {encode("b85", args[0])}\n{encode("b85", args[2])}')
+            logger.verbose(f'Cascade: Checking new key {encode(args[1])}')
+            logger.debug(f'Cascade: Checking below signature with key: {encode(args[0])}\n{encode(args[2])}')
         case 'accept':
-            logger.info(f'Cascade: Accepted new key {encode("b85", args[0])}')
+            logger.info(f'Cascade: Accepted new key {encode(args[0])}')
 def _migrate_dualcascaderun_icallb(loc: typing.Literal['saw', 'check', 'accept', 'swap', 'split', 'reject'], state: bool, depth: int, args: tuple[bytes, ...]):
     pfx = f'Cascade{"B" if state else "A"}[{depth}]'
     match loc:
         case 'saw':
-            logger.debug(f'{pfx}: Saw key {encode("b85", args[0])}')
+            logger.debug(f'{pfx}: Saw key {encode(args[0])}')
         case 'check':
-            logger.verbose(f'{pfx}: Checking new key {encode("b85", args[1])}')
-            logger.debug(f'{pfx}: Checking:\nsignature {encode("b85", args[2])}\nwith key {encode("b85", args[0])}')
+            logger.verbose(f'{pfx}: Checking new key {encode(args[1])}')
+            logger.debug(f'{pfx}: Checking:\nsignature {encode(args[2])}\nwith key {encode(args[0])}')
         case 'accept':
-            logger.info(f'{pfx}: Accepted new key {encode("b85", args[0])}')
+            logger.info(f'{pfx}: Accepted new key {encode(args[0])}')
         case 'swap':
             logger.info(f'{pfx}: Swapped cascades')
         case 'split':
@@ -82,7 +82,7 @@ def migrate(target: base.Manifest, local: base.Manifest, cascade_target: bool = 
             A `cryptography.exceptions.InvalidSignature` if `verify()` returns false
     '''
     if target.m_key != local.m_key:
-        logger.warning(f'Target key differs from local key:\nlocal:  {encode("b85", local.m_key.public_bytes_raw())}\ntarget: {encode("b85", target.m_key.public_bytes_raw())}')
+        logger.warning(f'Target key differs from local key:\nlocal:  {encode(local.m_key.public_bytes_raw())}\ntarget: {encode(target.m_key.public_bytes_raw())}')
         if not (cascade_target or cascade_local):
             raise ValueError('Target key differs from local key, and both cascade_target and cascade_local are false')
         cascade_target = cascade_target and (getattr(target, 'cascade', None) is not None)
@@ -95,6 +95,6 @@ def migrate(target: base.Manifest, local: base.Manifest, cascade_target: bool = 
         else:
             logger.warning(f'Checking key remap against "{"target" if cascade_target else "local"}"\'s cascade')
             cascade.run(target.m_key, local.m_key, target if cascade_target else local, info_callback=_migrate_cascaderun_icallb)
-        logger.info(f'Key remap accepted: {encode("b85", target.m_key.public_bytes_raw())}')
+        logger.info(f'Key remap accepted: {encode(target.m_key.public_bytes_raw())}')
     if not verify(target): # we trust target's key as it is either the same as local's or was verified through a cascade, so just verify with that one
         raise InvalidSignature('Target manifest\'s signature was rejected')

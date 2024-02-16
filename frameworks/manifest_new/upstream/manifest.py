@@ -8,15 +8,17 @@ from ..crypt import migrate
 from ..base import Manifest, ManifestType
 from ..exceptions import *
 
-from FlexiLynx.core.ffetch import fancy_fetch
+from FlexiLynx.core.util import net
 #</Imports
 
 #> Header >/
 __all__ = ('fetch_manifest', 'update_manifest')
 
-def fetch_manifest(url: str, type_: None | ManifestType = None, *, fetch: typing.Callable[[str], bytes] = fancy_fetch) -> Manifest:
+def fetch_manifest(url: str, type_: None | ManifestType = None, *, fetch: typing.Callable[[str], tuple[bytes] | bytes] = net.fetchx) -> Manifest:
     '''Fetches a manifest from `url`, ensures that it is an instance of `type_` if supplied'''
-    if (m := extract(fetch(url))) is not None:
+    b = net.fetchx(url)
+    if isinstance(b, tuple): b = b[0]
+    if (m := extract(b)) is not None:
         if (type_ is None) or (type_.type == m.type): return m
         raise ManifestTypeError(f'{url} is of an unexpected type (expected {type_.type}, got {m.type})')
     raise CorruptedFileException(f'File fetched from {url!r} is not a manifest')

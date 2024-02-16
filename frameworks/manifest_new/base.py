@@ -10,9 +10,9 @@ from . import parts
 from .exceptions import *
 
 import FlexiLynx
-from FlexiLynx.core import packlib
-from FlexiLynx.core.util import concat_mappings, filter_keys
-from FlexiLynx.core.encodings import decode, encode
+from FlexiLynx.core.util import pack
+from FlexiLynx.core.util.maptools import concat_mappings, filter_keys
+from FlexiLynx.core.util.base85 import encode
 #</Imports
 
 #> Header >/
@@ -26,8 +26,8 @@ class Manifest:
         Includes `IDManifestPart` and `CryptManifestPart`
     '''
     __slots__ = ()
+
     m_types = {}
-    _M_STR_KEY_ENCODING = 'b85'
 
     def __init__(self): # replaced by dataclass __init__ in _ManifestTypeMeta.__call__
         raise TypeError('This class is a base and should never be instantiated')
@@ -48,7 +48,7 @@ class Manifest:
                 setattr(self, n, p.p_import(sp))
     def __repr__(self) -> str:
         return f'<{"un" if self.sig is None else ""}signed>{self.type}(id={self.id!r}, rel={self.rel!r}, ' \
-               f'key={"<not a keyholder>" if self.key is None else repr(encode("b85", self.m_key.public_bytes_raw()))}' \
+               f'key={"<not a keyholder>" if self.key is None else repr(encode(self.m_key.public_bytes_raw()))}' \
                f'{"".join(f""",\n    {n}={getattr(self, n)!r}""" for n in self.m_parts.keys())})'
 
     @property
@@ -122,7 +122,7 @@ class Manifest:
             Compile this manifest for signing
                 Note: does *not* compile the `sig` field
         '''
-        return packlib.pack(self.m_export() | {'sig': '<stripped>'})
+        return pack.pack(self.m_export() | {'sig': '<stripped>'})
 class _ManifestTypeMeta(type):
     def __call__(cls, m_name: str, *bases: type, p_defaults: typing.Mapping[str, type[parts.base.BasePart]] = {}, m_register: bool = True, m_top_mutable: bool = True, **p_parts: type[parts.base.BasePart]) -> type[Manifest]:
         if not bases: bases = (Manifest,)
