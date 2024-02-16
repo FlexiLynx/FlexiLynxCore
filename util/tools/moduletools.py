@@ -74,9 +74,14 @@ def unregister_pseudomodule(name_or_mod: str | types.ModuleType) -> types.Module
     return pseudomodules.pop(name_or_mod if isinstance(name_or_mod, str) else name_or_mod.__name__)
 
 class PseudoPackage(types.ModuleType):
-    '''A simple module subclass that adds a null `__path__` attribute to allow package importing'''
+    '''
+        A simple module subclass that adds a `__path__` property that lists everything in `__slots__` and `__dict__`
+            to allow for package searching
+    '''
     __slots__ = ()
-    __path__ = None
+    @property
+    def __path__(self) -> list[str]:
+        return tuple(self.__dict__.keys()) + self.__slots__
 
 # Deferred imports
 class deferred_import(types.ModuleType):
