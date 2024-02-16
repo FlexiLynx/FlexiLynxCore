@@ -4,9 +4,11 @@
 import io
 import bz2
 import typing
+import asyncio
 import threading
 from enum import Enum
 from http.client import HTTPResponse, HTTPMessage
+from urllib.request import urlopen, Request
 
 from .parallel import mlock
 #</Imports
@@ -107,7 +109,7 @@ class URL:
         )
         return f'{pre}{delim.join((p.strip(delim) for p in url))}'
 
-# Fetching
+# Requesting
 class HTTPResponseCacher:
     '''
         A wrapper around an `HTTPResponse` object that augments various facilities, offering:
@@ -239,3 +241,20 @@ class HTTPResponseCacher:
             if self._data is None: return 0
             if isinstance(self._data, bytes): return len(self._data)
             return self._data.tell()
+
+cache = {}
+def request(url: str, *, timeout: int | None = None, user_agent: str = 'Mozilla/5.0',
+            cache_dict: dict[int, HTTPResponseCacher] = cache, read_cache: bool = True, write_cache: bool = True) -> HTTPResponseCacher:
+    '''
+        Requests data from `url`, constructing a `HTTPResponseCacher`
+        Reads data from `cache` (or `cache_dict`, if given) if present when `read_cache` is true
+        Adds data to `cache` (or `cache_dict`, if given) when `write_cache` is true
+            Setting `write_cache` to true whilst `read_cache` is false is a good way to refresh a cached entry
+    '''
+    if read_cache:
+        hurl = URL.hash(url)
+        if (c := cache_dict.get(hurl, None)) is not None: return c
+    elif write_cache: hurl = URL.hash(url)
+    hrc = HTTPResponseCacher(urlopen(Request(url, headers={'User-Agent': user_agent}), timeout=timeout), url)
+    if write_cache: cache_dict[hurl] = hrc
+    return hrc
