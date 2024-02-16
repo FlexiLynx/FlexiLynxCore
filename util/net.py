@@ -4,9 +4,9 @@
 import io
 import lzma
 import typing
-import asyncio
 import threading
 from enum import Enum
+from queue import SimpleQueue
 from http.client import HTTPResponse, HTTPMessage
 from urllib.request import urlopen, Request
 
@@ -15,7 +15,7 @@ from .parallel import mlock
 #</Imports
 
 #> Header >/
-__all__ = ('URL', 'HTTPResponseCacher', 'request', 'fetch', 'fetch_chunked')
+__all__ = ('URL', 'HTTPResponseCacher', 'request', 'fetch', 'fetch_chunked', 'fetchx')
 
 # URL manipulation
 class URL:
@@ -277,3 +277,75 @@ def fetch_chunked(url: str, csize: int, *, write_cache: bool = False, **kwargs) 
             note that `write_cache` is false by default in this function as chunk-reads are usually used for larger data
     '''
     return request(url, write_cache=write_cache, **kwargs).chunks(csize)
+
+## Fancy fetching
+def _fetchx_achunk(val: int, hrc: HTTPResponseCacher, csize: int, queue: SimpleQueue):
+    for _ in hrc.chunks(csize): queue.put(val)
+def _fetchx_fsize(size: int | None, patt: str = '{:3.1f}{}', unknown: str = '?') -> str:
+    if size is None: return unknown
+    size = float(size)
+    for u in ('B', 'KiB', 'MiB' ,'GiB', 'TiB', 'PiB', 'EiB', 'ZiB'): # forward proofing
+        if size < 1024.0:
+            return patt.format(size, u)
+        size /= 1024.0
+    return patt.format(size, u)
+def _fetchx_rsize(hrc: HTTPResponseCacher, perc: bool = True) -> str:
+    return (f'{_fetchx_fsize(hrc.alength())} /'
+            f' {_fetchx_fsize(hrc.rlength())}'
+            f'{f" <{hrc.alength() / hrc.rlength() * 100:3.1f}%>" if (perc and (hrc.rlength() is not None)) else ""}'
+            f' [comp.: {_fetchx_fsize(hrc.clength())} <{f"{hrc.clength() / hrc.alength() * 100:3.1f}" if hrc.alength() else "..."}%>]')
+def _fetchx_update(target: int | None, order: list[int], rmap: dict[int, HTTPResponseCacher], nmap: dict[int, str]) -> typing.Iterator[str]:
+    if (target is not None) and (rmap[target].stat() is rmap[target].Stat.COMPLETE) and (target in order):
+        order.remove(target)
+        yield (f'+ {nmap[target]} completed as {_fetchx_rsize(rmap[target])}')
+    for r in order:
+        yield (f'{">" if r == target else " "} {nmap[r]} {_fetchx_rsize(rmap[r])}')
+def _fetchx(csize: int, urls: dict[int, str], rmap: dict[int, HTTPResponseCacher], nmap: dict[int, str], fullscreen: bool):
+    order = list(urls.keys())
+    for r in order:
+        if rmap[r].stat() is rmap[r].Stat.COMPLETE:
+            print(f'x {nmap[r]} completed from cache as {_fetchx_rsize(rmap[r], False)}')
+            order.remove(r)
+    for r in order: print(f'- Waiting: <{r}> {nmap[r]}')
+    queue = SimpleQueue()
+    threads = {r: threading.Thread(target=_fetchx_achunk, args=(r, rmap[r], csize, queue), daemon=True) for r in order}
+    print('\x1b[2J\x1b[H' if fullscreen else f'\x1b[{len(order)}F', end='', flush=True)
+    for r in order:
+        print(f'\x1b[2K\r~ Starting: <{r}> -> {nmap[r]}')
+        threads[r].start()
+    while any(map(threading.Thread.is_alive, threads.values())):
+        lines = tuple(_fetchx_update(queue.get(), order, rmap, nmap))
+        print(f'\x1b[{len(lines)}F\x1b[2K\r{"\n\x1b[2K\r".join(lines)}', flush=True)
+def fetchx(*urls: str, csize: int = 512*1024, cache_limit_kib: int = 512, target_cache: dict[int, HTTPResponseCacher] = cache,
+           request_kwargs: dict[str, typing.Any] = {}, mangle_kwargs: dict[str, typing.Any] = {},
+           alt_buff: bool = False, fullscreen: bool | None = None) -> tuple[bytes, ...]:
+    '''
+        Fetches multiple URLs at the same time, displaying progress to the user using ANSI escape sequences
+        `alt_buff` switches the console to an alternate framebuffer to preserve the terminal
+            The console is switched back regardless of any exceptions that occur whilst fetching
+        `fullscreen` clears the entire terminal instead of just rewriting the lines that the function itself wrote
+            If `fullscreen` is not given (`None`), it is set to the same value as `alt_buff`
+        `request_kwargs` and `mangle_kwargs` are passed to every call of `request()` and `URL.mangle()`, respectively
+    '''
+    if fullscreen is None: fullscreen = alt_buff
+    # Copy cache target
+    cdict = target_cache.copy()
+    # Generate responses and tasks
+    o_urls = tuple(map(URL.hash, urls))
+    urls = {URL.hash(url): url for url in urls}
+    rmap = {hurl: request(url, cache_dict=cdict, **request_kwargs) for hurl,url in urls.items()}
+    nmap = {hurl: URL.mangle(url, **mangle_kwargs) for hurl,url in urls.items()}
+    # Run main function, swap to alternate buffer if needed
+    stored_e = None
+    if alt_buff: print('\x1b[?1049h', end='', flush=True)
+    try: _fetchx(csize, urls, rmap, nmap, fullscreen)
+    except BaseException as e: stored_e = e
+    finally:
+        if alt_buff: print('\x1b[?1049l', end='', flush=True)
+    if stored_e is not None: raise stored_e
+    # Get data, finalize cache, and return data
+    data = tuple(rmap[hurl].data for hurl in o_urls)
+    noadd = {h: cdict[h] for h,hrc in rmap.items() if hrc.clength() >= (cache_limit_kib * 1024)}
+    for h in cdict.keys()-noadd.keys(): target_cache[h] = cdict[h]
+    for hrc in noadd.values(): hrc.close()
+    return data
