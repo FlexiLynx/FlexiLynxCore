@@ -80,7 +80,7 @@ class PseudoPackage(types.ModuleType):
     '''
     __slots__ = ()
     @property
-    def __path__(self) -> list[str]:
+    def __path__(self) -> tuple[str, ...]:
         return tuple(self.__dict__.keys()) + self.__slots__
 
 # Deferred imports
