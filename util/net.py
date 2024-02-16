@@ -303,10 +303,11 @@ def _fetchx_update(target: int | None, order: list[int], rmap: dict[int, HTTPRes
 def _fetchx(csize: int, urls: dict[int, str], rmap: dict[int, HTTPResponseCacher], nmap: dict[int, str], fullscreen: bool):
     if fullscreen: print('\x1b[2J\x1b[H', end='', flush=True)
     order = list(urls.keys())
-    for r in order:
+    for r in tuple(order):
         if rmap[r].stat() is rmap[r].Stat.COMPLETE:
             print(f'x {nmap[r]} completed from cache as {_fetchx_rsize(rmap[r], False)}')
             order.remove(r)
+    if not order: return
     for r in order: print(f'- Waiting: <{r}> {nmap[r]}')
     queue = SimpleQueue()
     threads = {r: threading.Thread(target=_fetchx_achunk, args=(r, rmap[r], csize, queue), daemon=True) for r in order}
