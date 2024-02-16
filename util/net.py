@@ -14,7 +14,7 @@ from .parallel import mlock
 #</Imports
 
 #> Header >/
-__all__ = ('URL', 'HTTPResponseCacher')
+__all__ = ('URL', 'HTTPResponseCacher', 'request', 'fetch', 'fetch_chunked')
 
 # URL manipulation
 class URL:
