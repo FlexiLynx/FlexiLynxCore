@@ -29,7 +29,7 @@ __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
 #> Main >/
 #typeguard.config.debug_instrumentation = True
 class Finder(typeguard.TypeguardFinder):
-    INCLUDE = ('libraries', 'frameworks', 'FlexiLynx')
+    INCLUDE = ('util', 'frameworks', 'FlexiLynx')
     EXCLUDE = ()
     def should_instrument(self, module_name: str):
         if (not (any(module_name.startswith(i) for i in self.INCLUDE))
@@ -40,9 +40,9 @@ class Finder(typeguard.TypeguardFinder):
         return True
 print('<TypeGuard Hook> Installing import hook')
 typeguard.install_import_hook(cls=Finder)
-print('<TypeGuard Hook> Chainloading __entrypoint__.__init__()')
-__entrypoint__.__init__()
-print('<TypeGuard Hook> Chainloading __entrypoint__.__setup__()')
-__entrypoint__.__setup__()
+#print('<TypeGuard Hook> Chainloading __entrypoint__.__init__()')
+#__entrypoint__.__init__()
+#print('<TypeGuard Hook> Chainloading __entrypoint__.__setup__()')
+#__entrypoint__.__setup__()
 print('<TypeGuard Hook> Chainloading __entrypoint__._test()')
 __entrypoint__._test()
