@@ -2,7 +2,7 @@
 
 #> Imports
 import io
-import bz2
+import lzma
 import typing
 import asyncio
 import threading
@@ -10,6 +10,7 @@ from enum import Enum
 from http.client import HTTPResponse, HTTPMessage
 from urllib.request import urlopen, Request
 
+from .typing import Protocol
 from .parallel import mlock
 #</Imports
 
@@ -118,9 +119,10 @@ class HTTPResponseCacher:
          - Various helpful properties
         Note that the original `HTTPResponse` object should *never* be used again; it will certainly cause problems both ways
     '''
-    __slots__ = ('url', '_res', '_lock', '_rlock', '_data', '_len', '_comp')
+    __slots__ = ('url', '_res', '_lock', '_rlock', '_data', '_len', '_comp', '_dcomp')
 
-    def __init__(self, res: HTTPResponse, url: str | None = None, *, compress_level: int = 7):
+    _Compressor = Protocol('Compressor', 'Supported compression objects', compress=typing.Callable[[bytes], bytes], flush=typing.Callable[[], bytes])
+    def __init__(self, res: HTTPResponse, url: str | None = None, *, compressor: _Compressor | None = None, decompressor: typing.Callable[[bytes], bytes] = lzma.decompress):
         if getattr(res, '_cached_owned', False):
             raise TypeError('res is already owned')
         res._cached_owned = True
@@ -130,7 +132,8 @@ class HTTPResponseCacher:
         self.url = res.url if url is None else url
         self._data = None
         self._len = None
-        self._comp = bz2.BZ2Compressor(compress_level)
+        self._comp = lzma.LZMACompressor() if compressor is None else compressor
+        self._dcomp = decompressor
 
     def close(self):
         '''Closes this response cacher, closing and deleting the underlying `HTTPResponse` and cached data'''
@@ -149,8 +152,8 @@ class HTTPResponseCacher:
         with self._rlock:
             if self._data is None: return None
             if isinstance(self._data, io.BytesIO):
-                return bz2.decompress(self._data.read())
-            return bz2.decompress(self._data)
+                return self._dcomp(self._data.read())
+            return self._dcomp(self._data)
     def _data_rst(self):
         # internal function; resets the data buffer
         with self._rlock:
