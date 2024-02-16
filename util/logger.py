@@ -26,9 +26,13 @@ def config(d: dict):
     logging.config.dictConfig(d)
 # Add new levels
 logging.TRACE = logging.NOTSET + ((logging.DEBUG - logging.NOTSET) // 2)
+logging.addLevelName(logging.TRACE, 'TRACE')
 logging.VERBOSE = logging.DEBUG + ((logging.INFO - logging.DEBUG) // 2)
+logging.addLevelName(logging.VERBOSE, 'VERBOSE')
 logging.TERSE = logging.INFO + ((logging.WARNING - logging.INFO) // 2)
+logging.addLevelName(logging.TERSE, 'TERSE')
 logging.FATAL = logging.CRITICAL * 2
+logging.addLevelName(logging.FATAL, 'FATAL')
 ## Add level functions
 lc = logging.getLoggerClass()
 lc.trace = partialmethod(lc.log, logging.TRACE)
