@@ -28,7 +28,7 @@ class PseudoModuleLoader(Loader):
         mod = pseudomodules[name[0]]
         for n in name[1:]:
             if not hasattr(mod, n):
-                raise ModuleNotFoundError(f'Error importing {spec.name}: {mod.__name__} has not attribute {n}')
+                raise ModuleNotFoundError(f'Error importing {spec.name}: {mod.__name__} has no attribute {n}')
             mod = getattr(mod, n)
         return mod
     def exec_module(self, mod: types.ModuleType): pass
