@@ -258,3 +258,19 @@ def request(url: str, *, timeout: int | None = None, user_agent: str = 'Mozilla/
     hrc = HTTPResponseCacher(urlopen(Request(url, headers={'User-Agent': user_agent}), timeout=timeout), url)
     if write_cache: cache_dict[hurl] = hrc
     return hrc
+
+# Fetching
+def fetch(url: str, **kwargs) -> bytes:
+    '''
+        A convenience wrapper for `request()`, returning bytes
+        See `help(request)` for `kwargs`
+    '''
+    return request(url, **kwargs).read()
+def fetch_chunked(url: str, csize: int, *, write_cache: bool = False, **kwargs) -> typing.Generator[bytes, None, None]:
+    '''
+        Similar to `fetch()`, but yields chunks of bytes of (up to) `csize`
+            When the data is already cached (and `read_cache` is not false), it is yielded as a single chunk
+        See `help(request)` for additional `kwargs`,
+            note that `write_cache` is false by default in this function as chunk-reads are usually used for larger data
+    '''
+    return request(url, write_cache=write_cache, **kwargs).chunks(csize)
