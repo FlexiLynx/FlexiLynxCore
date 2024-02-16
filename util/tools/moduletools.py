@@ -13,6 +13,7 @@ from importlib.util import spec_from_loader
 from importlib.machinery import ModuleSpec
 
 from .functools import reach
+from .. import logger
 #</Imports
 
 #> Header >/
@@ -21,15 +22,19 @@ __all__ = ('register_pseudomodule', 'unregister_pseudomodule', 'PseudoPackage', 
 # Pseudo modules
 pseudomodules = {}
 
+pslogger = logger.core_logger.getChild('pseudomod')
 class PseudoModuleLoader(Loader):
     __slots__ = ()
     def create_module(self, spec: ModuleSpec) -> types.ModuleType:
         name = spec.name.split('.')
+        pslogger.trace(f'Import: {name!r}')
         mod = pseudomodules[name[0]]
-        for n in name[1:]:
+        for i,n in enumerate(name[1:]):
+            pslogger.trace(f'{".".join(name[:i+1])}: {mod!r}')
             if not hasattr(mod, n):
                 raise ModuleNotFoundError(f'Error importing {spec.name}: {mod.__name__} has no attribute {n}')
             mod = getattr(mod, n)
+        pslogger.trace(f'{".".join(name)}: {mod!r}')
         return mod
     def exec_module(self, mod: types.ModuleType): pass
 class PseudoModuleHook(MetaPathFinder):
