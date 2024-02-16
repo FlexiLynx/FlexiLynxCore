@@ -8,7 +8,7 @@
 #> Package >/
 __all__ = (
     # top-level
-    'base85', 'logger', 'pack', 'parallel', 'typing',
+    'base85', 'logger', 'net', 'pack', 'parallel', 'typing',
     # in folders
     ## tools
     'flattools', 'functools', 'maptools', 'moduletools', 'retools', 'seqtools'
@@ -17,7 +17,7 @@ __all__ = (
 )
 
 # Top-level modules
-from . import base85, logger, pack, parallel, typing
+from . import base85, logger, net, pack, parallel, typing
 
 # Modules in folders
 from .tools import flattools, functools, maptools, moduletools, retools, seqtools
