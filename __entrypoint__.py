@@ -34,8 +34,8 @@ def __init__():
     FlexiLynx.core.logger = FlexiLynx.core.util.logger.core_logger
     # Add frameworks
     FlexiLynx.core@'frameworks'
-    ## Add "manifest" framework
-    FlexiLynx.core.frameworks.manifest = _resolve_import('frameworks.manifest_new')
+    ## Add "blueprint" framework
+    FlexiLynx.core.frameworks.blueprint = _resolve_import('frameworks.blueprint')
 def __setup__():
     ...
 #</Header
@@ -44,10 +44,10 @@ def __setup__():
 # Testing code
 def _test():
     print('_test() pre __init__()')
-    global manifest, test, test_dualcascade, test_migrate, test_logger
+    global blueprint, test, test_dualcascade, test_migrate, test_logger
     __init__()
     print('_test() after __init__()')
-    from FlexiLynx.core.frameworks import manifest
+    from FlexiLynx.core.frameworks import blueprint
     #test = manifest.ContentManifest(
     #    'testid',
     #    0,
