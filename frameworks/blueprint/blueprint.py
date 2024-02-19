@@ -11,6 +11,8 @@
 import typing
 from dataclasses import dataclass, field, InitVar
 
+from . import parts
+
 from FlexiLynx.core.util import typing as ftyping
 #</Imports
 
@@ -42,8 +44,11 @@ class Blueprint(Baseprint):
     type_: InitVar[int] = field(kw_only=False)
     type: str = field(init=False)
 
+    ...
+
     def __post_init__(self, id: str, rel: int, type: str, /):
         Baseprint.__init__(self, id, rel, type)
+    def to_dict
 
 # Protocol
 class BlueProtocolMeta(type(typing.Protocol)):
