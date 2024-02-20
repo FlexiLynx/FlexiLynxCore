@@ -355,4 +355,4 @@ def fetchx(*urls: str, csize: int = 512*1024, cache_limit_kib: int = 512, target
     return data
 def fetch1(url: str, **fetchx_kwargs) -> bytes:
     '''Convenience wrapper for only `fetchx()`-ing one URL'''
-    return fetchx(url, **fetchx_kwargs)
+    return fetchx(url, **fetchx_kwargs)[0]
