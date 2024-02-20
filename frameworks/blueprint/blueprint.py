@@ -39,7 +39,8 @@ class Blueprint:
         `url` is the URL to fetch blueprint updates from
             (package files are fetched from URLs stored in `Manifest`s)
 
-        `manifests` are the sets of sets of files that are part of the package
+        `main` is the set of files that is a necessary part of the package
+        `drafts` is the set of sets of files that are optional parts of the package (alternative languages, versions, etc.)
 
         `relations` are the dependencies and conflicting packages (by ID) of this package
     '''
@@ -53,14 +54,18 @@ class Blueprint:
 
     url: str | None = None
 
-    manifests: dict[str, [parts.Manifest | dict]]
+    main: parts.Manifest | dict
+    drafts: dict[str, [parts.Manifest | dict]] | None = None
 
     crypt: parts.Crypt | dict
 
     relations: parts.Relations | dict | None = None
 
     def __post_init__(self):
-        self.manifests = {k: m if isinstance(m, parts.Manifest) else parts.Manifest(**m) for k,m in self.manifests.items()}
+        if not isinstance(self.main, parts.Manifest): self.main = parts.Manifest(**self.main)
+        if self.drafts is None: self.drafts = {}
+        else:
+            self.drafts = {k: m if isinstance(m, parts.Manifest) else parts.Manifest(**m) for k,m in self.drafts.items()}
         if not isinstance(self.crypt, parts.Crypt): self.crypt = parts.Crypt(**self.crypt)
         if isinstance(self.relations, dict): self.relations = parts.Relations(**self.relations)
 

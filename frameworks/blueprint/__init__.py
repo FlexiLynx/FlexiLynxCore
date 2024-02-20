@@ -3,7 +3,8 @@
 '''FlexiLynx's `blueprint` framework'''
 
 #> Package >/
-__all__ = ('Blueprint', 'BlueProtocol', 'parts')
+__all__ = ('Blueprint', 'BlueProtocol', 'Package', 'parts')
 
 from . import parts
+from .package import Package
 from .blueprint import Blueprint, BlueProtocol
