@@ -15,7 +15,7 @@ from .parallel import mlock
 #</Imports
 
 #> Header >/
-__all__ = ('URL', 'HTTPResponseCacher', 'request', 'fetch', 'fetch_chunked', 'fetchx')
+__all__ = ('URL', 'HTTPResponseCacher', 'request', 'fetch', 'fetch_chunked', 'fetchx', 'fetch1')
 
 # URL manipulation
 class URL:
@@ -353,3 +353,6 @@ def fetchx(*urls: str, csize: int = 512*1024, cache_limit_kib: int = 512, target
     for h in cdict.keys()-noadd.keys(): target_cache[h] = cdict[h]
     for hrc in noadd.values(): hrc.close()
     return data
+def fetch1(url: str, **fetchx_kwargs) -> bytes:
+    '''Convenience wrapper for only `fetchx()`-ing one URL'''
+    return fetchx(url, **fetchx_kwargs)
