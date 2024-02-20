@@ -47,6 +47,18 @@ def _test():
     __init__()
     print('_test() after __init__()')
     from FlexiLynx.core.frameworks import blueprint
+    test = blueprint.Blueprint(
+        'testid',
+        0,
+        name='Testing Blueprint',
+        desc='A blueprint for testing purposes',
+        version=None,
+        url=None,
+        manifests={},
+        crypt=blueprint.parts.Crypt(cascade={}),
+        relations=blueprint.parts.Relations(depends=set(), conflicts=set()),
+    )
+    test.serialize()
     #test = manifest.ContentManifest(
     #    'testid',
     #    0,
