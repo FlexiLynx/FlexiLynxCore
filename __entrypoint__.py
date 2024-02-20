@@ -18,7 +18,6 @@ def _resolve_import(modname: str, *, fn: typing.Callable = importlib.import_modu
     return fn(f'.{modname}', package=__package__)
 def __init__():
     '''Load core Python modules'''
-    print('__init__')
     # Check for minimum version
     assert sys.version_info[:3] >= MIN_PYTHON_VERSION, f'Minimum Python version not met! Need {".".join(map(str, MIN_PYTHON_VERSION))}, got {".".join(map(str, sys.version_info[:3]))}'
     # Import util
@@ -29,7 +28,7 @@ def __init__():
     (FlexiLynx@'core').util = util
     # Setup logger
     with open('logging.toml', 'rb') as f:
-        FlexiLynx.core.util.logger.config(tomllib.load(f))
+        FlexiLynx.core.util.logger.init(tomllib.load(f))
     FlexiLynx.logger = FlexiLynx.core.util.logger.root_logger
     FlexiLynx.core.logger = FlexiLynx.core.util.logger.core_logger
     # Add frameworks
@@ -136,9 +135,11 @@ def _test():
         try: manifest.crypt.migrate(b, a)
         except: traceback.print_exc()
     def test_logger():
+        FlexiLynx.logger.trace('test -1')
         FlexiLynx.logger.debug('test 0')
         FlexiLynx.logger.verbose('test 1')
         FlexiLynx.logger.info('test 2')
+        FlexiLynx.logger.terse('test 2.5')
         FlexiLynx.logger.warning('test 3')
         FlexiLynx.logger.error('test 4')
         FlexiLynx.logger.critical('test 5')

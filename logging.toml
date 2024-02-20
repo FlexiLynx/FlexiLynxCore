@@ -1,16 +1,56 @@
+# This file is (should be) ordered from most commonly to least commonly
+# used configuration options, besides the top-level values
+
+# Options without comments are considered "internal" and should only be
+# changed if you know what you are doing!
+
 version = 1
 disable_existing_loggers = false
 
-[flexilynx]
+[handlers.stderr]
+class = 'logging.StreamHandler'
+# What level of logs are shown in the console's "standard error" output
+# Acceptable values, in order of most to least detailed:
+# 'TRACE', 'DEBUG', 'VERBOSE', 'INFO', 'TERSE', 'WARNING', 'ERROR', 'CRITICAL', 'FATAL'
+level = 'INFO'
+formatter = 'stderr'
+stream = 'ext://sys.stderr'
+[formatters.stderr]
+'()' = 'FlexiLynx.core.util.logger._StylishFormatter'
+# The formatting applied to the "stderr" (console error stream) handler,
+# see https://docs.python.org/3/library/logging.html#logrecord-attributes
+format = '%(name)s/%(levelname)s: %(message)s'
+# The strftime format for the stderr stream
+datefmt = '%H:%M:%S'
+
+[handlers.file]
+class = 'logging.handlers.RotatingFileHandler'
+# The same as the `level` field in `handlers.stderr`, but instead
+# pertains to the level of logs that are saved to the file
+level = 'DEBUG'
+# The file path to save logs to
+filename = 'FlexiLynx.log'
+# How large the file can grow before it's rotated
+maxBytes = 10485760
+# How many rotated files to keep before deleting the oldest one
+backupCount = 8
+[formatters.file]
+# The formatting applied to logs saved to a file
+format = '[%(asctime)s] %(name)s/%(levelname)s [%(module)s:%(lineno)s]: %(message)s'
+# The strftime format for the file logs
+datefmt = '%Y-%m-%dT%H:%M:%S'
+
+[styling]
 # Change to `false` to prevent any styling of output
 do_style = true
-# Don't style output when IDLE is in use
-detect_idle_no_style = true
+# Try to style output, even if IDLE was detected
+try_style_idle = false
+# Try to style on Windows
+try_style_windows = true
 
-control_fmt = '\x1b[{v}m{{}}\x1b[0m'
-no_style_fmt = '{}'
-
-[flexilynx.styles]
+[styling.levels]
+# Each key corresponds to a level name, with the values either being
+# `false` for no styling, or a VT100 control code
 TRACE = '2;3' # faint; italic
 DEBUG = '2' # faint
 VERBOSE = false # no styling
@@ -21,62 +61,24 @@ ERROR = '31' # red fg
 CRITICAL = '1;31' # bold; red fg
 FATAL = '1;5;31' # bold; blinking; red fg
 
-
-[loggers]
+[names]
+# The list of "shortened" names for each logging level
+NOTSET = '???' # a special level for (possibly) misconfigured output
+TRACE = 'TRC'
+DEBUG = 'DBG'
+VERBOSE = 'VRB'
+INFO = 'INF'
+TERSE = 'TRS'
+WARNING = 'WRN'
+ERROR = 'ERR'
+CRITICAL = 'CRT'
+FATAL = 'FTL'
 
 [loggers.root]
 level = 'NOTSET'
 handlers = []
-
 [loggers.FL]
 level = 'NOTSET'
 handlers = ['stderr', 'file']
 propogate = false
 qualname = 'FL'
-
-
-[handlers]
-
-[handlers.stderr]
-class = 'logging.StreamHandler'
-# the following line can be changed to set what level of logs are shown in the console
-# acceptable values are, in order of most to least detailed:
-# TRACE
-# DEBUG
-# VERBOSE
-# INFO
-# TERSE
-# WARNING
-# ERROR
-# CRITICAL
-# FATAL
-level = 'INFO'
-formatter = 'stderr'
-stream = 'ext://sys.stderr'
-
-[handlers.file]
-class = 'logging.handlers.RotatingFileHandler'
-# similar to the level field in "handlers.stderr", but instead pertains to the
-# level of logs that are saved to a file
-level = 'DEBUG'
-# the file path to save logs to
-filename = 'FlexiLynx.log'
-# the file size (in bytes) to rotate files once reached
-maxBytes = 10485760
-# the maximum amount of files to keep before deleting the oldest
-backupCount = 8
-
-
-[formatters]
-
-[formatters.stderr]
-# the format applied to the "stderr" (console error stream) handler
-# see https://docs.python.org/3/library/logging.html#logrecord-attributes
-format = '%(name)s/%(levelname)s: %(message)s'
-datefmt = '%H:%M:%S'
-'()' = 'logging._StylishLogger'
-
-[formatters.file]
-# the format applied to the logs saved to a file
-format = '[%(asctime)s] %(name)s/%(levelname)s [%(module)s:%(lineno)s]: %(message)s'
-datefmt = '%Y-%m-%dT%H:%M:%S'
