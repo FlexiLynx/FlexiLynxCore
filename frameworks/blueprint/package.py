@@ -4,11 +4,9 @@
 
 #> Imports
 import typing
-import hashlib
-import multiprocessing.pool
 from pathlib import Path
-from functools import partial
 
+from .generate import hash_files
 from .blueprint import Blueprint
 #</Imports
 
@@ -22,14 +20,6 @@ class Package:
     def __init__(self, blueprint: Blueprint):
         self.blueprint = blueprint
 
-    @staticmethod
-    def hash_files(root: Path, files: typing.Iterable[str], *, max_processes: int = 8, hash_method: str = 'sha1') -> dict[str, bytes]:
-        '''Hashes a set of files, prepending them with `root`'''
-        procs = min(len(files), max_processes)
-        hfunc = lambda f: (f, hashlib.new(hash_method, (root / f).read_bytes()).digest())
-        if procs < 2: return dict(map(hfunc, files))
-        with multiprocessing.pool.ThreadPool(procs) as mp:
-            return dict(mp.map(hfunc, files))
     def scan(self, draft: str | None = None, *, at: Path = Path('.'), max_processes: int = 8) -> tuple[frozenset[Path], frozenset[Path], frozenset[Path]]:
         '''
             Checks for missing or mismatching (changed) artifacts on the local system
@@ -46,6 +36,6 @@ class Package:
                 files.remove(f)
                 missing.add(f)
         # Check for mismatched files
-        mismatching = {f for f,h in self.hash_files(at, files, max_processes=max_processes, hash_method=draft.hash_method).items() if draft[f] != h}
+        mismatching = {f for f,h in hash_files(at, files, max_processes=max_processes, hash_method=draft.hash_method).items() if draft[f] != h}
         # Return
         return (files - mismatching, mismatching, missing)
