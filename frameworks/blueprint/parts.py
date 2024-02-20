@@ -1,6 +1,6 @@
 #!/bin/python3
 
-'''Sub-parts of the `BluePrint` type'''
+'''Sub-parts of the `Blueprint` type'''
 
 #> Imports
 import typing
