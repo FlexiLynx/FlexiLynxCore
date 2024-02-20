@@ -8,7 +8,7 @@ from collections import abc as cabc
 #</Imports
 
 #> Header >/
-__all__ = ('concat_mappings', 'dictdir', 'filter_keys', 'map_vals')
+__all__ = ('concat_mappings', 'dictdir', 'filter_keys', 'map_vals', 'rmap_vals')
 
 def concat_mappings(*maps: typing.Mapping, type_: type[typing.Mapping] | typing.Callable[[tuple[tuple[typing.Any, typing.Any], ...]], typing.Any] = dict) -> typing.Mapping | typing.Any:
     '''Concatenates multiple mappings into a single one'''
@@ -24,3 +24,7 @@ def map_vals(func: typing.Callable[[typing.Any], typing.Any], *maps: typing.Mapp
              type_: type[typing.Mapping] | typing.Callable[[typing.Iterable[tuple[typing.Any, typing.Any]]], typing.Any] = dict) -> typing.Mapping | typing.Any:
     '''Returns a dictionary composed of all of `maps`, where each value has been fed through `func`'''
     return concat_mappings(*({k: func(v) for k,v in m.items()} for m in maps), type_=type_)
+def rmap_vals(func: typing.Callable[[typing.Any], typing.Any], *maps: typing.Mapping,
+         type_: type[typing.Mapping] | typing.Callable[[typing.Iterable[tuple[typing.Any, typing.Any]]], typing.Any] = dict) -> typing.Mapping | typing.Any:
+    '''Returns a dictionary compased of all of `maps`, where each value has been fed through `func` and subsequent maps have been recursed into'''
+    return concat_mappings(*({k: rmap_vals(func, v, type_=type_) if isinstance(v, cabc.Mapping) else func(v) for k,v in m.items()} for m in maps), type_=type_)
