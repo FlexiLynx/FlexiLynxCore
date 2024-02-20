@@ -8,13 +8,16 @@
 '''
 
 #> Imports
+import json
 import typing
 from dataclasses import asdict, dataclass, field
+from collections import abc as cabc
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from . import parts
 
 from FlexiLynx.core.util import base85
+from FlexiLynx.core.util import maptools
 from FlexiLynx.core.util import typing as ftyping
 #</Imports
 
@@ -33,6 +36,9 @@ class Blueprint:
         `desc` is an optional human-readable description of the same,
         and `version` is an optional human-readable version string
 
+        `url` is the URL to fetch blueprint updates from
+            (package files are fetched from URLs stored in `Manifest`s)
+
         `manifests` are the sets of sets of files that are part of the package
 
         `relations` are the dependencies and conflicting packages (by ID) of this package
@@ -44,6 +50,8 @@ class Blueprint:
     name: str
     desc: str | None = None
     version: str | None = None
+
+    url: str | None = None
 
     manifests: dict[str, [parts.Manifest | dict]]
 
@@ -57,13 +65,25 @@ class Blueprint:
         if isinstance(self.relations, dict): self.relations = parts.Relations(**self.relations)
 
     @classmethod
+    def _reduce_item(cls, i: typing.Any) -> typing.Any:
+        if isinstance(i, EdPubK): i = i.public_bytes_raw()
+        if isinstance(i, bytes): return base85.encode()
+        if isinstance(i, (str, cabc.Mapping)): return i
+        if isinstance(i, cabc.Iterable): return tuple(map(cls._reduce_item, i))
+        return i
+    @classmethod
     def _reducing_dict(cls, d: typing.Sequence[tuple[str, typing.Any]]) -> dict:
-        return {k: cls._reducing_dict(v.items()) if isinstance(v, dict)
-                else base85.encode(v) if isinstance(v, bytes)
-                else base85.encode(v.public_bytes_raw()) if isinstance(v, EdPubK)
-                else v for k,v in d}
-    def to_dict(self) -> dict:
+        return maptools.rmap_vals(cls._reduce_item, dict(d))
+    def serialize_to_dict(self) -> dict:
         return asdict(self, dict_factory=self._reducing_dict)
+    def serialize(self) -> str:
+        return json.dumps(self.serialize_to_dict())
+    @classmethod
+    def deserialize_from_dict(cls, data: typing.Mapping) -> typing.Self:
+        return cls(**data)
+    @classmethod
+    def deserialize(cls, data: str) -> typing.Self:
+        return cls.deserialize_from_dict(json.loads(data))
 
 # Protocol
 class BlueProtocolMeta(type(typing.Protocol)):
