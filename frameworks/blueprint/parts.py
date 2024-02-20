@@ -24,11 +24,11 @@ class Manifest:
     '''Contains the hashes of files that make up the package'''
     url: str | None
     hash_method: typing.Literal[*hashlib.algorithms_guaranteed] = 'sha1'
-    files: dict[Path | str, bytes | str]
+    files: dict[str, bytes | str]
 
     def __post_init__(self):
-        self.files = {Path(p): base85.decode(h) if isinstance(h, str) else h
-                      for p,h in self.files.items()}
+        self.files = {f: base85.decode(h) if isinstance(h, str) else h
+                      for f,h in self.files.items()}
 
 @_dc
 class Crypt:
