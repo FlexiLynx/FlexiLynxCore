@@ -81,8 +81,8 @@ class Blueprint:
         return maptools.rmap_vals(cls._reduce_item, dict(d))
     def serialize_to_dict(self) -> dict:
         return asdict(self, dict_factory=self._reducing_dict)
-    def serialize(self) -> str:
-        return json.dumps(self.serialize_to_dict())
+    def serialize(self, **json_args) -> str:
+        return json.dumps(self.serialize_to_dict(), indent=4, **json_args)
     @classmethod
     def deserialize_from_dict(cls, data: typing.Mapping) -> typing.Self:
         return cls(**data)
