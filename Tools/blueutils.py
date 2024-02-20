@@ -97,6 +97,17 @@ def blueprint(*, id: str, files: typing.Sequence[Path],
 # Add commands #
 addcli = click.Group('add', help='Adding commands')
 cli.add_command(addcli)
+# add files
+@addcli.command()
+@w_io
+@click.argument('files', type=Path, nargs=-1)
+@click.option('-t', '--to', metavar='draft', help='Add the file(s) to a draft instead', default=None)
+@click.option('--root', help='The root to use as the relative path for files', type=Path, default=Path('.'))
+def files(blueprint: Blueprint, *, files: typing.Sequence[Path], to: str | None, root: Path) -> Blueprint:
+    if to is None: to = blueprint.main
+    else: to = blueprint.drafts[to]
+    to.files |= generate.hash_files(root, tuple(f.relative_to(root).as_posix() for f in files), hash_method=to.hash_method)
+    return blueprint
 # add draft
 @addcli.command()
 @w_io
