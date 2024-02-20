@@ -72,7 +72,7 @@ class Blueprint:
     @classmethod
     def _reduce_item(cls, i: typing.Any) -> typing.Any:
         if isinstance(i, EdPubK): i = i.public_bytes_raw()
-        if isinstance(i, bytes): return base85.encode()
+        if isinstance(i, bytes): return base85.encode(i)
         if isinstance(i, (str, cabc.Mapping)): return i
         if isinstance(i, cabc.Iterable): return tuple(map(cls._reduce_item, i))
         return i
