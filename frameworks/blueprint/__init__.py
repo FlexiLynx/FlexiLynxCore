@@ -5,6 +5,6 @@
 #> Package >/
 __all__ = ('Blueprint', 'BlueProtocol', 'parts', 'sync')
 
-from . import sync
 from . import parts
+from .sync import sync
 from .blueprint import Blueprint, BlueProtocol

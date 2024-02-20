@@ -9,9 +9,9 @@ from FlexiLynx.core.util import net
 #</Imports
 
 #> Header >/
-__all__ = ('blueprint',)
+__all__ = ('sync',)
 
-def blueprint(b: Blueprint, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = net.fetch1):
+def sync(b: Blueprint, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = net.fetch1):
     '''
         Syncs a `Blueprint`, returning the newest version
         If `url` is not `None`, it is used in place of the `Blueprint`'s `url`
