@@ -26,7 +26,7 @@ __entrypoint__.__init__()
 from FlexiLynx.core.frameworks.blueprint import *
 
 def h_output(out: typing.TextIO, b: Blueprint):
-    click.echo('Cannot check if blueprint is dirty: NOT IMPLEMENTED')
+    click.echo('Cannot check if blueprint is dirty: NOT IMPLEMENTED', file=sys.stderr)
     click.echo(f'Wrote {out.write(b.serialize())} byte(s) to {getattr(out, "name", "?")}', file=sys.stderr)
 def h_input(inp: typing.TextIO) -> Blueprint:
     d = inp.read()
@@ -51,7 +51,7 @@ def w_io(c):
     def c_w_io(*, blueprint: typing.TextIO, output: typing.TextIO | None, **kwargs):
         blue = c(blueprint=h_input(blueprint), **kwargs)
         if output is None:
-            if output.fileno() == sys.stdin.fileno():
+            if blueprint.fileno() == sys.stdin.fileno():
                 output = sys.stdout
             else:
                 blueprint.truncate(0)
@@ -95,9 +95,24 @@ def blueprint(*, id: str, files: typing.Sequence[Path],
                      crypt=parts.Crypt(key=None, sig=None, cascade={}),
                      relations=parts.Relations(depends=dep, conflicts=conf))
 # Add commands #
-
+addcli = click.Group('add', help='Adding commands')
+cli.add_command(addcli)
 # add draft
-
+@addcli.command()
+@w_io
+@click.argument('draft-id')
+@click.argument('files', type=Path, nargs=-1)
+@click.option('-u', '--url', help='The URL that this pack will fetch artifacts from', default=None)
+@click.option('--hash-method', help='The name of the hash function to use', default='sha1')
+@click.option('--root', help='The root to use as the relative path for files', type=Path, default=Path('.'))
+@click.option('--overwrite', help='Allow overwriting an existing draft', is_flag=True, default=False)
+def draft(blueprint: Blueprint, *, draft_id: str, files: typing.Sequence[Path], url: str | None, hash_method: str, root: Path, overwrite: bool):
+    if (draft_id in blueprint.drafts):
+        if not overwrite:
+            raise Exception(f'Refusing to overwrite existing draft {draft_id!r} when --overwrite was not supplied')
+        click.echo(f'WARNING: overwriting existing draft {draft_id!r}', file=sys.stderr)
+    blueprint.drafts[draft_id] = generate.make_manifest(url, *files, root=root, hash_method=hash_method)
+    return blueprint
 
 # Main
 if __name__ == '__main__': cli()
