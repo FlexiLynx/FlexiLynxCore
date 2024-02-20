@@ -1,6 +1,27 @@
 version = 1
 disable_existing_loggers = false
 
+[flexilynx]
+# Change to `false` to prevent any styling of output
+do_style = true
+# Don't style output when IDLE is in use
+detect_idle_no_style = true
+
+control_fmt = '\x1b[{v}m{{}}\x1b[0m'
+no_style_fmt = '{}'
+
+[flexilynx.styles]
+TRACE = '2;3' # faint; italic
+DEBUG = '2' # faint
+VERBOSE = false # no styling
+INFO = false # no styling
+TERSE = '3' # italic
+WARNING = '33' # yellow fg
+ERROR = '31' # red fg
+CRITICAL = '1;31' # bold; red fg
+FATAL = '1;5;31' # bold; blinking; red fg
+
+
 [loggers]
 
 [loggers.root]
@@ -53,7 +74,7 @@ backupCount = 8
 # see https://docs.python.org/3/library/logging.html#logrecord-attributes
 format = '%(name)s/%(levelname)s: %(message)s'
 datefmt = '%H:%M:%S'
-'()' = 'logging._ColoredLogger'
+'()' = 'logging._StylishLogger'
 
 [formatters.file]
 # the format applied to the logs saved to a file

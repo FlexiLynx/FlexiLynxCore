@@ -2,10 +2,11 @@
 
 '''
     Provides facilities for FlexiLynx's logging
-    **WARNING**: importing this module has the side-affect of adding several new logging levels
+    **WARNING**: importing this module has the side-effect of adding several new logging levels, among other things
 '''
 
 #> Imports
+import sys
 import typing
 import logging
 import logging.config
@@ -15,15 +16,30 @@ from configparser import RawConfigParser
 #</Imports
 
 #> Header >/
-__all__ = ('root_logger', 'core_logger', 'config')
+__all__ = ('root_logger', 'core_logger', 'config', 'fl_logging_conf')
 
+# Check if running under IDLE
 # Set up loggers
 root_logger = logging.getLogger('FL')
 core_logger = root_logger.getChild('$core')
 # Logging configuration functions
+fl_logging_conf = {'styles': {}}
 def config(d: dict):
-    '''Configure Python's logging with a dict. You probably don't need to use this'''
+    '''Configure FlexiLynx's logging with a dict. You probably don't need to use this'''
+    global fl_logging_conf
+    if 'flexilynx' in d:
+        for k,v in d['flexilynx'].items():
+            if hasattr(fl_logging_conf, k) and isinstance(v, dict):
+                fl_logging_conf[k] |= v
+            else:
+                fl_logging_conf[k] = v.encode().decode('unicode_escape') if isinstance(v, str) else v
     logging.config.dictConfig(d)
+    _StylishLogger._do_style = fl_logging_conf.get('do_style', True) and not (
+        fl_logging_conf.get('detect_idle_no_style', True)
+        and getattr(sys.stdin, '__module__', '').startswith('idlelib'))
+    if _StylishLogger._do_style:
+        _StylishLogger.gen_styles()
+    print(fl_logging_conf)
 # Add new levels
 logging.TRACE = logging.NOTSET + ((logging.DEBUG - logging.NOTSET) // 2)
 logging.addLevelName(logging.TRACE, 'TRACE')
@@ -49,19 +65,25 @@ logging.addLevelName(logging.WARNING, 'WRN')
 logging.addLevelName(logging.ERROR, 'ERR')
 logging.addLevelName(logging.CRITICAL, 'CRT')
 logging.addLevelName(logging.FATAL, 'FTL')
-# Level colors
-class _ColoredLogger(logging.Formatter):
-    COLORS = {k: '{}' if v is None else f'\x1b[{v}m{{}}\x1b[0m' for k,v in {
-        logging.TRACE: '2;3', # faint, italic
-        logging.DEBUG: '2', # faint
-        logging.VERBOSE: None, # nothing
-        logging.INFO: None, # nothing
-        logging.TERSE: '3', # italic
-        logging.WARNING: '33', # yellow fg
-        logging.ERROR: '31', # red fg
-        logging.CRITICAL: '1;31', # bold, red fg
-        logging.FATAL: '1;5;31', # bold, blinking, red fg
-    }.items()}
+# Level styling
+class _StylishLogger(logging.Formatter):
+    _do_style = True
+    styles = None
+    @classmethod
+    def gen_styles(cls):
+        cls.styles = {k: fl_logging_conf.get('no_style_fmt', '{}') if v in {None, False} else fl_logging_conf.get('control_fmt', '\x1b[{v}m{{}}\x1b[0m').format(v=v) for k,v in {
+            logging.TRACE: fl_logging_conf['styles'].get('TRACE', '2;3'), # faint, italic
+            logging.DEBUG: fl_logging_conf['styles'].get('DEBUG', '2'), # faint
+            logging.VERBOSE: fl_logging_conf['styles'].get('VERBOSE', None), # nothing
+            logging.INFO: fl_logging_conf['styles'].get('INFO', None), # nothing
+            logging.TERSE: fl_logging_conf['styles'].get('TERSE', '3'), # italic
+            logging.WARNING: fl_logging_conf['styles'].get('WARNING', '33'), # yellow fg
+            logging.ERROR: fl_logging_conf['styles'].get('ERROR', '31'), # red fg
+            logging.CRITICAL: fl_logging_conf['styles'].get('CRITICAL', '1;31'), # bold, red fg
+            logging.FATAL: fl_logging_conf['styles'].get('FATAL', '1;5;31'), # bold, blinking, red fg
+        }.items()}
     def format(self, record: logging.LogRecord) -> str:
-        return self.COLORS[record.levelno].format(super().format(record))
-logging._ColoredLogger = _ColoredLogger
+        if not self._do_style: return super().format(record)
+        return self.styles[record.levelno].format(super().format(record))
+_StylishLogger.gen_styles()
+logging._StylishLogger = _StylishLogger
