@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 __all__ = (
     'TVoucherPrK', 'TVoucher', 'TVoucherB', 'TVouchee', 'TSignature', 'TTrust', 'TCascade',
     'gen_trust', 'run_trust',
-    'add_trust', 'add', 'pop', 'walk',
+    'add_trust', 'add', 'pop', 'walk', 'execute',
 )
 
 # Types
@@ -78,3 +78,20 @@ def walk(casc: TCascade, from_: TVoucher) -> typing.Generator[TTrust, None, None
     while (kb := k.public_bytes_raw()) in casc:
         yield casc[kb]
         k = casc[kb][1]
+def execute(casc: TCascade, from_: TVoucher, to: TVouchee, *, sane_check: bool = True):
+    '''
+        Walks `casc`, starting at `from_` and verifying trusts in the chain until `to` is reached
+        Raises exceptions whenever a failure is encountered
+        If `sane_check` is true, then the keys of the cascade are check to ensure that they match the trusts
+    '''
+    seen = set()
+    for trust in walk(casc, from_):
+        if id(trust) in seen:
+            raise Exception(f'Cascade execption detected a circular cascade at {id(trust)} and refused to continue')
+        seen.add(id(trust))
+        if sane_check and (casc.get(trust[0].public_bytes_raw(), None) is not trust):
+            raise Exception(f'Cascade execution detected an insane cascade at {id(casc[trust[0].public_bytes_raw()])} / {id(trust)} and refused to continue')
+        if not run_trust(trust, no_exc=True):
+            raise Exception(f'Cascade execution failed to verify trust at {id(trust)}')
+        if to == trust[1]: return # success
+    raise Exception(f'Cascade execution reached end of chain at {id(trust)}')
