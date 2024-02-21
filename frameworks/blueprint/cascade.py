@@ -19,11 +19,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 #</Imports
 
 #> Header >/
-__all__ = ('Types',
+__all__ = ('Types', 'CascadeException', 'CascadeExceptionAtTrust', 'RefusalToOverwriteTrustError', 'CircularCascadeError', 'InsaneCascadeError', 'VerificationError', 'BrokenCascadeError',
            'gen_trust', 'run_trust',
            'add_trust', 'add', 'pop', 'walk', 'execute')
 
 # Types
+## Type-hints
 _TVoucher = typing.TypeAliasType('Voucher', EdPubK)
 _TVoucherB = typing.TypeAliasType('VoucherB', bytes)
 _TVouchee = typing.TypeAliasType('Vouchee', EdPubK)
@@ -38,6 +39,38 @@ Types = SimpleNamespace(
     Trust = _TTrust,
     Cascade = typing.TypeAliasType('Cascade', dict[_TVoucherB, _TTrust]),
 )
+## Exceptions
+class CascadeException(Exception):
+    '''
+        A generic exception for cascade-related difficulties
+        Note that this is only for specifically raised exceptions,
+            things like `KeyError` and `InvalidSignature` will not be transformed
+    '''
+    __slots__ = ('cascade',)
+    def __init__(self, *args, cascade: Types.Cascade | None = None, **kwargs):
+        self.cascade = cascade
+        super().__init__(*args, **kwargs)
+class CascadeExceptionAtTrust(CascadeException):
+    '''A generic exception for cascade-related difficulties that occur at a specific trust'''
+    __slots__ = ('at',)
+    def __init__(self, *args, at: int, **kwargs):
+        self.at = at
+        super().__init__(*args, **kwargs)
+class RefusalToOverwriteTrustError(CascadeExceptionAtTrust):
+    '''An error for when a trust would be overwritten, but was disallowed'''
+    __slots__ = ()
+class CircularCascadeError(CascadeExceptionAtTrust):
+    '''An error for when a trust would be evaluated twice, meaning that it is part of a circular chain'''
+    __slots__ = ()
+class InsaneCascadeError(CascadeExceptionAtTrust):
+    '''An error for when a trust's vouching key doesn't match the trust itself in the cascade'''
+    __slots__ = ()
+class VerificationError(CascadeExceptionAtTrust):
+    '''An error for when a trust failed verification during cascade execution'''
+    __slots__ = ()
+class BrokenCascadeError(CascadeExceptionAtTrust):
+    '''An error for when the end of a chain was reached without finding the target key'''
+    __slots__ = ()
 
 # Functions
 ## Trusts
@@ -59,12 +92,12 @@ def run_trust(trust: Types.Trust, *, no_exc: bool = False) -> bool | None:
 def add_trust(casc: Types.Cascade, trust: Types.Trust, *, overwrite: bool = False):
     '''
         Adds a `trust` to `casc`
-        Raises `KeyError` if the vouching key is already present in the cascade,
+        Raises `RefusalToOverwriteTrustError` if the vouching key is already present in the cascade,
             unless `overwrite` is true
     '''
     pb = trust[0].public_bytes_raw()
     if (not overwrite) and (pb in casc):
-        raise KeyError('Refusing to overwrite a trust already present in the cascade when overwrite is false')
+        raise RefusalToOverwriteTrustError('Refusing to overwrite a trust already present in the cascade when overwrite is false', cascade=casc, at=id(casc[pb]))
     casc[pb] = trust
 def add(casc: Types.Cascade, voucher: Types.VoucherPrK, vouchee: Types.Vouchee, *, overwrite: bool = False):
     '''
@@ -87,17 +120,21 @@ def walk(casc: Types.Cascade, from_: Types.Voucher) -> typing.Generator[Types.Tr
 def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, sane_check: bool = True):
     '''
         Walks `casc`, starting at `from_` and verifying trusts in the chain until `to` is reached
-        Raises exceptions whenever a failure is encountered
+        Raises exceptions whenever a failure is encountered:
+            `CircularCascadeError` when a trust is seen twice
+            `InsaneCascadeError` when `sane_check` and a trust's vouching key does not match the key in the cascade
+            `VerificationError` when a trust fails signature verification
         If `sane_check` is true, then the keys of the cascade are check to ensure that they match the trusts
     '''
     seen = set()
     for trust in walk(casc, from_):
         if id(trust) in seen:
-            raise Exception(f'Cascade execption detected a circular cascade at {id(trust)} and refused to continue')
+            raise CircularCascadeError(f'Cascade execption detected a circular cascade at {id(trust)} and refused to continue', cascade=casc, at=id(trust))
         seen.add(id(trust))
         if sane_check and (casc.get(trust[0].public_bytes_raw(), None) is not trust):
-            raise Exception(f'Cascade execution detected an insane cascade at {id(casc[trust[0].public_bytes_raw()])} / {id(trust)} and refused to continue')
+            raise InsaneCascadeError(f'Cascade execution detected an insane cascade at'
+                                     f'{id(casc[trust[0].public_bytes_raw()])} / {id(trust)} and refused to continue', cascade=casc, at=id(trust))
         if not run_trust(trust, no_exc=True):
-            raise Exception(f'Cascade execution failed to verify trust at {id(trust)}')
+            raise VerificationError(f'Cascade execution failed to verify trust at {id(trust)}', cascade=casc, at=id(trust))
         if to == trust[1]: return # success
-    raise Exception(f'Cascade execution reached end of chain at {id(trust)}')
+    raise BrokenCascadeError(f'Cascade execution reached end of chain at {id(trust)}', cascade=casc, at=id(trust))
