@@ -43,22 +43,15 @@ def __setup__():
 # Testing code
 def _test():
     print('_test() pre __init__()')
-    global blueprint, test, test_dualcascade, test_migrate, test_logger
+    global blueprint, corebp, corepkg, files, test_dualcascade, test_migrate, test_logger
     __init__()
     print('_test() after __init__()')
+    from pathlib import Path
     from FlexiLynx.core.frameworks import blueprint
-    test = blueprint.Blueprint(
-        'testid',
-        0,
-        name='Testing Blueprint',
-        desc='A blueprint for testing purposes',
-        version=None,
-        url=None,
-        manifests={},
-        crypt=blueprint.parts.Crypt(cascade={}),
-        relations=blueprint.parts.Relations(depends=set(), conflicts=set()),
-    )
-    test.serialize()
+    corebp = blueprint.Blueprint.deserialize(Path('../Blueprints/flexilynx/core.json').read_text())
+    corepkg = blueprint.Package(corebp)
+    corepkg.update()
+
     #test = manifest.ContentManifest(
     #    'testid',
     #    0,
