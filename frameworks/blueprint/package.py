@@ -36,6 +36,6 @@ class Package:
                 files.remove(f)
                 missing.add(f)
         # Check for mismatched files
-        mismatching = {f for f,h in hash_files(at, files, max_processes=max_processes, hash_method=draft.hash_method).items() if draft[f] != h}
+        mismatching = {f for f,h in hash_files(at, files, max_processes=max_processes, hash_method=draft.hash_method).items() if draft.files[f] != h}
         # Return
         return (files - mismatching, mismatching, missing)
