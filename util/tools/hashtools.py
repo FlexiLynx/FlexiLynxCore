@@ -7,6 +7,7 @@ import typing
 import hashlib
 import multiprocessing.pool
 from pathlib import Path
+from functools import partial
 #</Imports
 
 #> Header >/
@@ -42,6 +43,6 @@ def hash_files(*files: Path | str, max_threads: int = 8, hash_method: str = ALGO
     '''
     paths = tuple(map(Path, files))
     procs = min(len(paths), max_threads)
-    if procs < 2: return dict(zip(files, map(hash_file, paths)))
+    if procs < 2: return dict(zip(files, map(partial(hash_file, hash_method=hash_method), paths)))
     with multiprocessing.pool.ThreadPool(procs) as mp:
-        return dict(zip(files, mp.map(hash_file, paths)))
+        return dict(zip(files, mp.map(partial(hash_file, hash_method=hash_method), paths)))
