@@ -75,10 +75,14 @@ class Package:
                 clean.add(p/'__pycache__') # remove it later if empty
         # Clean empty paths
         if clean_empty:
-            for p in sorted((p for p in clean), key=lambda p: (len(p.parts), p), reverse=True):
+            clean = sorted((p for p in clean), key=lambda p: (len(p.parts), p), reverse=False)
+            while clean:
+                p = clean.pop()
                 # If it has anything under it, then continue; otherwise, rmdir it!
-                try: next(p.iterdir())
-                except StopIteration: pass
-                else: continue
-                p.rmdir()
-                logger.verbose('Removed empty directory {p}')
+                while p.is_relative_to(at) and len(p.parts):
+                    try: next(p.iterdir())
+                    except StopIteration:
+                        p.rmdir()
+                        logger.verbose(f'Removed empty directory {p}')
+                    p = p.parent
+                    if p in clean: break
