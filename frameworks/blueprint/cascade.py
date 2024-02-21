@@ -11,6 +11,7 @@
 '''
 
 #> Imports
+import typing
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
@@ -20,7 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 __all__ = (
     'TVoucherPrK', 'TVoucher', 'TVoucherB', 'TVouchee', 'TSignature', 'TTrust', 'TCascade',
     'gen_trust', 'run_trust',
-    'add_trust', 'add', 'pop',
+    'add_trust', 'add', 'pop', 'walk',
 )
 
 # Types
@@ -70,3 +71,10 @@ def add(casc: TCascade, voucher: TVoucherPrK, vouchee: TVouchee, *, overwrite: b
 def pop(casc: TCascade, voucher: TVoucher) -> TTrust:
     '''Removes and returns a trust from `casc`'''
     casc.pop(voucher.public_bytes_raw())
+### Executing
+def walk(casc: TCascade, from_: TVoucher) -> typing.Generator[TTrust, None, None]:
+    '''Walks `casc`, starting at `from_` and yielding trusts in a chain'''
+    k = from_
+    while (kb := k.public_bytes_raw()) in casc:
+        yield casc[kb]
+        k = casc[kb][1]
