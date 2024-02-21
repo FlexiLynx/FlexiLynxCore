@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 __all__ = (
     'TVoucherPrK', 'TVoucher', 'TVoucherB', 'TVouchee', 'TSignature', 'TTrust', 'TCascade',
     'gen_trust', 'run_trust',
+    'add_trust', 'add',
 )
 
 # Types
@@ -46,3 +47,22 @@ def run_trust(trust: TTrust, *, no_exc: bool = False) -> bool | None:
     try: ver.verify(trust[2], trust[0].public_bytes_raw() + trust[1].public_bytes_raw())
     except InvalidSignature: return False
     return True
+## Cascades
+### Adding
+def add_trust(casc: TCascade, trust: TTrust, *, overwrite: bool = False):
+    '''
+        Adds a `trust` to `casc`
+        Raises `KeyError` if the vouching key is already present in the cascade,
+            unless `overwrite` is true
+    '''
+    pb = trust[0].public_bytes_raw()
+    if (not overwrite) and (pb in casc):
+        raise KeyError('Refusing to overwrite a trust already present in the cascade when overwrite is false')
+    casc[pb] = trust
+def add(casc: TCascade, voucher: TVoucherPrK, vouchee: TVouchee, *, overwrite: bool = False):
+    '''
+        Generates a new trust and adds it to `casc`
+        Raises `KeyError` if the vouching key is already present in the cascade,
+            unless `overwrite` is true
+    '''
+    add_trust(casc, gen_trust(voucher, vouchee), overwrite=overwrite)
