@@ -11,7 +11,7 @@ from .blueprint import Blueprint
 
 import FlexiLynx
 from FlexiLynx.core.util import hashtools
-from FlexiLynx.core.util.net import fetchx
+from FlexiLynx.core.util.net import fetchx, fetch1
 #</Imports
 
 #> Header >/
@@ -46,6 +46,18 @@ class Package:
         # Return
         return (files - mismatching, mismatching, missing)
 
+    def update(self, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = fetch1):
+        '''
+            Updates this package's blueprint
+                If `url` is not `None`, it overrides the blueprint's `.url`
+        '''
+        if url is None: url = self.blueprint.url
+        if url is None:
+            raise TypeError('No URL was provided and the blueprint has no URL')
+        logger.terse(f'Update issued: {self.blueprint.id} from {url!r}')
+        self.blueprint = Blueprint.deserialize(fetchfn(url).decode())
+        logger.critical('WARNING: CRYPTOGRAPHIC VERIFICATION NOT IMPLEMENTED YET! PROCEED WITH CAUTION WHEN USING THIS BLUEPRINT')
+        logger.info('Update completed')
     def install(self, draft: str | None = None, *, at: Path = Path('.'), needed: bool = True, resilient: bool = False, max_threads: int = 8,
                 fetchfn: typing.Callable[[str, ...], typing.Sequence[bytes]] = fetchx, **fetch_args) -> bool | None:
         '''
