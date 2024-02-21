@@ -11,7 +11,7 @@ from .blueprint import Blueprint
 #</Imports
 
 #> Header >/
-__all__ = ('sign', 'verify')
+__all__ = ('sign', 'verify', 'cascade')
 
 # Simple signing and verifying
 def sign(bp: Blueprint, key: EdPrivK, *, test: bool = True):
@@ -41,3 +41,4 @@ def verify(bp: Blueprint, key: EdPubK | None = None, *, no_exc: bool = False) ->
     return True
 
 # Cascading
+from . import cascade
