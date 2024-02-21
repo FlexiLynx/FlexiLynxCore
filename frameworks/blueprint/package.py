@@ -43,7 +43,7 @@ class Package:
         mismatching = {f for f,h in hash_files(at, files, max_processes=max_processes, hash_method=draft.hash_method).items() if draft.files[f] != h}
         # Return
         return (files - mismatching, mismatching, missing)
-    def uninstall(self, draft: str | None = None, *, at: Path = Path('.')):
+    def uninstall(self, draft: str | None = None, *, at: Path = Path('.'), clean_pyc: bool = True):
         '''Uninstalls files on the system, renaming any modified files to protect against accidental deletion'''
         match,mism,miss = self.scan(draft, at=at)
         match = sorted(match); mism = sorted(mism); miss = sorted(miss)
@@ -64,6 +64,15 @@ class Package:
             logger.verbose(f'Unlinking {p}')
             p.unlink()
             clean.add(p.parent)
+        # Clean Python caches
+        if clean_pyc:
+            for p in tuple(clean):
+                if not (p/'__pycache__').exists(): continue
+                logger.info(f'Cleaning {p/"__pycache__"}')
+                for f in p.glob('*.pyc'):
+                    logger.verbose(f'Unlinking {f}')
+                    f.unlink()
+                clean.add(p/'__pycache__') # remove it later if empty
         # Clean missing paths
         for p in sorted((p for p in clean), key=lambda p: (len(p.parts), p), reverse=True):
             # If it has anything under it, then continue; otherwise, rmdir it!
