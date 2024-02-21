@@ -12,34 +12,40 @@
 
 #> Imports
 import typing
+from types import SimpleNamespace
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
 #</Imports
 
 #> Header >/
-__all__ = (
-    'TVoucherPrK', 'TVoucher', 'TVoucherB', 'TVouchee', 'TSignature', 'TTrust', 'TCascade',
-    'gen_trust', 'run_trust',
-    'add_trust', 'add', 'pop', 'walk', 'execute',
-)
+__all__ = ('Types',
+           'gen_trust', 'run_trust',
+           'add_trust', 'add', 'pop', 'walk', 'execute')
 
 # Types
-type TVoucherPrK = EdPrivK
-type TVoucher = EdPubK
-type TVoucherB = bytes
-type TVouchee = EdPubK
-type TSignature = bytes
-type TTrust = tuple[TVoucher, TVouchee, TSignature]
-type TCascade = dict[TVoucherB, TTrust]
+_TVoucher = typing.TypeAliasType('Voucher', EdPubK)
+_TVoucherB = typing.TypeAliasType('VoucherB', bytes)
+_TVouchee = typing.TypeAliasType('Vouchee', EdPubK)
+_TSignature = typing.TypeAliasType('Signature', bytes)
+_TTrust = typing.TypeAliasType('Trust', tuple[_TVoucher, _TVouchee, _TSignature])
+Types = SimpleNamespace(
+    VoucherPrK = typing.TypeAliasType('VoucherPrK', EdPrivK),
+    Voucher = _TVoucher,
+    VoucherB = _TVoucherB,
+    Vouchee = _TVouchee,
+    Signature = _TSignature,
+    Trust = _TTrust,
+    Cascade = typing.TypeAliasType('Cascade', dict[_TVoucherB, _TTrust]),
+)
 
 # Functions
 ## Trusts
-def gen_trust(voucher: TVoucherPrK, vouchee: TVouchee) -> TTrust:
+def gen_trust(voucher: Types.VoucherPrK, vouchee: Types.Vouchee) -> Types.Trust:
     '''Generates a trust, where `voucher` vouches for `vouchee`'''
     pubk = voucher.public_key()
     return (pubk, vouchee, voucher.sign(pubk.public_bytes_raw() + vouchee.public_bytes_raw()))
-def run_trust(trust: TTrust, *, no_exc: bool = False) -> bool | None:
+def run_trust(trust: Types.Trust, *, no_exc: bool = False) -> bool | None:
     '''Executes a trust, raising an `InvalidSignature` if it's invalid (or returning `False` if `no_exc`)'''
     ver,vee,sig = trust
     if not no_exc:
@@ -50,7 +56,7 @@ def run_trust(trust: TTrust, *, no_exc: bool = False) -> bool | None:
     return True
 ## Cascades
 ### Adding
-def add_trust(casc: TCascade, trust: TTrust, *, overwrite: bool = False):
+def add_trust(casc: Types.Cascade, trust: Types.Trust, *, overwrite: bool = False):
     '''
         Adds a `trust` to `casc`
         Raises `KeyError` if the vouching key is already present in the cascade,
@@ -60,7 +66,7 @@ def add_trust(casc: TCascade, trust: TTrust, *, overwrite: bool = False):
     if (not overwrite) and (pb in casc):
         raise KeyError('Refusing to overwrite a trust already present in the cascade when overwrite is false')
     casc[pb] = trust
-def add(casc: TCascade, voucher: TVoucherPrK, vouchee: TVouchee, *, overwrite: bool = False):
+def add(casc: Types.Cascade, voucher: Types.VoucherPrK, vouchee: Types.Vouchee, *, overwrite: bool = False):
     '''
         Generates a new trust and adds it to `casc`
         Raises `KeyError` if the vouching key is already present in the cascade,
@@ -68,17 +74,17 @@ def add(casc: TCascade, voucher: TVoucherPrK, vouchee: TVouchee, *, overwrite: b
     '''
     add_trust(casc, gen_trust(voucher, vouchee), overwrite=overwrite)
 ### Removing
-def pop(casc: TCascade, voucher: TVoucher) -> TTrust:
+def pop(casc: Types.Cascade, voucher: Types.Voucher) -> Types.Trust:
     '''Removes and returns a trust from `casc`'''
     casc.pop(voucher.public_bytes_raw())
 ### Executing
-def walk(casc: TCascade, from_: TVoucher) -> typing.Generator[TTrust, None, None]:
+def walk(casc: Types.Cascade, from_: Types.Voucher) -> typing.Generator[Types.Trust, None, None]:
     '''Walks `casc`, starting at `from_` and yielding trusts in a chain'''
     k = from_
     while (kb := k.public_bytes_raw()) in casc:
         yield casc[kb]
         k = casc[kb][1]
-def execute(casc: TCascade, from_: TVoucher, to: TVouchee, *, sane_check: bool = True):
+def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, sane_check: bool = True):
     '''
         Walks `casc`, starting at `from_` and verifying trusts in the chain until `to` is reached
         Raises exceptions whenever a failure is encountered
