@@ -10,6 +10,7 @@ from .generate import hash_files
 from .blueprint import Blueprint
 
 import FlexiLynx
+from FlexiLynx.core.util.net import fetchx
 #</Imports
 
 #> Header >/
@@ -43,11 +44,28 @@ class Package:
         mismatching = {f for f,h in hash_files(at, files, max_processes=max_processes, hash_method=draft.hash_method).items() if draft.files[f] != h}
         # Return
         return (files - mismatching, mismatching, missing)
+
+    def install(self, draft: str | None = None, *, at: Path = Path('.'), needed: bool = True, fetchfn: typing.Callable[[str, ...], typing.Sequence[bytes]] = fetchx, **fetch_args):
+        '''Installs files on the system, only downloading needed files if `needed` is true'''
+        match,mism,miss = self.scan(draft, at=at)
+        match = sorted(match); mism = sorted(mism); miss = sorted(miss)
+        logger.terse(f'Install issued: {self.blueprint.id}{"" if draft is None else f"@{draft}"}')
+        if match: logger.verbose(f'Some files are already installed:\n - {"\n - ".join(match)}')
+        if not (miss or match):
+            logger.terse('All files are up-to-date')
+            return
+        if mism: logger.info(f'{len(mism)} outdated file(s) will need to be upgraded:\n - {"\n - ".join(mism)}')
+        if miss: logger.info(f'{len(miss)} new file(s) will need to be installed:\n - {"\n - ".join(miss)}')
+        draft = self.blueprint.main if draft is None else self.blueprint.drafts[draft]
+        urls = {f: f'{draft.url.rstrip("/")}/{f}' for f in mism+miss}
+        logger.verbose(f'The following files will be downloaded:\n - {"\n - ".join(urls)}')
+        files = dict(zip(urls.keys(), fetchx(*urls.values())))
+        print(files)
     def uninstall(self, draft: str | None = None, *, at: Path = Path('.'), clean_pyc: bool = True, clean_empty: bool = True):
         '''Uninstalls files on the system, renaming any modified files to protect against accidental deletion'''
         match,mism,miss = self.scan(draft, at=at)
         match = sorted(match); mism = sorted(mism); miss = sorted(miss)
-        logger.info(f'Uninstall issued: {self.blueprint.id}{"" if draft is None else f"@{draft}"}')
+        logger.terse(f'Uninstall issued: {self.blueprint.id}{"" if draft is None else f"@{draft}"}')
         if not (miss or mism or match):
             logger.error('Does not appear to be installed? Skipping')
             return
