@@ -11,7 +11,7 @@ __all__ = (
     'base85', 'logger', 'net', 'pack', 'parallel', 'typing',
     # in folders
     ## tools
-    'flattools', 'functools', 'hashtools', 'maptools', 'moduletools', 'retools', 'seqtools'
+    'flattools', 'functools', 'hashtools', 'maptools', 'moduletools', 'retools', 'seqtools',
     ## singleton
     'Config', 'FlexiSpace',
 )
