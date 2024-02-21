@@ -12,6 +12,7 @@
 
 #> Imports
 import typing
+from enum import IntEnum
 from types import SimpleNamespace
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
@@ -19,7 +20,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 #</Imports
 
 #> Header >/
-__all__ = ('Types', 'CascadeException', 'CascadeExceptionAtTrust', 'RefusalToOverwriteTrustError', 'CircularCascadeError', 'InsaneCascadeError', 'VerificationError', 'BrokenCascadeError',
+__all__ = ('Types', 'ExecutionReturn', 'CascadeException', 'CascadeExceptionAtTrust', 'RefusalToOverwriteTrustError',
+               'CircularCascadeError', 'InsaneCascadeError', 'VerificationError', 'BrokenCascadeError',
            'gen_trust', 'run_trust',
            'add_trust', 'add', 'pop', 'walk', 'execute')
 
@@ -39,6 +41,8 @@ Types = SimpleNamespace(
     Trust = _TTrust,
     Cascade = typing.TypeAliasType('Cascade', dict[_TVoucherB, _TTrust]),
 )
+## Execution return code
+ExecutionReturn = IntEnum('ExecutionReturn', ('SUCCESS', 'CIRCULAR', 'INSANE', 'INVALID_SIGNATURE', 'BROKEN'), start=0)
 ## Exceptions
 class CascadeException(Exception):
     '''
@@ -62,15 +66,19 @@ class RefusalToOverwriteTrustError(CascadeExceptionAtTrust):
 class CircularCascadeError(CascadeExceptionAtTrust):
     '''An error for when a trust would be evaluated twice, meaning that it is part of a circular chain'''
     __slots__ = ()
+    CORRESPONDS = ExecutionReturn.CIRCULAR
 class InsaneCascadeError(CascadeExceptionAtTrust):
     '''An error for when a trust's vouching key doesn't match the trust itself in the cascade'''
     __slots__ = ()
+    CORRESPONDS = ExecutionReturn.INSANE
 class VerificationError(CascadeExceptionAtTrust):
     '''An error for when a trust failed verification during cascade execution'''
     __slots__ = ()
+    CORRESPONDS = ExecutionReturn.INVALID_SIGNATURE
 class BrokenCascadeError(CascadeExceptionAtTrust):
     '''An error for when the end of a chain was reached without finding the target key'''
     __slots__ = ()
+    CORRESPONDS = ExecutionReturn.BROKEN
 
 # Functions
 ## Trusts
@@ -117,24 +125,30 @@ def walk(casc: Types.Cascade, from_: Types.Voucher) -> typing.Generator[Types.Tr
     while (kb := k.public_bytes_raw()) in casc:
         yield casc[kb]
         k = casc[kb][1]
-def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, sane_check: bool = True):
+def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, sane_check: bool = True, return_code: bool = False) -> None | ExecutionReturn:
     '''
         Walks `casc`, starting at `from_` and verifying trusts in the chain until `to` is reached
-        Raises exceptions whenever a failure is encountered:
-            `CircularCascadeError` when a trust is seen twice
-            `InsaneCascadeError` when `sane_check` and a trust's vouching key does not match the key in the cascade
-            `VerificationError` when a trust fails signature verification
+        Raises exceptions whenever a failure is encountered, or returns an `ExecutionReturn` if `return_code`:
+            `CircularCascadeError` / `ExecutionReturn.CIRCULAR` when a trust is seen twice
+            `InsaneCascadeError` / `ExecutionReturn.INSANE` when `sane_check` and a trust's vouching key does not match the key in the cascade
+            `VerificationError` / `ExecutionReturn.INVALID_SIGNATURE` when a trust fails signature verification
+            `BrokenCascadeError` / `ExecutionReturn.BROKEN` when the end of the chain is reached and `to` hasn't been found
+        Returns `None` on success, or `ExecutionReturn.SUCCESS` if `return_code`
         If `sane_check` is true, then the keys of the cascade are check to ensure that they match the trusts
     '''
     seen = set()
     for trust in walk(casc, from_):
         if id(trust) in seen:
+            if return_code: return ExecutionReturn.CIRCULAR
             raise CircularCascadeError(f'Cascade execption detected a circular cascade at {id(trust)} and refused to continue', cascade=casc, at=id(trust))
         seen.add(id(trust))
         if sane_check and (casc.get(trust[0].public_bytes_raw(), None) is not trust):
+            if return_code: return ExecutionReturn.INSANE
             raise InsaneCascadeError(f'Cascade execution detected an insane cascade at'
                                      f'{id(casc[trust[0].public_bytes_raw()])} / {id(trust)} and refused to continue', cascade=casc, at=id(trust))
         if not run_trust(trust, no_exc=True):
+            if return_code: return ExecutionReturn.INVALID_SIGNATURE
             raise VerificationError(f'Cascade execution failed to verify trust at {id(trust)}', cascade=casc, at=id(trust))
-        if to == trust[1]: return # success
+        if to == trust[1]: return ExecutionReturn.SUCCESS if return_code else None
+    if return_code: return ExecutionReturn.BROKEN
     raise BrokenCascadeError(f'Cascade execution reached end of chain at {id(trust)}', cascade=casc, at=id(trust))
