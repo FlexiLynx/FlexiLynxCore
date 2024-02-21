@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 __all__ = (
     'TVoucherPrK', 'TVoucher', 'TVoucherB', 'TVouchee', 'TSignature', 'TTrust', 'TCascade',
     'gen_trust', 'run_trust',
-    'add_trust', 'add',
+    'add_trust', 'add', 'pop',
 )
 
 # Types
@@ -66,3 +66,7 @@ def add(casc: TCascade, voucher: TVoucherPrK, vouchee: TVouchee, *, overwrite: b
             unless `overwrite` is true
     '''
     add_trust(casc, gen_trust(voucher, vouchee), overwrite=overwrite)
+### Removing
+def pop(casc: TCascade, voucher: TVoucher) -> TTrust:
+    '''Removes and returns a trust from `casc`'''
+    casc.pop(voucher.public_bytes_raw())
