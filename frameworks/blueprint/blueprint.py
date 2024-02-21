@@ -10,13 +10,14 @@
 #> Imports
 import json
 import typing
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from collections import abc as cabc
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from . import parts
 
 from FlexiLynx.core.util import base85
+from FlexiLynx.core.util import pack
 from FlexiLynx.core.util import maptools
 from FlexiLynx.core.util import typing as ftyping
 #</Imports
@@ -75,12 +76,17 @@ class Blueprint:
         if isinstance(i, bytes): return base85.encode(i)
         if isinstance(i, (str, cabc.Mapping)): return i
         if isinstance(i, cabc.Iterable): return tuple(map(cls._reduce_item, i))
+        if is_dataclass(i): return cls._dc_to_dict(i)
         return i
     @classmethod
     def _reducing_dict(cls, d: typing.Sequence[tuple[str, typing.Any]]) -> dict:
         return maptools.rmap_vals(cls._reduce_item, dict(d))
+    @classmethod
+    def _dc_to_dict(cls, dc: typing.Any) -> dict:
+        return cls._reducing_dict(tuple((f, getattr(dc, f))
+                                        for f in dc.__dataclass_fields__.keys()))
     def serialize_to_dict(self) -> dict:
-        return asdict(self, dict_factory=self._reducing_dict)
+        return self._dc_to_dict(self)
     def serialize(self, **json_args) -> str:
         return json.dumps(self.serialize_to_dict(), indent=4, **json_args)
     @classmethod
@@ -89,6 +95,11 @@ class Blueprint:
     @classmethod
     def deserialize(cls, data: str) -> typing.Self:
         return cls.deserialize_from_dict(json.loads(data))
+    def compile(self) -> bytes:
+        '''Compiles this `Blueprint` for signing / verifying'''
+        dct = self.serialize_to_dict()
+        dct['crypt']['sig'] = NotImplemented
+        return pack.pack(dct)
 
 # Protocol
 class BlueProtocolMeta(type(typing.Protocol)):

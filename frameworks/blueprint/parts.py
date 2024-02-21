@@ -8,7 +8,6 @@ import hashlib
 from pathlib import Path
 from dataclasses import dataclass, field
 from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
 from FlexiLynx.core.util import base85
