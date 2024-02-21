@@ -10,6 +10,7 @@ from .generate import hash_files
 from .blueprint import Blueprint
 
 import FlexiLynx
+from FlexiLynx.core.util import hashtools
 from FlexiLynx.core.util.net import fetchx
 #</Imports
 
@@ -25,12 +26,12 @@ class Package:
     def __init__(self, blueprint: Blueprint):
         self.blueprint = blueprint
 
-    def scan(self, draft: str | None = None, *, at: Path = Path('.'), max_processes: int = 8) -> tuple[frozenset[Path], frozenset[Path], frozenset[Path]]:
+    def scan(self, draft: str | None = None, *, at: Path = Path('.'), max_threads: int = 8) -> tuple[frozenset[Path], frozenset[Path], frozenset[Path]]:
         '''
             Checks for missing or mismatching (changed) artifacts on the local system
             Returns a tuple of frozensets, in the following order: (`matching`, `mismatching`, `missing`)
             A `draft` of `None` selects the "main" files
-            `max_processes` is the limit of processes in the multiprocessing pool for hashing files
+            `max_threads` is the limit of processes in the multiprocessing pool for hashing files
         '''
         draft = self.blueprint.main if draft is None else self.blueprint.drafts[draft]
         files = set(draft.files.keys())
@@ -41,26 +42,51 @@ class Package:
                 files.remove(f)
                 missing.add(f)
         # Check for mismatched files
-        mismatching = {f for f,h in hash_files(at, files, max_processes=max_processes, hash_method=draft.hash_method).items() if draft.files[f] != h}
+        mismatching = {f for f,h in hash_files(at, files, max_threads=max_threads, hash_method=draft.hash_method).items() if draft.files[f] != h}
         # Return
         return (files - mismatching, mismatching, missing)
 
-    def install(self, draft: str | None = None, *, at: Path = Path('.'), needed: bool = True, fetchfn: typing.Callable[[str, ...], typing.Sequence[bytes]] = fetchx, **fetch_args):
-        '''Installs files on the system, only downloading needed files if `needed` is true'''
+    def install(self, draft: str | None = None, *, at: Path = Path('.'), needed: bool = True, resilient: bool = False, max_threads: int = 8,
+                fetchfn: typing.Callable[[str, ...], typing.Sequence[bytes]] = fetchx, **fetch_args) -> bool | None:
+        '''
+            Installs files on the system, only downloading needed files if `needed` is true
+            Raises `ValueError` if any downloaded files fail verification,
+                unless `resilient` is true, in which case files that pass verification will match,
+                a `critical` logging will be issued, and `True` will be returned
+        '''
         match,mism,miss = self.scan(draft, at=at)
-        match = sorted(match); mism = sorted(mism); miss = sorted(miss)
+        match = tuple(sorted(match)); mism = tuple(sorted(mism)); miss = tuple(sorted(miss))
         logger.terse(f'Install issued: {self.blueprint.id}{"" if draft is None else f"@{draft}"}')
-        if match: logger.verbose(f'Some files are already installed:\n - {"\n - ".join(match)}')
-        if not (miss or match):
-            logger.terse('All files are up-to-date')
-            return
+        if match:
+            logger.verbose(f'Some files are already installed:\n - {"\n - ".join(match)}')
+            if not needed:
+                logger.warning(f'`needed` is set to false -- up-to-date file(s) will be reinstalled!')
+        if not (miss or mism or (match and not needed)):
+            logger.terse('Nothing to do -- no install needed')
+            return None
         if mism: logger.info(f'{len(mism)} outdated file(s) will need to be upgraded:\n - {"\n - ".join(mism)}')
         if miss: logger.info(f'{len(miss)} new file(s) will need to be installed:\n - {"\n - ".join(miss)}')
         draft = self.blueprint.main if draft is None else self.blueprint.drafts[draft]
-        urls = {f: f'{draft.url.rstrip("/")}/{f}' for f in mism+miss}
+        urls = {f: f'{draft.url.rstrip("/")}/{f}' for f in (() if needed else match)+mism+miss}
         logger.verbose(f'The following files will be downloaded:\n - {"\n - ".join(urls)}')
         files = dict(zip(urls.keys(), fetchx(*urls.values())))
-        print(files)
+        logger.info(f'Downloading complete, calculating hashes of {len(files)} file(s)...')
+        hashes = dict(zip(files.keys(), hashtools.hash_many(*files.values(), max_threads=max_threads, hash_method=draft.hash_method)))
+        logger.info('Hashing complete')
+        mismh = {f: h for f,h in hashes.items() if h != draft.files[f]}
+        if mismh:
+            if not resilient:
+                raise ValueError(f'Some files failed verification: {", ".join(mismh.keys())}')
+            logger.critical(f'Some files failed verification, installing verified files anyway! '
+                            f'This may cause partial updates and breakage!\nMismatched files: {", ".join(mismh.keys())}')
+        for f,d in files.items():
+            if f in mismh:
+                logger.error(f'Skipping {f}: it failed verification')
+                continue
+            logger.info(f'Installing {len(d)} byte(s) to {at/f}')
+            (at/f).write_bytes(d)
+        logger.terse('Installation complete')
+        return not not mismh
     def uninstall(self, draft: str | None = None, *, at: Path = Path('.'), clean_pyc: bool = True, clean_empty: bool = True):
         '''Uninstalls files on the system, renaming any modified files to protect against accidental deletion'''
         match,mism,miss = self.scan(draft, at=at)
