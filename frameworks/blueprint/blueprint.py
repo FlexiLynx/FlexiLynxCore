@@ -18,10 +18,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 from . import crypt
 from . import parts
 
+from . import logger
+
 from FlexiLynx.core.util import base85
 from FlexiLynx.core.util import pack
 from FlexiLynx.core.util import maptools
 from FlexiLynx.core.util import typing as ftyping
+from FlexiLynx.core.util.net import fetch1
 #</Imports
 
 #> Header >/
@@ -132,6 +135,19 @@ class Blueprint:
         else:
             crypt.cascade.multiexec(crypt.cascade.concat(*cascs),
                                     from_key, key)
+
+    def update(self, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = fetch1):
+        '''
+            Fetches an update for this `Blueprint`, returning the *new* `Blueprint`
+            If `url` is not `None`, it overrides this `Blueprint`'s `.url`
+        '''
+        if url is None: url = self.url
+        if url is None:
+            raise TypeError('No URL was provided and this blueprint has no URL')
+        logger.terse(f'Update issued: {self.id} from {url!r}')
+        bp = self.deserialize(fetchfn(url).decode())
+        logger.critical('WARNING: CRYPTOGRAPHIC VERIFICATION NOT IMPLEMENTED YET! PROCEED WITH CAUTION WHEN USING THIS BLUEPRINT')
+        return bp
 
 # Protocol
 class BlueProtocolMeta(type(typing.Protocol)):
