@@ -168,7 +168,7 @@ class Blueprint:
         if verify:
             logger.info('Verifying other')
             other.verify()
-        if self.crypt.key != bp.crypt.key:
+        if self.crypt.key != other.crypt.key:
             logger.warning(f'Key mismatch, taking action {key_update!r} on:\n'
                            f'Self:  {base85.encode(self.crypt.key)}\n'
                            f'Other: {base85.encode(other.crypt.key)}')
