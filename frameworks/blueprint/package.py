@@ -46,12 +46,15 @@ class Package:
         # Return
         return (files - mismatching, mismatching, missing)
 
-    def update(self, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = fetch1):
+    def update(self, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = fetch1,
+               verify: bool = True, verify_self: bool = True, key_update: Blueprint.KeyUpdate = Blueprint.KeyUpdate.MIGRATE_BOTH):
         '''
             Updates this package's blueprint
                 If `url` is not `None`, it overrides the blueprint's `.url`
+            See `help(Blueprint.update)` for information on other arguments
         '''
-        self.blueprint = self.blueprint.update(url, fetchfn=fetchfn)
+        logger.trace('Issuing update to blueprint through package')
+        self.blueprint = self.blueprint.update(url, fetchfn=fetchfn, verify=verify, verify_self=verify_self, key_update=key_update)
 
     def install(self, draft: str | None = None, *, at: Path = Path('.'), needed: bool = True, resilient: bool = False, max_threads: int = 8,
                 fetchfn: typing.Callable[[str, ...], typing.Sequence[bytes]] = fetchx, **fetch_args) -> bool | None:
