@@ -58,11 +58,11 @@ def w_io(c):
         h_warn_key(blue)
         if isinstance(blue, Blueprint): blue = blue.serialize()
         if output is not None:
-            output.write(blue)
+            click.echo(f'Wrote {output.write(blue)} byte(s) to {getattr(out, "name", "?")}', file=sys.stderr)
         elif blueprint.fileno() == sys.stdin.fileno():
-            sys.stdout.write(blue)
+            click.echo(f'Wrote {sys.stdout.write(blue)} byte(s) to <stdout>', file=sys.stderr)
         else:
-            Path(blueprint.name).write_text(blue)
+            click.echo(f'Wrote {Path(blueprint.name).write_text(blue)} byte(s) to {blueprint.name}', file=sys.stderr)
     return c_w_io
 #</Header
 
