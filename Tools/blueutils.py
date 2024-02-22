@@ -25,8 +25,13 @@ __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
 __entrypoint__.__init__()
 from FlexiLynx.core.frameworks.blueprint import *
 
+def h_warn_key(b: Blueprint):
+    if b.crypt.key is None:
+        click.echo('This blueprint does not hold a key, it is recommended to sign it', file=sys.stderr)
+    elif not b.verify(no_exc=True):
+        click.echo('This blueprint is dirty, it is recommended to sign it', file=sys.stderr)
 def h_output(out: typing.TextIO, b: Blueprint):
-    click.echo('Cannot check if blueprint is dirty: NOT IMPLEMENTED', file=sys.stderr)
+    h_warn_key(b)
     click.echo(f'Wrote {out.write(b.serialize())} byte(s) to {getattr(out, "name", "?")}', file=sys.stderr)
 def h_input(inp: typing.TextIO) -> Blueprint:
     d = inp.read()
@@ -50,6 +55,7 @@ def w_io(c):
     @wraps(c, assigned=('__name__', '__doc__', '__click_params__'))
     def c_w_io(*, blueprint: typing.TextIO, output: typing.TextIO | None, **kwargs):
         blue = c(blueprint=h_input(blueprint), **kwargs)
+        h_warn_key(blue)
         if output is None:
             if blueprint.fileno() == sys.stdin.fileno():
                 output = sys.stdout
