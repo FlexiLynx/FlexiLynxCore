@@ -9,6 +9,8 @@ from pathlib import Path
 from .generate import hash_files
 from .blueprint import Blueprint
 
+from . import logger
+
 import FlexiLynx
 from FlexiLynx.core.util import hashtools
 from FlexiLynx.core.util.net import fetchx, fetch1
@@ -16,8 +18,6 @@ from FlexiLynx.core.util.net import fetchx, fetch1
 
 #> Header >/
 __all__ = ('Package',)
-
-logger = FlexiLynx.core.logger.getChild('BP')
 
 class Package:
     '''Represents a package that may or may not be on the system; built from a `Blueprint`'''

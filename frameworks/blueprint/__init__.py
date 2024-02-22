@@ -5,6 +5,9 @@
 #> Package >/
 __all__ = ('Blueprint', 'BlueProtocol', 'Package', 'crypt', 'generate', 'parts')
 
+from FlexiLynx.core import logger
+logger = logger.getChild('BP')
+
 from . import crypt
 from . import parts
 from . import generate
