@@ -56,15 +56,13 @@ def w_io(c):
     def c_w_io(*, blueprint: typing.TextIO, output: typing.TextIO | None, **kwargs):
         blue = c(blueprint=h_input(blueprint), **kwargs)
         h_warn_key(blue)
-        if output is None:
-            if blueprint.fileno() == sys.stdin.fileno():
-                output = sys.stdout
-            else:
-                blueprint.truncate(0)
-                blueprint.seek(0, io.SEEK_SET)
-                output = blueprint
         if isinstance(blue, Blueprint): blue = blue.serialize()
-        output.write(blue)
+        if output is not None:
+            output.write(blue)
+        elif blueprint.fileno() == sys.stdin.fileno():
+            sys.stdout.write(blue)
+        else:
+            Path(blueprint.name).write_text(blue)
     return c_w_io
 #</Header
 
