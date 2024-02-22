@@ -132,7 +132,7 @@ def files(blueprint: Blueprint, *, files: typing.Sequence[Path], to: str | None,
 @click.option('--hash-method', help='The name of the hash function to use', default='sha1')
 @click.option('--root', help='The root to use as the relative path for files', type=Path, default=Path('.'))
 @click.option('--overwrite', help='Allow overwriting an existing draft', is_flag=True, default=False)
-def draft(blueprint: Blueprint, *, draft_id: str, files: typing.Sequence[Path], url: str | None, hash_method: str, root: Path, overwrite: bool):
+def draft(blueprint: Blueprint, *, draft_id: str, files: typing.Sequence[Path], url: str | None, hash_method: str, root: Path, overwrite: bool) -> Blueprint:
     if (draft_id in blueprint.drafts):
         if not overwrite:
             raise Exception(f'Refusing to overwrite existing draft {draft_id!r} when --overwrite was not supplied')
@@ -149,7 +149,7 @@ cryptcli.add_command(m_genkey, 'genkey')
 @cryptcli.command()
 @w_io
 @click.argument('key', type=click.File('rb'))
-def sign(blueprint: Blueprint, *, key: typing.BinaryIO):
+def sign(blueprint: Blueprint, *, key: typing.BinaryIO) -> Blueprint:
     blueprint.sign(crypt.EdPrivK.from_private_bytes(key.read()), test=False)
     return blueprint
 # crypt verify
