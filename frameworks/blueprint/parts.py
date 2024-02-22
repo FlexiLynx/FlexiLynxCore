@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
 
+from . import cascade
+
 from FlexiLynx.core.util import base85
 #</Imports
 
@@ -35,7 +37,10 @@ class Crypt:
     
     key: EdPubK | bytes | str | None = None
     sig: bytes | str | None = None
-    cascade: dict[bytes | str, tuple[EdPubK | bytes | str, EdPubK | bytes | str, bytes | str]] | None
+    cascade: cascade.Types.Cascade | dict[cascade.Types.VoucherB | str,
+                                          cascade.Trust | tuple[cascade.Types.Voucher | bytes | str,
+                                                                cascade.Types.Vouchee | bytes | str,
+                                                                cascade.Types.Signature | str] | dict] | None
 
     @staticmethod
     def _to_key(key: EdPubK | bytes | str) -> EdPubK:
@@ -53,9 +58,11 @@ class Crypt:
             self.sig = base85.decode(self.sig)
         # cascade field
         if self.cascade is None: return
-        self.cascade = {vkb if isinstance(vkb, bytes) else base85.decode(vkb): (
-            self._to_key(vk), self._to_key(tk), (s if isinstance(s, bytes) else base85.decode(s))
-        ) for vkb,(vk,tk,s) in self.cascade.items()} # vkb,(vk,tk,s) -> vouching key bytes,(vouching key,target key,signature)
+        self.cascade = {vkb if isinstance(vkb, bytes) else base85.decode(vkb): cascade.Trust(**(
+            trust if isinstance(trust, typing.Mapping) else {
+                'voucher': self._to_key(trust[0]), 'vouchee': self._to_key(trust[1]),
+                'signature': (trust[2] if isinstance(trust[2], bytes) else base85.decode(trust[2]))}
+        )) for vkb,trust in self.cascade.items()} # vkb,(vk,tk,s) -> vouching key bytes,(vouching key,target key,signature)
 
 @_dc
 class Relations:

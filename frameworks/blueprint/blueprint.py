@@ -87,6 +87,7 @@ class Blueprint:
     @classmethod
     def _reducing_dict(cls, d: typing.Sequence[tuple[str, typing.Any]]) -> dict:
         return {cls._reduce_item(k): cls._reducing_dict(v.items()) if isinstance(v, cabc.Mapping)
+                else cls._reducing_dict(zip(v._fields, v)) if hasattr(v, '_fields')
                 else cls._reduce_item(v) for k,v in d}
     @classmethod
     def _dc_to_dict(cls, dc: typing.Any) -> dict:

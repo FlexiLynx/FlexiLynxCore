@@ -1,7 +1,7 @@
 #!/bin/python3
 
 '''
-    Functions for creating and executing trusts and cascades
+    Functions for creating and executing `Trust`s and cascades
     Terminology:
         "voucher": a public key that vouches for another public key ("vouchee") in a trust
         "vouchee": a public key that is vouched for by a "voucher"
@@ -20,27 +20,32 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 #</Imports
 
 #> Header >/
-__all__ = ('Types', 'ExecutionReturn', 'CascadeException', 'CascadeExceptionAtTrust', 'RefusalToOverwriteTrustError',
+__all__ = ('Types', 'Trust',
+           'ExecutionReturn', 'CascadeException', 'CascadeExceptionAtTrust', 'RefusalToOverwriteTrustError',
                'CircularCascadeError', 'InsaneCascadeError', 'VerificationError', 'BrokenCascadeError',
            'gen_trust', 'run_trust',
            'add_trust', 'add', 'pop', 'walk', 'execute', 'concat', 'multiexec')
 
 # Types
-## Type-hints
+## Base type-hints
 _TVoucher = typing.TypeAliasType('Voucher', EdPubK)
 _TVoucherB = typing.TypeAliasType('VoucherB', bytes)
 _TVouchee = typing.TypeAliasType('Vouchee', EdPubK)
 _TSignature = typing.TypeAliasType('Signature', bytes)
-_TTrust = typing.TypeAliasType('Trust', tuple[_TVoucher, _TVouchee, _TSignature])
+## Trust type
+class Trust(typing.NamedTuple):
+    voucher: _TVoucher
+    vouchee: _TVouchee
+    signature: _TSignature
+## Type-hint namespace
 Types = SimpleNamespace(
     VoucherPrK = typing.TypeAliasType('VoucherPrK', EdPrivK),
     Voucher = _TVoucher,
     VoucherB = _TVoucherB,
     Vouchee = _TVouchee,
     Signature = _TSignature,
-    Trust = _TTrust,
-    Cascade = typing.TypeAliasType('Cascade', dict[_TVoucherB, _TTrust]),
-    MultiCasc = typing.TypeAliasType('MultiCasc', dict[_TVoucherB, tuple[_TTrust, ...]]),
+    Cascade = typing.TypeAliasType('Cascade', dict[_TVoucherB, tuple[Trust, ...]]),
+    MultiCasc = typing.TypeAliasType('MultiCasc', dict[_TVoucherB, tuple[Trust, ...]]),
 )
 ## Execution return code
 ExecutionReturn = IntEnum('ExecutionReturn', ('SUCCESS', 'CIRCULAR', 'INSANE', 'INVALID_SIGNATURE', 'BROKEN'), start=0)
@@ -83,59 +88,59 @@ class BrokenCascadeError(CascadeExceptionAtTrust):
 
 # Functions
 ## Trusts
-def gen_trust(voucher: Types.VoucherPrK, vouchee: Types.Vouchee) -> Types.Trust:
+def gen_trust(voucher: Types.VoucherPrK, vouchee: Types.Vouchee) -> Trust:
     '''Generates a trust, where `voucher` vouches for `vouchee`'''
     pubk = voucher.public_key()
-    return (pubk, vouchee, voucher.sign(pubk.public_bytes_raw() + vouchee.public_bytes_raw()))
-def run_trust(trust: Types.Trust, *, no_exc: bool = False) -> bool | None:
+    return Trust(voucher=pubk, vouchee=vouchee, signature=voucher.sign(pubk.public_bytes_raw() + vouchee.public_bytes_raw()))
+def run_trust(trust: Trust, *, no_exc: bool = False) -> bool | None:
     '''Executes a trust, raising an `InvalidSignature` if it's invalid (or returning `False` if `no_exc`)'''
     ver,vee,sig = trust
     if not no_exc:
-        ver.verify(trust[2], trust[0].public_bytes_raw() + trust[1].public_bytes_raw())
+        ver.verify(trust.signature, trust.voucher.public_bytes_raw() + trust.vouchee.public_bytes_raw())
         return None
-    try: ver.verify(trust[2], trust[0].public_bytes_raw() + trust[1].public_bytes_raw())
+    try: ver.verify(trust.signature, trust.voucher.public_bytes_raw() + trust.vouchee.public_bytes_raw())
     except InvalidSignature: return False
     return True
 ## Cascades
 ### Adding
-def add_trust(casc: Types.Cascade, trust: Types.Trust, *, overwrite: bool = False):
+def add_trust(casc: Types.Cascade, trust: Trust, *, overwrite: bool = False):
     '''
         Adds a `trust` to `casc`
         Raises `RefusalToOverwriteTrustError` if the vouching key is already present in the cascade,
             unless `overwrite` is true
     '''
-    pb = trust[0].public_bytes_raw()
+    pb = trust.voucher.public_bytes_raw()
     if (not overwrite) and (pb in casc):
         raise RefusalToOverwriteTrustError('Refusing to overwrite a trust already present in the cascade when overwrite is false', cascade=casc, at=id(casc[pb]))
     casc[pb] = trust
 def add(casc: Types.Cascade, voucher: Types.VoucherPrK, vouchee: Types.Vouchee, *, overwrite: bool = False):
     '''
-        Generates a new trust and adds it to `casc`
+        Generates a new `Trust` and adds it to `casc`
         Raises `KeyError` if the vouching key is already present in the cascade,
             unless `overwrite` is true
     '''
     add_trust(casc, gen_trust(voucher, vouchee), overwrite=overwrite)
 ### Removing
-def pop(casc: Types.Cascade, voucher: Types.Voucher) -> Types.Trust:
-    '''Removes and returns a trust from `casc`'''
+def pop(casc: Types.Cascade, voucher: Types.Voucher) -> Trust:
+    '''Removes and returns a `Trust` from `casc`'''
     casc.pop(voucher.public_bytes_raw())
 ### Executing
-def walk(casc: Types.Cascade, from_: Types.Voucher) -> typing.Generator[Types.Trust, None, None]:
-    '''Walks `casc`, starting at `from_` and yielding trusts in a chain'''
+def walk(casc: Types.Cascade, from_: Types.Voucher) -> typing.Generator[Trust, None, None]:
+    '''Walks `casc`, starting at `from_` and yielding `Trust`s in a chain'''
     k = from_
     while (kb := k.public_bytes_raw()) in casc:
         yield casc[kb]
-        k = casc[kb][1]
+        k = casc[kb].vouchee
 def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, sane_check: bool = True, return_code: bool = False) -> None | ExecutionReturn:
     '''
-        Walks `casc`, starting at `from_` and verifying trusts in the chain until `to` is reached
+        Walks `casc`, starting at `from_` and verifying `Trust`s in the chain until `to` is reached
         Raises exceptions whenever a failure is encountered, or returns an `ExecutionReturn` if `return_code`:
-            `CircularCascadeError` / `ExecutionReturn.CIRCULAR` when a trust is seen twice
-            `InsaneCascadeError` / `ExecutionReturn.INSANE` when `sane_check` and a trust's vouching key does not match the key in the cascade
-            `VerificationError` / `ExecutionReturn.INVALID_SIGNATURE` when a trust fails signature verification
+            `CircularCascadeError` / `ExecutionReturn.CIRCULAR` when a `Trust` is seen twice
+            `InsaneCascadeError` / `ExecutionReturn.INSANE` when `sane_check` and a `Trust`'s vouching key does not match the key in the cascade
+            `VerificationError` / `ExecutionReturn.INVALID_SIGNATURE` when a `Trust` fails signature verification
             `BrokenCascadeError` / `ExecutionReturn.BROKEN` when the end of the chain is reached and `to` hasn't been found
         Returns `None` on success, or `ExecutionReturn.SUCCESS` if `return_code`
-        If `sane_check` is true, then the keys of the cascade are check to ensure that they match the trusts
+        If `sane_check` is true, then the keys of the cascade are check to ensure that they match the `Trust`s
     '''
     seen = set()
     for trust in walk(casc, from_):
@@ -143,14 +148,14 @@ def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, san
             if return_code: return ExecutionReturn.CIRCULAR
             raise CircularCascadeError(f'Cascade execution detected a circular cascade at {id(trust)} and refused to continue', cascade=casc, at=id(trust))
         seen.add(id(trust))
-        if sane_check and (casc.get(trust[0].public_bytes_raw(), None) is not trust):
+        if sane_check and (casc.get(trust.voucher.public_bytes_raw(), None) is not trust):
             if return_code: return ExecutionReturn.INSANE
             raise InsaneCascadeError(f'Cascade execution detected an insane cascade at'
-                                     f'{id(casc[trust[0].public_bytes_raw()])} / {id(trust)} and refused to continue', cascade=casc, at=id(trust))
+                                     f'{id(casc[trust.voucher.public_bytes_raw()])} / {id(trust)} and refused to continue', cascade=casc, at=id(trust))
         if not run_trust(trust, no_exc=True):
             if return_code: return ExecutionReturn.INVALID_SIGNATURE
             raise VerificationError(f'Cascade execution failed to verify trust at {id(trust)}', cascade=casc, at=id(trust))
-        if to == trust[1]: return ExecutionReturn.SUCCESS if return_code else None
+        if to == trust.vouchee: return ExecutionReturn.SUCCESS if return_code else None
     if return_code: return ExecutionReturn.BROKEN
     raise BrokenCascadeError(f'Cascade execution reached end of chain at {id(trust)}', cascade=casc, at=id(trust))
 ### Multiple cascade handling
@@ -176,8 +181,8 @@ def multiexec(mcasc: Types.MultiCasc, src: Types.Voucher, dst: Types.Vouchee, *,
     for trust in trusts:
         if not run_trust(trust, no_exc=True):
             raise VerificationError(f'Multicascade execution failed to verify trust at <cid>{id(trust)} at the outer level', cascade=mcasc, at=id(trust))
-        if ((trust[1] == dst) # we found it
-                or multiexec(mcasc, trust[1], dst, _outer=False, _seen=_seen)): # or someone else found it
+        if ((trust.vouchee == dst) # we found it
+                or multiexec(mcasc, trust.vouchee, dst, _outer=False, _seen=_seen)): # or someone else found it
             return None if _outer else True
     if not _outer: return False
     raise BrokenCascadeError(f'Multicascade execution reached end of chain at <h>{hash(kb)}', cascade=mcasc, at=hash(kb))
