@@ -49,8 +49,21 @@ def _test():
     from pathlib import Path
     from FlexiLynx.core.frameworks import blueprint
     corebp = blueprint.Blueprint.deserialize(Path('../Blueprints/flexilynx/core.json').read_text())
+    print(corebp.serialize())
+    prk = blueprint.crypt.EdPrivK.generate()
+    puk = prk.public_key()
+    corebp.sign(prk)
+    print(corebp.serialize())
+    with open('../shae.pyk', 'rb') as f:
+        srk = blueprint.crypt.EdPrivK.from_private_bytes(f.read())
+    blueprint.crypt.cascade.add(corebp.crypt.cascade, prk, srk.public_key())
+    print(corebp.serialize())
     corepkg = blueprint.Package(corebp)
+    match,mism,miss = corepkg.scan()
+    print(f'Matching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
     corepkg.update()
+    match,mism,miss = corepkg.scan()
+    print(f'Matching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
 
     #test = manifest.ContentManifest(
     #    'testid',
