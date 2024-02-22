@@ -71,6 +71,12 @@ def w_io(c):
 #> Main >/
 cli = click.Group(context_settings={'help_option_names': ('-h', '--help', '-?'), 'max_content_width': 160})
 
+# Multi-group commands #
+@click.command()
+@click.option('--output', type=click.File('wb'), help='The file to write the key to (defaults to stdout)', default='-')
+def m_genkey(*, output: typing.BinaryIO):
+    output.write(crypt.EdPrivK.generate().private_bytes_raw())
+
 # Generate commands #
 gencli = click.Group('gen', help='Generation commands')
 cli.add_command(gencli)
@@ -101,10 +107,7 @@ def blueprint(*, id: str, files: typing.Sequence[Path],
                      crypt=parts.Crypt(key=None, sig=None, cascade={}),
                      relations=parts.Relations(depends=dep, conflicts=conf))
 # gen key
-@gencli.command()
-@click.option('--output', type=click.File('wb'), help='The file to write the key to (defaults to stdout)', default='-')
-def key(*, output: typing.BinaryIO):
-    output.write(crypt.EdPrivK.generate().private_bytes_raw())
+gencli.add_command(m_genkey, 'key')
 
 # Add commands #
 addcli = click.Group('add', help='Adding commands')
@@ -136,6 +139,12 @@ def draft(blueprint: Blueprint, *, draft_id: str, files: typing.Sequence[Path], 
         click.echo(f'WARNING: overwriting existing draft {draft_id!r}', file=sys.stderr)
     blueprint.drafts[draft_id] = generate.make_manifest(url, *files, root=root, hash_method=hash_method)
     return blueprint
+
+# Crypt commands #
+cryptcli = click.Group('crypt', help='Blueprint signing and verifying')
+cli.add_command(cryptcli)
+# crypt genkey
+cryptcli.add_command(m_genkey, 'genkey')
 
 # Main
 if __name__ == '__main__': cli()
