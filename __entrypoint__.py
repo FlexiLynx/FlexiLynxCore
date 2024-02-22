@@ -60,10 +60,10 @@ def _test():
     print(corebp.serialize())
     corepkg = blueprint.Package(corebp)
     match,mism,miss = corepkg.scan()
-    print(f'Matching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
+    print(f'--PRE  UPDATE--\nMatching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
     corepkg.update()
     match,mism,miss = corepkg.scan()
-    print(f'Matching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
+    print(f'--POST UPDATE--\nMatching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
 
     #test = manifest.ContentManifest(
     #    'testid',
