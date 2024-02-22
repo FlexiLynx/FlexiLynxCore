@@ -145,6 +145,23 @@ cryptcli = click.Group('crypt', help='Blueprint signing and verifying')
 cli.add_command(cryptcli)
 # crypt genkey
 cryptcli.add_command(m_genkey, 'genkey')
+# crypt sign
+@cryptcli.command()
+@w_io
+@click.argument('key', type=click.File('rb'))
+def sign(blueprint: Blueprint, *, key: typing.BinaryIO):
+    blueprint.sign(crypt.EdPrivK.from_private_bytes(key.read()), test=False)
+    return blueprint
+# crypt verify
+@cryptcli.command()
+@w_input
+@click.option('--key', help='Alternate key to verify with', type=click.File('rb'), default=None)
+@click.option('--key-is-public', help='Treat the alternate key provided with --key as a public key, not a private key', is_flag=True, default=False)
+def verify(blueprint: Blueprint, *, key: typing.BinaryIO | None, key_is_public: bool):
+    if key is not None:
+        key = (crypt.EdPubK.from_public_bytes(key.read()) if key_is_public
+               else crypt.EdPrivK.from_private_bytes(key.read()).public_key())
+    blueprint.verify(key)
 
 # Main
 if __name__ == '__main__': cli()
