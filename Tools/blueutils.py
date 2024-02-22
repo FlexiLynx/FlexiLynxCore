@@ -160,6 +160,7 @@ def verify(blueprint: Blueprint, *, key: typing.BinaryIO | None, key_is_public: 
         key = (crypt.EdPubK.from_public_bytes(key.read()) if key_is_public
                else crypt.EdPrivK.from_private_bytes(key.read()).public_key())
     blueprint.verify(key)
+    click.echo('Verification passed')
 
 # Main
 if __name__ == '__main__': cli()
