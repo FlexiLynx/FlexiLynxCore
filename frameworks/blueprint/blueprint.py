@@ -111,7 +111,7 @@ class Blueprint:
     @defaults(crypt.sign)
     def sign(self, key: EdPrivK, *, test: bool = DEFAULT):
         '''Signs the underlying `Blueprint` with `key`, optionally testing the signature after'''
-        crypt.sign(self.blueprint, key, test=test)
+        crypt.sign(self, key, test=test)
     @defaults(crypt.verify)
     def verify(self, key: EdPubK | None = None, *, no_exc: bool = DEFAULT) -> bool | None:
         '''
