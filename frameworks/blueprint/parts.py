@@ -51,6 +51,12 @@ class Crypt:
         elif isinstance(self.key, bytes):
             return EdPubK.from_public_bytes(key)
         return key
+    @classmethod
+    def _to_trust(cls, tr: typing.Sequence | typing.Mapping) -> cascade.Trust:
+        if isinstance(tr, typing.Mapping):
+            tr = (tr['voucher'], tr['vouchee'], tr['signature'])
+        return cascade.Trust(voucher=cls._to_key(tr[0]), vouchee=cls._to_key(tr[1]),
+                             signature=(tr[2] if isinstance(tr[2], bytes) else base85.decode(tr[2])))
     def __post_init__(self):
         # key field
         if self.key is not None:
@@ -60,11 +66,8 @@ class Crypt:
             self.sig = base85.decode(self.sig)
         # cascade field
         if self.cascade is None: return
-        self.cascade = {vkb if isinstance(vkb, bytes) else base85.decode(vkb): cascade.Trust(**(
-            trust if isinstance(trust, typing.Mapping) else {
-                'voucher': self._to_key(trust[0]), 'vouchee': self._to_key(trust[1]),
-                'signature': (trust[2] if isinstance(trust[2], bytes) else base85.decode(trust[2]))}
-        )) for vkb,trust in self.cascade.items()} # vkb,(vk,tk,s) -> vouching key bytes,(vouching key,target key,signature)
+        self.cascade = {vkb if isinstance(vkb, bytes) else base85.decode(vkb): self._to_trust(trust)
+                        for vkb,trust in self.cascade.items()} # vkb,(vk,tk,s) -> vouching key bytes,(vouching key,target key,signature)
 
 @_dc
 class Relations:
