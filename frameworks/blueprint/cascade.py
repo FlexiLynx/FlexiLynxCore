@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 __all__ = ('Types', 'ExecutionReturn', 'CascadeException', 'CascadeExceptionAtTrust', 'RefusalToOverwriteTrustError',
                'CircularCascadeError', 'InsaneCascadeError', 'VerificationError', 'BrokenCascadeError',
            'gen_trust', 'run_trust',
-           'add_trust', 'add', 'pop', 'walk', 'execute')
+           'add_trust', 'add', 'pop', 'walk', 'execute', 'concat', 'multiexec')
 
 # Types
 ## Type-hints
@@ -40,6 +40,7 @@ Types = SimpleNamespace(
     Signature = _TSignature,
     Trust = _TTrust,
     Cascade = typing.TypeAliasType('Cascade', dict[_TVoucherB, _TTrust]),
+    MultiCasc = typing.TypeAliasType('MultiCasc', dict[_TVoucherB, tuple[_TTrust, ...]]),
 )
 ## Execution return code
 ExecutionReturn = IntEnum('ExecutionReturn', ('SUCCESS', 'CIRCULAR', 'INSANE', 'INVALID_SIGNATURE', 'BROKEN'), start=0)
@@ -51,7 +52,7 @@ class CascadeException(Exception):
             things like `KeyError` and `InvalidSignature` will not be transformed
     '''
     __slots__ = ('cascade',)
-    def __init__(self, *args, cascade: Types.Cascade | None = None, **kwargs):
+    def __init__(self, *args, cascade: Types.Cascade | Types.MultiCasc | None = None, **kwargs):
         self.cascade = cascade
         super().__init__(*args, **kwargs)
 class CascadeExceptionAtTrust(CascadeException):
@@ -140,7 +141,7 @@ def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, san
     for trust in walk(casc, from_):
         if id(trust) in seen:
             if return_code: return ExecutionReturn.CIRCULAR
-            raise CircularCascadeError(f'Cascade execption detected a circular cascade at {id(trust)} and refused to continue', cascade=casc, at=id(trust))
+            raise CircularCascadeError(f'Cascade execution detected a circular cascade at {id(trust)} and refused to continue', cascade=casc, at=id(trust))
         seen.add(id(trust))
         if sane_check and (casc.get(trust[0].public_bytes_raw(), None) is not trust):
             if return_code: return ExecutionReturn.INSANE
@@ -152,3 +153,31 @@ def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, san
         if to == trust[1]: return ExecutionReturn.SUCCESS if return_code else None
     if return_code: return ExecutionReturn.BROKEN
     raise BrokenCascadeError(f'Cascade execution reached end of chain at {id(trust)}', cascade=casc, at=id(trust))
+### Multiple cascade handling
+def concat(*cascs: Types.Cascade, mcasc: Types.MultiCasc | None = None) -> Types.MultiCasc:
+    '''Concats multiple cascades into one, optionally writing them to `mcasc` if given'''
+    if mcasc is None: mcasc = {}
+    for casc in cascs:
+        for k,t in casc.items():
+            mcasc.setdefault(k, ())
+            mcasc[k] += (t,)
+    return mcasc
+def multiexec(mcasc: Types.MultiCasc, src: Types.Voucher, dst: Types.Vouchee, *, _outer: bool = True, _seen: set[int] | None = None) -> None | bool:
+    '''Executes a multi-cascade. Does not support exit-codes, only supports raising exceptions'''
+    if _seen is None: _seen = set()
+    kb = src.public_bytes_raw()
+    if hash(kb) in _seen:
+        if not _outer: return False
+        raise CircularCascadeError(f'Multicascade execution encountered a circular chain at <h>{hash(kb)} and refused to continue', cascade=mcasc, at=hash(kb))
+    trusts = mcasc.get(kb, None)
+    if trusts is None:
+        if not _outer: return False
+        raise BrokenCascadeError(f'Multicascade execution reached end of chain at <mid>{id(trusts)}', cascade=mcasc, at=id(trusts))
+    for trust in trusts:
+        if not run_trust(trust, no_exc=True):
+            raise VerificationError(f'Multicascade execution failed to verify trust at <cid>{id(trust)} at the outer level', cascade=mcasc, at=id(trust))
+        if ((trust[1] == dst) # we found it
+                or multiexec(mcasc, trust[1], dst, _outer=False, _seen=_seen)): # or someone else found it
+            return None if _outer else True
+    if not _outer: return False
+    raise BrokenCascadeError(f'Multicascade execution reached end of chain at <h>{hash(kb)}', cascade=mcasc, at=hash(kb))
