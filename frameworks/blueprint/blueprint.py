@@ -23,7 +23,6 @@ from . import logger
 
 from FlexiLynx.core.util import base85
 from FlexiLynx.core.util import pack
-from FlexiLynx.core.util import maptools
 from FlexiLynx.core.util import typing as ftyping
 from FlexiLynx.core.util.net import fetch1
 from FlexiLynx.core.util.functools import defaults, DEFAULT
@@ -87,7 +86,8 @@ class Blueprint:
         return i
     @classmethod
     def _reducing_dict(cls, d: typing.Sequence[tuple[str, typing.Any]]) -> dict:
-        return maptools.rmap_vals(cls._reduce_item, dict(d))
+        return {cls._reduce_item(k): cls._reducing_dict(v.items()) if isinstance(v, cabc.Mapping)
+                else cls._reduce_item(v) for k,v in d}
     @classmethod
     def _dc_to_dict(cls, dc: typing.Any) -> dict:
         return cls._reducing_dict(tuple((f, getattr(dc, f))
@@ -170,8 +170,8 @@ class Blueprint:
             other.verify()
         if self.crypt.key != other.crypt.key:
             logger.warning(f'Key mismatch, taking action {key_update!r} on:\n'
-                           f'Self:  {base85.encode(self.crypt.key)}\n'
-                           f'Other: {base85.encode(other.crypt.key)}')
+                           f'Self:  {base85.encode(self.crypt.key.public_bytes_raw())}\n'
+                           f'Other: {base85.encode(other.crypt.key.public_bytes_raw())}')
             if key_update is self.KeyUpdate.MIGRATE_BOTH:
                 if self.crypt.key is None:
                     if other.crypt.key is None:
