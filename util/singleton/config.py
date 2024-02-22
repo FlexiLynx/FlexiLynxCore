@@ -14,6 +14,7 @@ from collections import UserDict
 
 from .. import base85, pack
 from ..parallel import mlock
+from ..tools.functools import defaults, DEFAULT
 from ..tools.flattools import flatten_map, extrude_map
 #</Imports
 
@@ -72,7 +73,8 @@ class Config(UserDict):
             '_defaults': list(self.defaults),
         }
     @mlock
-    def export(self, delim: str = '.', *, indent=4, **json_config) -> str:
+    @defaults(export_dict)
+    def export(self, delim: str = DEFAULT, *, indent=4, **json_config) -> str:
         '''Exports this configuration instance to JSON'''
         return json.dumps(self.export_dict(delim), indent=indent, **json_config)
 
@@ -91,7 +93,8 @@ class Config(UserDict):
             else:
                 raise ValueError(f'Found DATA_PFX {self.DATA_PFX!r}, but with an unknown reason, in key {k!r}\n value: {v!r}')
     @classmethod
-    def load_map(cls, m: typing.Mapping[str, typing.Any], delim: str = '.', *, defaults: typing.Mapping[str, typing.Any] | None = None,
+    @defaults(export_dict)
+    def load_map(cls, m: typing.Mapping[str, typing.Any], delim: str = DEFAULT, *, defaults: typing.Mapping[str, typing.Any] | None = None,
                    instance: typing.Self | None = None, postprocess: bool = True) -> typing.Self:
         '''
             Converts a mapping `m` into a configuration instance
@@ -109,7 +112,8 @@ class Config(UserDict):
             self.postprocess()
             return self
     @classmethod
-    def load(cls, jsn: str, delim: str = '.') -> typing.Self: # .import() is invalid...
+    @defaults(export_dict)
+    def load(cls, jsn: str, delim: str = DEFAULT) -> typing.Self: # .import() is invalid...
         '''Converts exported JSON `jsn` into a configuration instance'''
         return cls.load_map(json.loads(jsn), delim)
 

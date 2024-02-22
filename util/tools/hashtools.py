@@ -8,6 +8,8 @@ import hashlib
 import multiprocessing.pool
 from pathlib import Path
 from functools import partial
+
+from .functools import defaults, DEFAULT
 #</Imports
 
 #> Header >/
@@ -31,12 +33,14 @@ def hash_many(*datas: bytes, max_threads: int = 8, hash_method: str = ALGORITHM_
     if procs < 2: return tuple(map(hfunc, datas))
     with multiprocessing.pool.ThreadPool(procs) as mp:
         return tuple(mp.map(hfunc, datas))
-def hash_file(file: Path | str, hash_method: str = ALGORITHM_DEFAULT_HIGH) -> bytes:
+@defaults(hash_many)
+def hash_file(file: Path | str, hash_method: str = DEFAULT) -> bytes:
     '''Opens and hashes a single `Path` (or string coerced into a `Path`)'''
     if not isinstance(file, Path): file = Path(file)
     with file.open('rb') as f:
         return hashlib.file_digest(f, hash_method).digest()
-def hash_files(*files: Path | str, max_threads: int = 8, hash_method: str = ALGORITHM_DEFAULT_HIGH) -> dict[Path | str, bytes]:
+@defaults(hash_many)
+def hash_files(*files: Path | str, max_threads: int = DEFAULT, hash_method: str = DEFAULT) -> dict[Path | str, bytes]:
     '''
         Opens and hashes multiple `Path`s (or strings coerced into `Path`s) using multithreading
             Note that, in the returned `dict`, keys that were strings will remain strings

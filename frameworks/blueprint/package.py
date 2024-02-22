@@ -13,7 +13,8 @@ from . import logger
 
 import FlexiLynx
 from FlexiLynx.core.util import hashtools
-from FlexiLynx.core.util.net import fetchx, fetch1
+from FlexiLynx.core.util.net import fetchx
+from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
 
 #> Header >/
@@ -26,7 +27,8 @@ class Package:
     def __init__(self, blueprint: Blueprint):
         self.blueprint = blueprint
 
-    def scan(self, draft: str | None = None, *, at: Path = Path('.'), max_threads: int = 8) -> tuple[frozenset[Path], frozenset[Path], frozenset[Path]]:
+    @defaults(hash_files)
+    def scan(self, draft: str | None = None, *, at: Path = Path('.'), max_threads: int = DEFAULT) -> tuple[frozenset[Path], frozenset[Path], frozenset[Path]]:
         '''
             Checks for missing or mismatching (changed) artifacts on the local system
             Returns a tuple of frozensets, in the following order: (`matching`, `mismatching`, `missing`)
@@ -46,8 +48,9 @@ class Package:
         # Return
         return (files - mismatching, mismatching, missing)
 
-    def update(self, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = fetch1,
-               verify: bool = True, verify_self: bool = True, key_update: Blueprint.KeyUpdate = Blueprint.KeyUpdate.MIGRATE_BOTH):
+    @defaults(Blueprint.update)
+    def update(self, url: str | None = DEFAULT, *, fetchfn: typing.Callable[[str], bytes] = DEFAULT,
+               verify: bool = DEFAULT, verify_self: bool = DEFAULT, key_update: Blueprint.KeyUpdate = DEFAULT):
         '''
             Updates this package's blueprint
                 If `url` is not `None`, it overrides the blueprint's `.url`
@@ -56,7 +59,8 @@ class Package:
         logger.trace('Issuing update to blueprint through package')
         self.blueprint = self.blueprint.update(url, fetchfn=fetchfn, verify=verify, verify_self=verify_self, key_update=key_update)
 
-    def install(self, draft: str | None = None, *, at: Path = Path('.'), needed: bool = True, resilient: bool = False, max_threads: int = 8,
+    @defaults(hashtools.hash_many)
+    def install(self, draft: str | None = None, *, at: Path = Path('.'), needed: bool = True, resilient: bool = False, max_threads: int = DEFAULT,
                 fetchfn: typing.Callable[[str, ...], typing.Sequence[bytes]] = fetchx, **fetch_args) -> bool | None:
         '''
             Installs files on the system, only downloading needed files if `needed` is true

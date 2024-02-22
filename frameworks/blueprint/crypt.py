@@ -6,20 +6,18 @@
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
-
-from .blueprint import Blueprint
 #</Imports
 
 #> Header >/
 __all__ = ('sign', 'verify', 'cascade')
 
 # Simple signing and verifying
-def sign(bp: Blueprint, key: EdPrivK, *, test: bool = True):
+def sign(bp: 'blueprint.Blueprint', key: EdPrivK, *, test: bool = True):
     '''Signs the `Blueprint` with `key`, optionally testing it with `verify()`'''
     bp.crypt.key = key.public_key()
     bp.crypt.sig = key.sign(bp.compile())
     if test: verify(bp)
-def verify(bp: Blueprint, key: EdPubK | None = None, *, no_exc: bool = False) -> bool | None:
+def verify(bp: 'blueprint.Blueprint', key: EdPubK | None = None, *, no_exc: bool = False) -> bool | None:
     '''
         Verifies that a `Blueprint` has not been tampered with
         If `key` is `None`, `bp`'s key is used instead
@@ -42,3 +40,6 @@ def verify(bp: Blueprint, key: EdPubK | None = None, *, no_exc: bool = False) ->
 
 # Cascading
 from . import cascade
+
+# Import `blueprint` to resolve type-hints
+from . import blueprint

@@ -26,6 +26,7 @@ from FlexiLynx.core.util import pack
 from FlexiLynx.core.util import maptools
 from FlexiLynx.core.util import typing as ftyping
 from FlexiLynx.core.util.net import fetch1
+from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
 
 #> Header >/
@@ -107,10 +108,12 @@ class Blueprint:
         dct['crypt']['sig'] = NotImplemented
         return pack.pack(dct)
 
-    def sign(self, key: EdPrivK, *, test: bool = True):
+    @defaults(crypt.sign)
+    def sign(self, key: EdPrivK, *, test: bool = DEFAULT):
         '''Signs the underlying `Blueprint` with `key`, optionally testing the signature after'''
         crypt.sign(self.blueprint, key, test=test)
-    def verify(self, key: EdPubK | None = None, *, no_exc: bool = False) -> bool | None:
+    @defaults(crypt.verify)
+    def verify(self, key: EdPubK | None = None, *, no_exc: bool = DEFAULT) -> bool | None:
         '''
             Verifies the signature of this `Blueprint` using `key`
                 If `key` is `None`, then this `Blueprint`'s `.key` is used instead
@@ -139,7 +142,7 @@ class Blueprint:
 
     KeyUpdate = Enum('KeyUpdate', ('MIGRATE_SELF', 'MIGRATE_OTHER', 'MIGRATE_BOTH', 'FAIL', 'IGNORE'))
     def update(self, url: str | None = None, *, fetchfn: typing.Callable[[str], bytes] = fetch1,
-               verify: bool = True, verify_self: bool = False, key_update: KeyUpdate) -> typing.Self:
+               verify: bool = True, verify_self: bool = False, key_update: KeyUpdate = KeyUpdate.MIGRATE_BOTH) -> typing.Self:
         '''
             Fetches an update for this `Blueprint`, returning the *new* `Blueprint`
             If `url` is not `None`, it overrides this `Blueprint`'s `.url`
