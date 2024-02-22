@@ -144,6 +144,7 @@ def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, san
     '''
     if from_ == to: return None
     seen = set()
+    _last = None
     for trust in walk(casc, from_):
         if id(trust) in seen:
             if return_code: return ExecutionReturn.CIRCULAR
@@ -157,8 +158,11 @@ def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, san
             if return_code: return ExecutionReturn.INVALID_SIGNATURE
             raise VerificationError(f'Cascade execution failed to verify trust at {id(trust)}', cascade=casc, at=id(trust))
         if to == trust.vouchee: return ExecutionReturn.SUCCESS if return_code else None
+        _last = trust
     if return_code: return ExecutionReturn.BROKEN
-    raise BrokenCascadeError(f'Cascade execution reached end of chain at {id(trust)}', cascade=casc, at=id(trust))
+    if _last is None:
+        raise BrokenCascadeError(f'Cascade execution reached end of empty chain', cascade=casc, at=-1)
+    raise BrokenCascadeError(f'Cascade execution reached end of chain at {id(_last)}', cascade=casc, at=id(_last))
 ### Multiple cascade handling
 def concat(*cascs: Types.Cascade, mcasc: Types.MultiCasc | None = None) -> Types.MultiCasc:
     '''Concats multiple cascades into one, optionally writing them to `mcasc` if given'''
