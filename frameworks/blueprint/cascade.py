@@ -142,6 +142,7 @@ def execute(casc: Types.Cascade, from_: Types.Voucher, to: Types.Vouchee, *, san
         Returns `None` on success, or `ExecutionReturn.SUCCESS` if `return_code`
         If `sane_check` is true, then the keys of the cascade are check to ensure that they match the `Trust`s
     '''
+    if from_ == to: return None
     seen = set()
     for trust in walk(casc, from_):
         if id(trust) in seen:
@@ -169,6 +170,7 @@ def concat(*cascs: Types.Cascade, mcasc: Types.MultiCasc | None = None) -> Types
     return mcasc
 def multiexec(mcasc: Types.MultiCasc, src: Types.Voucher, dst: Types.Vouchee, *, _outer: bool = True, _seen: set[int] | None = None) -> None | bool:
     '''Executes a multi-cascade. Does not support exit-codes, only supports raising exceptions'''
+    if src == dst: return None
     if _seen is None: _seen = set()
     kb = src.public_bytes_raw()
     if hash(kb) in _seen:
