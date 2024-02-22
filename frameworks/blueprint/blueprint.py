@@ -114,6 +114,24 @@ class Blueprint:
                 unless `no_exc` is true, in which case `False` is returned
         '''
         return crypt.verify(self, key, no_exc=no_exc)
+    def migrate(self, key: 'crypt.cascade.Types.Vouchee', *cascs: 'crypt.cascade.Types.Cascade',
+                from_key: typing.ForwardRef('crypt.cascade.Types.Voucher') | None = None):
+        '''
+            Fails if `key` is not an acceptable new key
+            `cascs`, if given, will be concatenated to this `Blueprint`'s cascade (if present)
+            Raises `TypeError` if no cascades were found
+            See `help(crypt.cascade.execute)` for information on exceptions
+        '''
+        if from_key is None: from_key = self.crypt.key
+        if self.crypt.cascade is not None:
+            cascs += (self.crypt.cascade,)
+        if not cascs:
+            raise TypeError('This blueprint does not have a cascade, and none were provided')
+        if len(cascs) == 1:
+            crypt.cascade.execute(cascs[0], from_key, key)
+        else:
+            crypt.cascade.multiexec(crypt.cascade.concat(*cascs),
+                                    from_key, key)
 
 # Protocol
 class BlueProtocolMeta(type(typing.Protocol)):
