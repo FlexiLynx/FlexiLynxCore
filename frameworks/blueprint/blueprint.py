@@ -13,7 +13,9 @@ import typing
 from dataclasses import dataclass, field, is_dataclass
 from collections import abc as cabc
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as EdPubK
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as EdPrivK
 
+from . import crypt
 from . import parts
 
 from FlexiLynx.core.util import base85
@@ -100,6 +102,18 @@ class Blueprint:
         dct = self.serialize_to_dict()
         dct['crypt']['sig'] = NotImplemented
         return pack.pack(dct)
+
+    def sign(self, key: EdPrivK, *, test: bool = True):
+        '''Signs the underlying `Blueprint` with `key`, optionally testing the signature after'''
+        crypt.sign(self.blueprint, key, test=test)
+    def verify(self, key: EdPubK | None = None, *, no_exc: bool = False) -> bool | None:
+        '''
+            Verifies the signature of this `Blueprint` using `key`
+                If `key` is `None`, then this `Blueprint`'s `.key` is used instead
+            Raises an `InvalidSignature` on failure,
+                unless `no_exc` is true, in which case `False` is returned
+        '''
+        return crypt.verify(self, key, no_exc=no_exc)
 
 # Protocol
 class BlueProtocolMeta(type(typing.Protocol)):
