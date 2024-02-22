@@ -100,6 +100,12 @@ def blueprint(*, id: str, files: typing.Sequence[Path],
                      main=generate.make_manifest(file_url, *files, root=root, hash_method=hash_method), drafts=None,
                      crypt=parts.Crypt(key=None, sig=None, cascade={}),
                      relations=parts.Relations(depends=dep, conflicts=conf))
+# gen key
+@gencli.command()
+@click.option('--output', type=click.File('wb'), help='The file to write the key to (defaults to stdout)', default='-')
+def key(*, output: typing.BinaryIO):
+    output.write(crypt.EdPrivK.generate().private_bytes_raw())
+
 # Add commands #
 addcli = click.Group('add', help='Adding commands')
 cli.add_command(addcli)
