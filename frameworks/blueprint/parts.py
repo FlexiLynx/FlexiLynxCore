@@ -12,6 +12,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey a
 
 from . import cascade
 
+from . import DEFAULT_HASH_ALGORITHM
+
 from FlexiLynx.core.util import base85
 #</Imports
 
@@ -24,7 +26,7 @@ _dc = dataclass(slots=True, kw_only=True, weakref_slot=True)
 class Manifest:
     '''Contains the hashes of files that make up the package'''
     url: str | None
-    hash_method: typing.Literal[*hashlib.algorithms_guaranteed] = 'sha1'
+    hash_method: typing.Literal[*hashlib.algorithms_guaranteed] = DEFAULT_HASH_ALGORITHM
     files: dict[str, bytes | str]
 
     def __post_init__(self):

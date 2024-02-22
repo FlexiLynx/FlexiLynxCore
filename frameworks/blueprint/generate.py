@@ -11,6 +11,8 @@ from pathlib import Path
 from . import parts
 from .blueprint import Blueprint
 
+from . import DEFAULT_HASH_ALGORITHM
+
 from FlexiLynx.core.util import hashtools
 from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
@@ -19,7 +21,7 @@ from FlexiLynx.core.util.functools import defaults, DEFAULT
 __all__ = ('hash_files', 'make_manifest')
 
 @defaults(hashtools.hash_files)
-def hash_files(root: Path, files: typing.Sequence[str], *, max_threads: int = DEFAULT, hash_method: str = DEFAULT) -> dict[str, bytes]:
+def hash_files(root: Path, files: typing.Sequence[str], *, max_threads: int = DEFAULT, hash_method: str = DEFAULT_HASH_ALGORITHM) -> dict[str, bytes]:
     '''Hashes a set of files, prepending them with `root`'''
     paths = {root/f: f for f in files}
     return {paths[p]: h for p,h in hashtools.hash_files(*paths.keys(), max_threads=max_threads, hash_method=hash_method).items()}

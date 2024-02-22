@@ -89,7 +89,7 @@ cli.add_command(gencli)
 @click.option('-U', '--file-url', help='The URL that the main content (files) are updated from', default=None)
 @click.option('-D', '--dep', help='The ID of another blueprint that this blueprint depends on', multiple=True)
 @click.option('-C', '--conf', help='The ID of another blueprint that this blueprint conflicts with', multiple=True)
-@click.option('--hash-method', help='The name of the hash function to use', default='sha1')
+@click.option('--hash-method', help='The name of the hash function to use', default=DEFAULT_HASH_ALGORITHM)
 @click.option('--root', help='The root to use as the relative path for files', type=Path, default=Path('.'))
 @w_output
 def blueprint(*, id: str, files: typing.Sequence[Path],
@@ -127,7 +127,7 @@ def files(blueprint: Blueprint, *, files: typing.Sequence[Path], to: str | None,
 @click.argument('draft-id')
 @click.argument('files', type=Path, nargs=-1)
 @click.option('-u', '--url', help='The URL that this pack will fetch artifacts from', default=None)
-@click.option('--hash-method', help='The name of the hash function to use', default='sha1')
+@click.option('--hash-method', help='The name of the hash function to use', default=DEFAULT_HASH_ALGORITHM)
 @click.option('--root', help='The root to use as the relative path for files', type=Path, default=Path('.'))
 @click.option('--overwrite', help='Allow overwriting an existing draft', is_flag=True, default=False)
 def draft(blueprint: Blueprint, *, draft_id: str, files: typing.Sequence[Path], url: str | None, hash_method: str, root: Path, overwrite: bool) -> Blueprint:
