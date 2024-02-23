@@ -61,7 +61,7 @@ def _test():
     corepkg = blueprint.Package(corebp)
     match,mism,miss = corepkg.scan()
     print(f'--PRE  UPDATE--\nMatching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
-    corepkg.update()
+    #corepkg.update()
     match,mism,miss = corepkg.scan()
     print(f'--POST UPDATE--\nMatching: {", ".join(match)}\nMismatching: {", ".join(mism)}\nMissing: {", ".join(miss)}')
 
