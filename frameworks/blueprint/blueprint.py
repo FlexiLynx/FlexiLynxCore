@@ -78,17 +78,15 @@ class Blueprint:
         if isinstance(self.relations, dict): self.relations = parts.Relations(**self.relations)
 
     SIMPLE_KEYS = ('id', 'rel', 'name', 'desc', 'version', 'url')
-    defaults(parts.Crypt.serialize_to_dict)
-    def serialize_to_dict(self, *, compact_cascade: bool = DEFAULT) -> dict:
+    def serialize_to_dict(self) -> dict:
         return {k: getattr(self, k) for k in self.SIMPLE_KEYS} | {
             'main': self.main.serialize_to_dict(),
             'drafts': None if self.drafts is None else \
                 maptools.map_vals(parts.Manifest.serialize_to_dict, self.drafts),
-            'crypt': self.crypt.serialize_to_dict(compact_cascade=compact_cascade),
+            'crypt': self.crypt.serialize_to_dict(),
             'relations': None if self.relations is None else self.relations.serialize_to_dict(),
         }
-    @defaults(serialize_to_dict)
-    def serialize(self, *, compact_cascade: bool = DEFAULT, **json_args) -> str:
+    def serialize(self, **json_args) -> str:
         return json.dumps(self.serialize_to_dict(), indent=4, **json_args)
     @classmethod
     def deserialize_from_dict(cls, data: typing.Mapping) -> typing.Self:

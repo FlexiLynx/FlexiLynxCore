@@ -37,6 +37,7 @@ class Trust(typing.NamedTuple):
     voucher: _TVoucher
     vouchee: _TVouchee
     signature: _TSignature
+    desc: str | None = None
 ## Type-hint namespace
 Types = SimpleNamespace(
     VoucherPrK = typing.TypeAliasType('VoucherPrK', EdPrivK),
@@ -88,13 +89,12 @@ class BrokenCascadeError(CascadeExceptionAtTrust):
 
 # Functions
 ## Trusts
-def gen_trust(voucher: Types.VoucherPrK, vouchee: Types.Vouchee) -> Trust:
+def gen_trust(voucher: Types.VoucherPrK, vouchee: Types.Vouchee, desc: str | None = None) -> Trust:
     '''Generates a trust, where `voucher` vouches for `vouchee`'''
     pubk = voucher.public_key()
-    return Trust(voucher=pubk, vouchee=vouchee, signature=voucher.sign(pubk.public_bytes_raw() + vouchee.public_bytes_raw()))
+    return Trust(voucher=pubk, vouchee=vouchee, signature=voucher.sign(pubk.public_bytes_raw() + vouchee.public_bytes_raw()), desc=desc)
 def run_trust(trust: Trust, *, no_exc: bool = False) -> bool | None:
     '''Executes a trust, raising an `InvalidSignature` if it's invalid (or returning `False` if `no_exc`)'''
-    ver,vee,sig = trust
     if not no_exc:
         ver.verify(trust.signature, trust.voucher.public_bytes_raw() + trust.vouchee.public_bytes_raw())
         return None
@@ -113,13 +113,13 @@ def add_trust(casc: Types.Cascade, trust: Trust, *, overwrite: bool = False):
     if (not overwrite) and (pb in casc):
         raise RefusalToOverwriteTrustError('Refusing to overwrite a trust already present in the cascade when overwrite is false', cascade=casc, at=id(casc[pb]))
     casc[pb] = trust
-def add(casc: Types.Cascade, voucher: Types.VoucherPrK, vouchee: Types.Vouchee, *, overwrite: bool = False):
+def add(casc: Types.Cascade, voucher: Types.VoucherPrK, vouchee: Types.Vouchee, *, overwrite: bool = False, desc: str | None = None):
     '''
         Generates a new `Trust` and adds it to `casc`
         Raises `KeyError` if the vouching key is already present in the cascade,
             unless `overwrite` is true
     '''
-    add_trust(casc, gen_trust(voucher, vouchee), overwrite=overwrite)
+    add_trust(casc, gen_trust(voucher, vouchee, desc), overwrite=overwrite)
 ### Removing
 def pop(casc: Types.Cascade, voucher: Types.Voucher) -> Trust:
     '''Removes and returns a `Trust` from `casc`'''

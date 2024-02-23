@@ -44,14 +44,12 @@ class Manifest:
 class Crypt:
     '''Holds necessary parts for cryptography, namely a key, signature, and the cascade-ring'''
 
-    ENC_KEY_LEN = 40 # keys are 32 bytes long, 40 when encoded as base85
-
     key: EdPubK | bytes | str | None = None
     sig: bytes | str | None = None
     cascade: cascade.Types.Cascade | dict[cascade.Types.VoucherB | str,
                                           cascade.Trust | tuple[cascade.Types.Voucher | bytes | str,
                                                                 cascade.Types.Vouchee | bytes | str,
-                                                                cascade.Types.Signature | str] | dict] | str | None
+                                                                cascade.Types.Signature | str] | dict] | None
 
     @staticmethod
     def _to_key(key: EdPubK | bytes | str) -> EdPubK:
@@ -61,13 +59,11 @@ class Crypt:
             return EdPubK.from_public_bytes(key)
         return key
     @classmethod
-    def _to_trust(cls, tr: typing.Sequence | typing.Mapping | str) -> cascade.Trust:
-        if isinstance(tr, str): # compact cascade support
-            tr = (tr[:cls.ENC_KEY_LEN], tr[cls.ENC_KEY_LEN:cls.ENC_KEY_LEN*2], tr[cls.ENC_KEY_LEN*2:])
-        elif isinstance(tr, typing.Mapping):
-            tr = (tr['voucher'], tr['vouchee'], tr['signature'])
+    def _to_trust(cls, tr: typing.Sequence | typing.Mapping) -> cascade.Trust:
+        if isinstance(tr, typing.Mapping):
+            tr = (tr['voucher'], tr['vouchee'], tr['signature'], tr.get('desc', None))
         return cascade.Trust(voucher=cls._to_key(tr[0]), vouchee=cls._to_key(tr[1]),
-                             signature=(tr[2] if isinstance(tr[2], bytes) else base85.decode(tr[2])))
+                             signature=(tr[2] if isinstance(tr[2], bytes) else base85.decode(tr[2])), desc=tr[3])
     def __post_init__(self):
         # key field
         if self.key is not None:
@@ -79,14 +75,17 @@ class Crypt:
         if self.cascade is None: return
         self.cascade = {vkb if isinstance(vkb, bytes) else base85.decode(vkb): self._to_trust(trust)
                         for vkb,trust in self.cascade.items()} # vkb,(vk,tk,s) -> vouching key bytes,(vouching key,target key,signature)
-    def serialize_to_dict(self, *, compact_cascade: bool = False) -> dict:
+    def serialize_to_dict(self) -> dict:
         return {
             'key': None if self.key is None else base85.encode(self.key.public_bytes_raw()),
             'sig': None if self.sig is None else base85.encode(self.sig),
-            'cascade': None if self.cascade is None else maptools.map_vals(
-                (''.join) if compact_cascade else (lambda m: dict(zip(cascade.Trust._fields, m))),
-                {base85.encode(vb): map(base85.encode, (tr.voucher.public_bytes_raw(), tr.vouchee.public_bytes_raw(), tr.signature))
-                 for vb,tr in self.cascade.items()}),
+            'cascade': None if self.cascade is None
+                else {base85.encode(vb): {
+                        'voucher': base85.encode(tr.voucher.public_bytes_raw()),
+                        'vouchee': base85.encode(tr.vouchee.public_bytes_raw()),
+                        'signature': base85.encode(tr.signature),
+                        'desc': tr.desc,
+                     } for vb,tr in self.cascade.items()},
         }
 
 @_dc
