@@ -161,6 +161,21 @@ def verify(blueprint: Blueprint, *, key: typing.BinaryIO | None, key_is_public: 
                else crypt.EdPrivK.from_private_bytes(key.read()).public_key())
     blueprint.verify(key)
     click.echo('Verification passed')
+# crypt casc #
+casccli = click.Group('casc', help='Secure public-key cascading')
+cryptcli.add_command(casccli)
+# crypt casc add-trust
+@casccli.command()
+@w_io
+@click.argument('voucher', type=click.File('rb'))
+@click.argument('vouchee', type=click.File('rb'))
+@click.option('--vouchee-is-public', help='Treat the vouchee key as a public key, not a private key (useful if you are adding someone else\'s key)', is_flag=True, default=False)
+@click.option('--overwrite', help='Allows overwriting an existing trust', is_flag=True, default=False)
+def add_trust(blueprint: Blueprint, *, voucher: typing.BinaryIO, vouchee: typing.BinaryIO, vouchee_is_public: bool, overwrite: bool) -> Blueprint:
+    crypt.cascade.add(blueprint.crypt.cascade, crypt.EdPrivK.from_private_bytes(voucher.read()),
+                      crypt.EdPubK.from_public_bytes(vouchee.read()) if vouchee_is_public
+                      else crypt.EdPrivK.from_private_bytes(vouchee.read()).public_key(), overwrite=overwrite)
+    return blueprint
 
 # Main
 if __name__ == '__main__': cli()
