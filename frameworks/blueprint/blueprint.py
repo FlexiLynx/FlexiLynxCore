@@ -23,6 +23,7 @@ from . import logger
 
 from FlexiLynx.core.util import base85
 from FlexiLynx.core.util import pack
+from FlexiLynx.core.util import maptools
 from FlexiLynx.core.util import typing as ftyping
 from FlexiLynx.core.util.net import fetch1
 from FlexiLynx.core.util.functools import defaults, DEFAULT
@@ -76,26 +77,17 @@ class Blueprint:
         if not isinstance(self.crypt, parts.Crypt): self.crypt = parts.Crypt(**self.crypt)
         if isinstance(self.relations, dict): self.relations = parts.Relations(**self.relations)
 
-    @classmethod
-    def _reduce_item(cls, i: typing.Any) -> typing.Any:
-        if isinstance(i, EdPubK): i = i.public_bytes_raw()
-        if isinstance(i, bytes): return base85.encode(i)
-        if isinstance(i, (str, cabc.Mapping)): return i
-        if isinstance(i, cabc.Iterable): return tuple(map(cls._reduce_item, i))
-        if is_dataclass(i): return cls._dc_to_dict(i)
-        return i
-    @classmethod
-    def _reducing_dict(cls, d: typing.Sequence[tuple[str, typing.Any]]) -> dict:
-        return {cls._reduce_item(k): cls._reducing_dict(v.items()) if isinstance(v, cabc.Mapping)
-                else cls._reducing_dict(zip(v._fields, v)) if hasattr(v, '_fields')
-                else cls._reduce_item(v) for k,v in d}
-    @classmethod
-    def _dc_to_dict(cls, dc: typing.Any) -> dict:
-        return cls._reducing_dict(tuple((f, getattr(dc, f))
-                                        for f in dc.__dataclass_fields__.keys()))
+    SIMPLE_KEYS = ('id', 'rel', 'name', 'desc', 'version', 'url')
     def serialize_to_dict(self) -> dict:
-        return self._dc_to_dict(self)
-    def serialize(self, **json_args) -> str:
+        return {k: getattr(self, k) for k in self.SIMPLE_KEYS} | {
+            'main': self.main.serialize_to_dict(),
+            'drafts': None if self.drafts is None else \
+                maptools.map_vals(parts.Manifest.serialize_to_dict, self.drafts),
+            'crypt': self.crypt.serialize_to_dict(),
+            'relations': None if self.relations is None else self.relations.serialize_to_dict(),
+        }
+    @defaults(serialize_to_dict)
+    def serialize(self, compact_cascade: bool = DEFAULT, **json_args) -> str:
         return json.dumps(self.serialize_to_dict(), indent=4, **json_args)
     @classmethod
     def deserialize_from_dict(cls, data: typing.Mapping) -> typing.Self:

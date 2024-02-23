@@ -15,6 +15,7 @@ from . import cascade
 from . import DEFAULT_HASH_ALGORITHM
 
 from FlexiLynx.core.util import base85
+from FlexiLynx.core.util import maptools
 #</Imports
 
 #> Header >/
@@ -32,6 +33,12 @@ class Manifest:
     def __post_init__(self):
         self.files = {f: base85.decode(h) if isinstance(h, str) else h
                       for f,h in self.files.items()}
+    def serialize_to_dict(self) -> dict:
+        return {
+            'url': self.url,
+            'hash_method': self.hash_method,
+            'files': maptools.map_vals(base85.encode, self.files),
+        }
 
 @_dc
 class Crypt:
@@ -68,6 +75,15 @@ class Crypt:
         if self.cascade is None: return
         self.cascade = {vkb if isinstance(vkb, bytes) else base85.decode(vkb): self._to_trust(trust)
                         for vkb,trust in self.cascade.items()} # vkb,(vk,tk,s) -> vouching key bytes,(vouching key,target key,signature)
+    def serialize_to_dict(self) -> dict:
+        return {
+            'key': None if self.key is None else base85.encode(self.key.public_bytes_raw()),
+            'sig': None if self.sig is None else base85.encode(self.sig),
+            'cascade': None if self.cascade is None else {base85.encode(vb): dict(zip(cascade.Trust._fields,
+                                                                                      map(base85.encode,
+                                                                                          (tr.voucher.public_bytes_raw(), tr.vouchee.public_bytes_raw(), tr.signature))))
+                                                          for vb,tr in self.cascade.items()},
+        }
 
 @_dc
 class Relations:
@@ -85,3 +101,8 @@ class Relations:
     def __post_init__(self):
         self.depends = set(self.depends)
         self.conflicts = set(self.conflicts)
+    def serialize_to_dict(self) -> dict:
+        return {
+            'depends': tuple(self.depends),
+            'conflicts': tuple(self.conflicts),
+        }
