@@ -82,6 +82,9 @@ class PseudoPackage(types.ModuleType):
     @property
     def __path__(self) -> tuple[str, ...]:
         return tuple(self.__dict__.keys()) + self.__slots__
+    @property
+    def __all__(self) -> tuple[str, ...]:
+        return tuple(k for k in (tuple(self.__dict__.keys()) + self.__slots__) if not k.startswith('_'))
 
 # Deferred imports
 class deferred_import(types.ModuleType):
