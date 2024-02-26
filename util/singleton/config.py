@@ -104,7 +104,7 @@ class Config(UserDict):
         '''
         assert delim is not None
         self = cls(None) if instance is None else instance
-        defaults = m['_defaults'] if defaults is None else defaults
+        defaults = m.get('_defaults', {}) if defaults is None else defaults
         with self._lock:
             self.data = flatten_map({k: v for k,v in m.items() if k != '_defaults'}, delim)
             self.defaults = set(defaults)
