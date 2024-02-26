@@ -96,9 +96,9 @@ def gen_trust(voucher: Types.VoucherPrK, vouchee: Types.Vouchee, desc: str | Non
 def run_trust(trust: Trust, *, no_exc: bool = False) -> bool | None:
     '''Executes a trust, raising an `InvalidSignature` if it's invalid (or returning `False` if `no_exc`)'''
     if not no_exc:
-        ver.verify(trust.signature, trust.voucher.public_bytes_raw() + trust.vouchee.public_bytes_raw())
+        trust.voucher.verify(trust.signature, trust.voucher.public_bytes_raw() + trust.vouchee.public_bytes_raw())
         return None
-    try: ver.verify(trust.signature, trust.voucher.public_bytes_raw() + trust.vouchee.public_bytes_raw())
+    try: trust.voucher.verify(trust.signature, trust.voucher.public_bytes_raw() + trust.vouchee.public_bytes_raw())
     except InvalidSignature: return False
     return True
 ## Cascades
