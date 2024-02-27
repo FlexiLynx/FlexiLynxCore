@@ -218,7 +218,7 @@ class BaseManagedPackage(Package):
                     for f in to_install:
                         logger.verbose(f'Installing {tmploc/f} to {self.install_location/f}')
                         if (self.install_location/f).exists():
-                            logger.error(f'File registered as not installed, yet is present on the filesystem: (self.install_location/f)\nRefusing to install')
+                            logger.error(f'File registered as not installed, yet is present on the filesystem: {self.install_location/f}\nRefusing to install')
                             continue
                         (self.install_location/f).parent.mkdir(parents=True, exist_ok=True)
                         logger.trace(f'Copied {(self.install_location/f).write_bytes((tmploc/f).read_bytes())} byte(s) from {tmploc/f} to {self.install_location/f}')
@@ -237,7 +237,7 @@ class BaseManagedPackage(Package):
                 (self.install_location/f).unlink()
             logger.info('Updating files database')
         self.files.clear()
-        self.files.extend(sorted(to_install + to_replace))
+        self.files.extend(sorted(to_install | to_replace))
 
     def sync(self, **update_kwargs):
         '''
