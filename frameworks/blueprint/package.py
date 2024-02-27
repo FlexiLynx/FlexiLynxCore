@@ -155,6 +155,7 @@ class BaseManagedPackage(Package):
     __slots__ = ('install_location', 'config', 'drafts', 'files', 'keep', '_save_thread', '_save_condition')
 
     def __init__(self, install_location: Path):
+        self.install_location = install_location
         super().__init__(Blueprint.deserialize((install_location/'blueprint.json').read_text()))
         self.config = Config(install_location/'config.json')
         self.config.load(self.config.path.read_text() if self.config.path.exists() else '{}')
