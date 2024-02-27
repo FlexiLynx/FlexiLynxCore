@@ -87,4 +87,7 @@ class FilesPackage(BasePackage):
             for f,h in hash_files(location, arts.keys(), max_threads=max_threads, hash_method=hfn).items():
                 (matches if h == arts[f].hash else nomatch).add(f)
         return self.ScanResult(matches=frozenset(matches), nomatch=frozenset(nomatch), missing=frozenset(missing))
+    def synchronize(self, location: Path, scan: ScanResult):
+        '''Installs needed files (`nomatch` and `missing`) to a location from a `ScanResult`'''
+
 class FilesystemPackage: pass
