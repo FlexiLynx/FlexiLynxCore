@@ -41,15 +41,18 @@ class DEFAULT:
     def __reduce__(self):
         return (type(self), ())
 DEFAULT = object.__new__(DEFAULT)
-def defaults(supplier: typing.Callable):
+def defaults(supplier: typing.Callable, unwrap: bool = True):
     '''
         Decorator to make a function automatically take default
             values from another
         Any default value of `DEFAULT` in the wrapped function is replaced with
             the corresponding default from `supplier`
         Note that this modifies the wrapped function in-place, it does not create a new one
+        Works on wrapped functions if `unwrap` is true
     '''
+    if unwrap: supplier = inspect.unwrap(supplier)
     def mutator(target: typing.Callable) -> typing.Callable:
+        if unwrap: target = inspect.unwrap(target)
         if target.__defaults__ and supplier.__defaults__:
             target.__defaults__ = tuple((supplier.__defaults__[i] if d is DEFAULT else d) for i,d in enumerate(target.__defaults__))
         if target.__kwdefaults__ and supplier.__kwdefaults__:
