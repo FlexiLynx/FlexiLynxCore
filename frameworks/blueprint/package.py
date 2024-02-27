@@ -220,6 +220,7 @@ class BaseManagedPackage(Package):
                         if (self.install_location/f).exists():
                             logger.error(f'File registered as not installed, yet is present on the filesystem: (self.install_location/f)\nRefusing to install')
                             continue
+                        (self.install_location/f).parent.mkdir(parents=True, exist_ok=True)
                         logger.trace(f'Copied {(self.install_location/f).write_bytes((tmploc/f).read_bytes())} byte(s) from {tmploc/f} to {self.install_location/f}')
                 if to_replace:
                     logger.warning(f'Copying {len(to_replace)} file(s) as replacements')
