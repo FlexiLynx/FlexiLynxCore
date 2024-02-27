@@ -56,6 +56,7 @@ class BasePackage:
         '''
         logger.debug('Issuing update to blueprint through package')
         logger.trace(f'{url=!r} {fetchfn=!r} {verify=!r} {verify_self=!r} {key_update=!r}')
+        self.blueprint = self.blueprint.update(url, fetchfn=fetchfn, verify=verify, verify_self=verify_self, key_update=key_update)
 
 class FilesPackage(BasePackage):
     '''Allows executing package-related file manipulation'''
