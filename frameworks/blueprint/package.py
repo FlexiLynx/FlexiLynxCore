@@ -4,8 +4,10 @@
 
 #> Imports
 import typing
+from pathlib import Path
 
 from .blueprint import Blueprint
+from .generate import hash_files
 
 from . import logger
 
@@ -13,7 +15,7 @@ from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
 
 #> Header >/
-__all__ = ('BasePackage', 'ManagedPackage')
+__all__ = ('BasePackage', 'FilesPackage', 'FilesystemPackage')
 
 class BasePackage:
     '''
@@ -35,4 +37,10 @@ class BasePackage:
         logger.debug('Issuing update to blueprint through package')
         logger.trace(f'{url=!r} {fetchfn=!r} {verify=!r} {verify_self=!r} {key_update=!r}')
 
-class ManagedPackage: pass
+class FilesPackage(BasePackage):
+    '''Allows executing package-related file manipulation'''
+
+    @defaults
+    def scan(self, location: Path, draft: str | None = None):
+        ...
+class FilesystemPackage: pass
