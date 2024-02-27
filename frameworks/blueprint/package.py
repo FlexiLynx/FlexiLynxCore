@@ -63,9 +63,9 @@ class FilesPackage(BasePackage):
     '''Allows executing package-related file manipulation'''
 
     class ScanResult(typing.NamedTuple):
-        matches: frozenset[Artifact]
-        nomatch: frozenset[Artifact]
-        missing: frozenset[Artifact]
+        matches: dict[str, Artifact]
+        nomatch: dict[str, Artifact]
+        missing: dict[str, Artifact]
     @defaults(hash_files)
     def scan(self, location: Path, *drafts: str, max_threads: int = DEFAULT) -> ScanResult:
         '''
@@ -76,17 +76,17 @@ class FilesPackage(BasePackage):
         logger.trace(f'{location=!r}, {drafts=!r}, {max_threads=!r}')
         files = self.select(*drafts)
         to_hash = {}
-        missing = set()
+        missing = {}
         for fn,art in files.items():
             if (location/fn).exists():
                 to_hash.setdefault(art.hashfn, {})
                 to_hash[art.hashfn][fn] = art
-            else: missing.add(art)
-        matches = set(); nomatch = set()
+            else: missing[fn] = art
+        matches = {}; nomatch = {}
         for hfn,arts in to_hash.items():
             for f,h in hash_files(location, arts.keys(), max_threads=max_threads, hash_method=hfn).items():
-                (matches if h == arts[f].hash else nomatch).add(f)
-        return self.ScanResult(matches=frozenset(matches), nomatch=frozenset(nomatch), missing=frozenset(missing))
+                (matches if h == arts[f].hash else nomatch)[f] = arts[f]
+        return self.ScanResult(matches=matches, nomatch=nomatch, missing=missing)
     def synchronize(self, location: Path, scan: ScanResult):
         '''Installs needed files (`nomatch` and `missing`) to a location from a `ScanResult`'''
 
