@@ -4,6 +4,7 @@
 
 #> Imports
 import typing
+import operator
 from pathlib import Path
 
 from .blueprint import Blueprint
@@ -61,7 +62,29 @@ class BasePackage:
 class FilesPackage(BasePackage):
     '''Allows executing package-related file manipulation'''
 
-    @defaults
-    def scan(self, location: Path, draft: str | None = None):
-        ...
+    class ScanResult(typing.NamedTuple):
+        matches: frozenset[Artifact]
+        nomatch: frozenset[Artifact]
+        missing: frozenset[Artifact]
+    @defaults(hash_files)
+    def scan(self, location: Path, *drafts: str, max_threads: int = DEFAULT) -> ScanResult:
+        '''
+            Returns a `ScanResult` of the files on the filesystem
+            See `select()` for information on ordering of `drafts`
+        '''
+        logger.debug(f'Scanning location: {location}')
+        logger.trace(f'{location=!r}, {drafts=!r}, {max_threads=!r}')
+        files = self.select(*drafts)
+        to_hash = {}
+        missing = set()
+        for fn,art in files.items():
+            if (location/fn).exists():
+                to_hash.setdefault(art.hashfn, {})
+                to_hash[art.hashfn][fn] = art
+            else: missing.add(art)
+        matches = set(); nomatch = set()
+        for hfn,arts in to_hash.items():
+            for f,h in hash_files(location, arts.keys(), max_threads=max_threads, hash_method=hfn).items():
+                (matches if h == arts[f].hash else nomatch).add(f)
+        return self.ScanResult(matches=frozenset(matches), nomatch=frozenset(nomatch), missing=frozenset(missing))
 class FilesystemPackage: pass
