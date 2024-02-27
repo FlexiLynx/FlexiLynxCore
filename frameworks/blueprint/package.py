@@ -157,11 +157,12 @@ class BaseManagedPackage(Package):
     def __init__(self, install_location: Path):
         self.install_location = install_location
         super().__init__(Blueprint.deserialize((install_location/'blueprint.json').read_text()))
-        self.config = Config(install_location/'config.json')
-        self.config.load(self.config.path.read_text() if self.config.path.exists() else '{}')
+        if not (install_location/'config.json').exists(): (install_location/'config.json').write_text('{}')
+        self.config = Config.loadf(install_location/'config.json')
         self.drafts = self.config.get('drafts', [])
         self.files = self.config.get('files', ['blueprint.json', 'config.json'])
         self.keep = self.config.get('keep', ['blueprint.json', 'config.json'])
+        self.config.defaults.clear() # defaulting behaviour is not advised for mutables
         self._save_condition = threading.Condition()
         self._save_thread = threading.Thread(target=self._save_loop, daemon=True)
     def _save_loop(self):
