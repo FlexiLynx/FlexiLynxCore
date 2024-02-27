@@ -53,7 +53,8 @@ class Config(UserDict):
     DATA_PFX_PACKED  = f'{DATA_PFX}packed{DATA_SUFF}'
 
     @mlock
-    def export_dict(self, delim: str = '.') -> typing.Mapping[str, typing.Any]:
+    @defaults(to_map)
+    def export_dict(self, delim: str = DEFAULT) -> typing.Mapping[str, typing.Any]:
         '''Exports this configuration instance to a dict suitable for JSON'''
         def safe_v(v: object) -> object:
             if isinstance(v, json_serializable):
@@ -73,7 +74,7 @@ class Config(UserDict):
             '_defaults': list(self.defaults),
         }
     @mlock
-    @defaults(export_dict)
+    @defaults(to_map)
     def export(self, delim: str = DEFAULT, *, indent=4, **json_config) -> str:
         '''Exports this configuration instance to JSON'''
         return json.dumps(self.export_dict(delim), indent=indent, **json_config)
@@ -93,7 +94,7 @@ class Config(UserDict):
             else:
                 raise ValueError(f'Found DATA_PFX {self.DATA_PFX!r}, but with an unknown reason, in key {k!r}\n value: {v!r}')
     @classmethod
-    @defaults(export_dict)
+    @defaults(to_map)
     def load_map(cls, m: typing.Mapping[str, typing.Any], delim: str = DEFAULT, *, defaults: typing.Mapping[str, typing.Any] | None = None,
                    instance: typing.Self | None = None, postprocess: bool = True) -> typing.Self:
         '''
@@ -112,7 +113,7 @@ class Config(UserDict):
             self.postprocess()
             return self
     @classmethod
-    @defaults(export_dict)
+    @defaults(to_map)
     def load(cls, jsn: str, delim: str = DEFAULT) -> typing.Self: # .import() is invalid...
         '''Converts exported JSON `jsn` into a configuration instance'''
         return cls.load_map(json.loads(jsn), delim)
