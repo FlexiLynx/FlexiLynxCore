@@ -102,6 +102,7 @@ class Package:
                 logger.error(f'Skipping {f}: it failed verification')
                 continue
             logger.info(f'Installing {len(d)} byte(s) to {at/f}')
+            (at/f).parent.mkdir(parents=True, exist_ok=True)
             (at/f).write_bytes(d)
         logger.terse('Installation complete')
         return not not mismh
