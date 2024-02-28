@@ -3,9 +3,11 @@
 '''Supplies classes for packages'''
 
 #> Imports
+import shutil
 import typing
 import operator
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from .blueprint import Blueprint
 from .generate import hash_files
@@ -130,5 +132,23 @@ class FilesPackage(BasePackage):
         for fn,fc in files.items():
             (location/fn).parent.mkdir(parents=True, exist_ok=True)
             logger.verbose(f'Wrote {(location/fn).write_bytes(fc)} byte(s) to {location/fn}')
+    @defaults(synchronize)
+    def safe_synchronize(self, location: Path, scan: ScanResult, *,
+                         reject_mismatch: bool = DEFAULT, max_threads: int = DEFAULT,
+                         fetchfn: typing.Callable[[str, ...], tuple[bytes, ...]] = DEFAULT):
+        '''
+            Executes `.synchronize()` in a temporary directory, then moves files over
+            Helps prevent partial upgrades when `.synchronize()` fails
+        '''
+        with TemporaryDirectory(prefix='FlexiLynx.FilesPackage.safe_synchronize_') as tmpdir:
+            tmpdir = Path(tmpdir)
+            logger.info(f'Selected temporary directory: {tmpdir}; executing .synchronize()')
+            self.synchronize(tmpdir, scan, reject_mismatch=reject_mismatch, max_threads=max_threads, fetchfn=fetchfn)
+            for fn in scan.missing.keys():
+                logger.verbose(f'Copying new file {fn}')
+                shutil.copy(tmpdir/fn, location/fn)
+            for fn in scan.nomatch.keys():
+                logger.verbose(f'Overwriting {fn}')
+                shutil.copy(tmpdir/fn, location/fn)
 
 class FilesystemPackage: pass
