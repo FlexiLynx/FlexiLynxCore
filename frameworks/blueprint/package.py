@@ -23,7 +23,7 @@ from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
 
 #> Header >/
-__all__ = ('Artifact', 'BasePackage', 'FilesPackage', 'FilesystemPackage')
+__all__ = ('Artifact', 'BasePackage', 'FilesPackage', 'FilesystemPackage', 'Package')
 
 class Artifact(typing.NamedTuple):
     hash: bytes
@@ -229,3 +229,46 @@ class FilesystemPackage(FilesPackage):
         if save_after:
             logger.info('upgrade: automatically saving databases')
             self.save()
+
+class Package:
+    '''
+        A generic wrapper around both `FilesPackage` and `FilesystemPackage`
+        When initialized with a `Blueprint`, offers methods from `FilesPackage`
+        When initialized with a `Path`, or after `.install()`, offers methods from `FilesystemPackage`
+        Additionally offers a `.install()` method and `.installed` property
+    '''
+    __slots__ = ('_package', '_installed')
+
+    installed = property(operator.attrgetter('_installed'))
+
+    def __init__(self, source: Blueprint | Path):
+        if isinstance(source, Blueprint):
+            self._installed = False
+            self._package = FilesPackage(source)
+        elif isinstance(source, Path):
+            self._installed = True
+            self._package = FilesystemPackage(source)
+        else:
+            raise TypeError('Cannot instantiate: "source" must be a Blueprint or Path, not {type(source)!r}')
+    def __getattr__(self, attr: str) -> typing.Any:
+        return getattr(self._package, attr)
+    def __setattr__(self, attr: str, val: typing.Any):
+        if attr.startswith('_'): super().__setattr__(attr, val)
+        else: setattr(self._package, attr, val)
+    def __dir__(self) -> list[str]:
+        return super().__dir__() + dir(self._package)
+    def __repr__(self) -> str:
+        return f'<{type(self).__name__} {"[installed] " if self._installed else ""}{self._package!r}>'
+    def install(self, to: Path):
+        '''
+            Converts this `Package` from "non-installed" mode to "installed" mode
+            Note that this only creates a `blueprint.json` file in the target directory,
+                and converts the underlying package to a `FilesystemPackage`
+                `.upgrade()` should be used after this method to populate everything else
+            This will fail if this `Package` is already in "installed" mode
+        '''
+        if self._installed:
+            raise TypeError('This package is acting as a FilesystemPackage, and is already installed')
+        (to/'blueprint.json').write_text(self._package.blueprint.serialize())
+        self._package = FilesystemPackage(to)
+        self._installed = True
