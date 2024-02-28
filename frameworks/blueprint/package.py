@@ -151,4 +151,6 @@ class FilesPackage(BasePackage):
                 logger.verbose(f'Overwriting {fn}')
                 shutil.copy(tmpdir/fn, location/fn)
 
-class FilesystemPackage: pass
+class FilesystemPackage:
+    '''Represent an actual package on the filesystem'''
+    __slots__ = ()
