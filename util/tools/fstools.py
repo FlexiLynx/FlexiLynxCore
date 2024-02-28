@@ -24,6 +24,7 @@ def clean_empty(root: Path, include_root: bool = False):
             not including `root` unless `include_root`
     '''
     for rp,ds,fs in root.walk(top_down=False):
+        if (not include_root) and (rp == root): continue
         if fs: continue
         if not any(map(Path.exists, map(rp.joinpath, ds))):
             rp.rmdir()
