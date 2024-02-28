@@ -3,6 +3,7 @@
 '''Supplies classes for packages'''
 
 #> Imports
+import json
 import shutil
 import typing
 import operator
@@ -14,6 +15,7 @@ from .generate import hash_files
 
 from . import logger
 
+from FlexiLynx.core.util import pack
 from FlexiLynx.core.util.net import fetchx
 from FlexiLynx.core.util.hashtools import hash_many
 from FlexiLynx.core.util.functools import defaults, DEFAULT
@@ -152,6 +154,26 @@ class FilesPackage(BasePackage):
                 logger.verbose(f'Overwriting {fn}')
                 shutil.copy(tmpdir/fn, location/fn)
 
-class FilesystemPackage:
-    '''Represent an actual package on the filesystem'''
-    __slots__ = ()
+class FilesystemPackage(FilesPackage):
+    '''
+        Represent an actual package on the filesystem
+        The path specified by `at` must, at the very least, exist and contain `blueprint.json`
+    '''
+    __slots__ = ('at', 'drafts', 'files')
+
+    def __init__(self, at: Path):
+        self.at = at
+        super().__init__(Blueprint.deserialize((self.at/'blueprint.json').read_text()))
+        if (self.at/'drafts.pakd').exists():
+            self.drafts = set(pack.unpack((self.at/'drafts.pakd').read_bytes()))
+        else: self.drafts = set()
+        if (self.at/'files.pakd').exists():
+            self.files = set(pack.unpack((self.at/'files.pakd').read_bytes()))
+        else: self.files = set()
+        self.save()
+    def save(self, to: Path | None = None):
+        '''Saves all metadata to `to` (if given), or `.at`'''
+        if to is None: to = self.at
+        (to/'blueprint.json').write_text(self.blueprint.serialize())
+        (to/'drafts.pakd').write_bytes(pack.pack(*self.drafts))
+        (to/'files.pakd').write_bytes(pack.pack(*self.files))
