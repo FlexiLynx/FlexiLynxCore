@@ -12,6 +12,8 @@ from .generate import hash_files
 
 from . import logger
 
+from FlexiLynx.core.util.net import fetchx
+from FlexiLynx.core.util.hashtools import hash_many
 from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
 
@@ -87,7 +89,45 @@ class FilesPackage(BasePackage):
             for f,h in hash_files(location, arts.keys(), max_threads=max_threads, hash_method=hfn).items():
                 (matches if h == arts[f].hash else nomatch)[f] = arts[f]
         return self.ScanResult(matches=matches, nomatch=nomatch, missing=missing)
-    def synchronize(self, location: Path, scan: ScanResult):
-        '''Installs needed files (`nomatch` and `missing`) to a location from a `ScanResult`'''
+
+    @defaults(hash_many)
+    def synchronize(self, location: Path, scan: ScanResult, *,
+                    reject_mismatch: bool = True, max_threads: int = DEFAULT,
+                    fetchfn: typing.Callable[[str, ...], tuple[bytes, ...]] = fetchx):
+        '''
+            Installs needed files (`nomatch` and `missing`) to `location` from a `ScanResult`
+            If `reject_mismatch`, then downloaded data will also be checked against the blueprint,
+                and a `ValueError` will be raised if any fail
+            `max_threads` is the maximum amount of threads to use for hashing
+        '''
+        logger.terse(f'Synchronization issued: {self.blueprint.id}')
+        if not (scan.nomatch or scan.missing):
+            logger.terse('Synchronize issued, but no files need synchronization. Cancelling')
+            return
+        artifacts = scan.nomatch | scan.missing
+        logger.info(f'{len(artifacts)} file(s) need to be downloaded')
+        logger.verbose(f'{len(scan.nomatch)} outdated file(s) will be replaced, {len(scan.missing)} new file(s) will be installed, {len(scan.matches)} file(s) are up-to-date')
+        urls = {k: a.url for k,a in artifacts.items()}
+        if not all(urls.values()):
+            logger.fatal('Some artifacts do not have URLs to update from, cannot continue!')
+            logger.error(f'Artifacts:\n - {"\n - ".join(filter(lambda kv: not kv[1], urls.items()))}')
+            raise TypeError('Some artifacts do not have URLs to update from')
+        files = dict(zip(urls.keys(), fetchfn(*urls.values())))
+        to_hash = {}
+        for fn,cont in files.items():
+            to_hash.setdefault(artifacts[fn].hashfn, {})
+            to_hash[artifacts[fn].hashfn][fn] = cont
+        hashes = {}
+        for hfn,fs in to_hash.items():
+            hashes.update(zip(fs.keys(), hash_many(*fs.values())))
+        ahashes = dict(zip(artifacts.keys(), map(operator.attrgetter('hash'), artifacts.values())))
+        logger.trace(f'\nArtifact hashes:\n{ahashes}\nDownloaded hashes:\n{hashes}')
+        if hashes != ahashes:
+            logger.error('Artifact hashes do not match downloaded content')
+            if reject_mismatch: raise ValueError('Artifact hashes do not match downloaded content')
+            logger.warning('Continuing anyway--reject_mismatch is false')
+        for fn,fc in files.items():
+            (location/fn).parent.mkdir(parents=True, exist_ok=True)
+            logger.verbose(f'Wrote {(location/fn).write_bytes(fc)} byte(s) to {location/fn}')
 
 class FilesystemPackage: pass
