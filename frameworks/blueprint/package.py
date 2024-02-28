@@ -130,9 +130,14 @@ class FilesPackage(BasePackage):
         ahashes = dict(zip(artifacts.keys(), map(operator.attrgetter('hash'), artifacts.values())))
         logger.trace(f'\nArtifact hashes:\n{ahashes}\nDownloaded hashes:\n{hashes}')
         if hashes != ahashes:
+            mism = sorted(fn for fn,h in hashes.items() if h != ahashes[fn])
             logger.error('Artifact hashes do not match downloaded content')
-            if reject_mismatch: raise ValueError('Artifact hashes do not match downloaded content')
+            if reject_mismatch:
+                exc = ValueError('Artifact hashes do not match downloaded content')
+                exc.add_note(f'Mismatched files: {", ".join(mism)}')
+                raise exc
             logger.warning('Continuing anyway--reject_mismatch is false')
+            logger.info(f'Mismatching files:\n - {"\n - ".join(mism)}')
         for fn,fc in files.items():
             (location/fn).parent.mkdir(parents=True, exist_ok=True)
             logger.verbose(f'Wrote {(location/fn).write_bytes(fc)} byte(s) to {location/fn}')
