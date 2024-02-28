@@ -65,6 +65,7 @@ class BasePackage:
 
 class FilesPackage(BasePackage):
     '''Allows executing package-related file manipulation'''
+    __slots__ = ()
 
     class ScanResult(typing.NamedTuple):
         matches: dict[str, Artifact]
