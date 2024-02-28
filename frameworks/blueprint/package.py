@@ -16,6 +16,7 @@ from .generate import hash_files
 from . import logger
 
 from FlexiLynx.core.util import pack
+from FlexiLynx.core.util import fstools
 from FlexiLynx.core.util.net import fetchx
 from FlexiLynx.core.util.hashtools import hash_many
 from FlexiLynx.core.util.functools import defaults, DEFAULT
@@ -177,3 +178,47 @@ class FilesystemPackage(FilesPackage):
         (to/'blueprint.json').write_text(self.blueprint.serialize())
         (to/'drafts.pakd').write_bytes(pack.pack(*self.drafts))
         (to/'files.pakd').write_bytes(pack.pack(*self.files))
+
+    @defaults(FilesPackage.synchronize)
+    def upgrade(self, *, use_safe_sync: bool = True, max_threads: int = DEFAULT,
+                reject_mismatch: bool = DEFAULT, fetchfn: typing.Callable[[str, ...], tuple[bytes, ...]] = DEFAULT,
+                clean_pycache: bool = True, clean_empty: bool = True, save_after: bool = True):
+        '''
+            Upgrades this package and the file database, automatically using `.scan()` and `.[safe_]synchronize()`
+                Additionally removes tracked files that are no longer needed
+            Uses `.synchronize()` instead of `.safe_synchronize()` if `use_safe_sync` is false
+            `max_threads` is passed to both `.scan()` and `.[safe_]synchronize()`
+            `clean_pycache` runs `FlexiLynx.core.util.fstools.clean_pycache()` on `.at` pre-upgrade
+            `clean_empty` runs `FlexiLynx.core.util.fstools.clean_empty()` on `.at` post-upgrade
+            `save_after` runs `.save()` after an upgrade
+        '''
+        if clean_pycache:
+            logger.info('upgrade: cleaning pycache files')
+            fstools.clean_pycache(self.at)
+        logger.info('upgrade: executing scan()')
+        sres = self.scan(self.at, *self.drafts, max_threads=max_threads)
+        chfiles = frozenset(sres.nomatch.keys() | sres.missing.keys())
+        rmfiles = self.files - sres.matches.keys() - chfiles
+        if not (chfiles or rmfiles):
+            logger.terse('upgrade: nothing to do')
+            return
+        if chfiles:
+            logger.info(f'upgrade: executing {"safe_synchronize" if use_safe_sync else "synchronize"}()')
+            (self.safe_synchronize if use_safe_sync else self.synchronize)(
+                self.at, sres, reject_mismatch=reject_mismatch, max_threads=max_threads, fetchfn=fetchfn)
+            logger.info('upgrade: synchronization complete')
+        if rmfiles:
+            logger.warning(f'upgrade: removing {len(rmfiles)} file(s)')
+            for f in rmfiles:
+                logger.verbose(f'upgrade: removing {f}')
+                (self.at/f).unlink()
+            logger.info('upgrade: removal complete')
+        logger.info('upgrade: updating file database')
+        self.files.clear()
+        self.files.update(chfiles, sres.matches.keys())
+        if clean_empty:
+            logger.info('upgrade: cleaning empty directories')
+            fstools.clean_empty(self.at)
+        if save_after:
+            logger.info('upgrade: automatically saving databases')
+            self.save()
