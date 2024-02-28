@@ -119,7 +119,8 @@ class FilesPackage(BasePackage):
             to_hash[artifacts[fn].hashfn][fn] = cont
         hashes = {}
         for hfn,fs in to_hash.items():
-            hashes.update(zip(fs.keys(), hash_many(*fs.values())))
+            logger.trace(f'Hashing {sorted(fs.keys())} with {hfn!r}')
+            hashes.update(zip(fs.keys(), hash_many(*fs.values(), hash_method=hfn)))
         ahashes = dict(zip(artifacts.keys(), map(operator.attrgetter('hash'), artifacts.values())))
         logger.trace(f'\nArtifact hashes:\n{ahashes}\nDownloaded hashes:\n{hashes}')
         if hashes != ahashes:
