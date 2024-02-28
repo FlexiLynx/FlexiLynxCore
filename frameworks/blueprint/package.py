@@ -150,9 +150,11 @@ class FilesPackage(BasePackage):
             self.synchronize(tmpdir, scan, reject_mismatch=reject_mismatch, max_threads=max_threads, fetchfn=fetchfn)
             for fn in scan.missing.keys():
                 logger.verbose(f'Copying new file {fn}')
+                (location/fn).parent.mkdir(exist_ok=True, parents=True)
                 shutil.copy(tmpdir/fn, location/fn)
             for fn in scan.nomatch.keys():
                 logger.verbose(f'Overwriting {fn}')
+                (location/fn).parent.mkdir(exist_ok=True, parents=True)
                 shutil.copy(tmpdir/fn, location/fn)
 
 class FilesystemPackage(FilesPackage):
