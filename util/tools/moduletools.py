@@ -145,14 +145,14 @@ def inject_import(_path: Path | None, _name: str | None = None, _spec: ModuleSpe
     '''
         Imports a module, but injects names into its global namespace before executing it
         If a `_spec` is given, then the module is imported from that spec, and `_path` and `_name` have no effect
-            Otherwise, a spec is generated from `_path`, with a suitable name being created from `_path`'s stem
+            Otherwise, a spec is generated from `_path`, with a suitable name being created from `_path`'s stem if `_name` is not given
     '''
     iilogger.trace(f'Called: {_path=!r} {_name=!r} {_spec=!r}; names: {names!r}')
     if _spec is None:
         if _path is None:
             raise TypeError('Cannot provide a path of None without providing a spec')
         iilogger.debug(f'Generating spec for {_path}')
-        _spec = spec_from_file_location(_path.stem, _path)
+        _spec = spec_from_file_location(_path.stem if _name is None else _name, _path)
     module = module_from_spec(_spec)
     iilogger.debug(f'{_spec} -> {module}')
     iilogger.verbose(f'Injecting {len(names)} name(s) into {module.__name__}')
