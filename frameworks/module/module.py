@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 
 from . import loader
 
-from . import logger
 from . import Consts
 
+from FlexiLynx import logger
 from FlexiLynx.core.frameworks import blueprint
 #</Imports
 
