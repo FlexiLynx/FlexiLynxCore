@@ -7,9 +7,10 @@ import sys
 import types
 import typing
 import inspect
+from pathlib import Path
 from importlib import import_module
 from importlib.abc import Loader, MetaPathFinder
-from importlib.util import spec_from_loader
+from importlib.util import module_from_spec, spec_from_file_location, spec_from_loader
 from importlib.machinery import ModuleSpec
 
 from .functools import reach
@@ -17,7 +18,7 @@ from .. import logger
 #</Imports
 
 #> Header >/
-__all__ = ('register_pseudomodule', 'unregister_pseudomodule', 'PseudoPackage', 'deferred_import')
+__all__ = ('register_pseudomodule', 'unregister_pseudomodule', 'PseudoPackage', 'deferred_import', 'inject_import')
 
 # Pseudo modules
 pseudomodules = {}
@@ -137,3 +138,25 @@ class deferred_import(types.ModuleType):
         return (f'<deferred module {f"""{self._deferred_package or ""}{self._deferred_name}"""!r}'
                 f'{"" if self._deferred_module is None else " realized"}'
                 f'{" stack-reacher" if self._deferred_stack_reacher else ""}>')
+
+# Inject import
+iilogger = logger.core_logger.getChild('injectimp')
+def inject_import(_path: Path | None, _name: str | None = None, _spec: ModuleSpec | None = None, **names):
+    '''
+        Imports a module, but injects names into its global namespace before executing it
+        If a `_spec` is given, then the module is imported from that spec, and `_path` and `_name` have no effect
+            Otherwise, a spec is generated from `_path`, with a suitable name being created from `_path`'s stem
+    '''
+    iilogger.trace(f'Called: {_path=!r} {_name=!r} {_spec=!r}; names: {names!r}')
+    if _spec is None:
+        if _path is None:
+            raise TypeError('Cannot provide a path of None without providing a spec')
+        iilogger.debug(f'Generating spec for {_path}')
+        _spec = spec_from_file_location(_path.stem, _path)
+    module = module_from_spec(_spec)
+    iilogger.debug(f'{_spec} -> {module}')
+    iilogger.verbose(f'Injecting {len(names)} name(s) into {module.__name__}')
+    module.__dict__.update(names)
+    iilogger.debug(f'Executing {module}')
+    _spec.loader.exec_module(module)
+    return module
