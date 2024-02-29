@@ -17,7 +17,7 @@ Consts = SimpleNamespace(
     THIS_NAME='this', LOGGER_NAME='logger',
     INIT_FUNC='__load__', SETUP_FUNC='__setup__',
 )
-logger = logger.getChild('module')
+logger = logger.getChild('M')
 
 from . import loader # loading after `module` causes circular import
 from .module import Module
