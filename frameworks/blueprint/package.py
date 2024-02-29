@@ -9,6 +9,7 @@ import typing
 import operator
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from functools import cache
 
 from .blueprint import Blueprint
 from .generate import hash_files
@@ -23,7 +24,7 @@ from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
 
 #> Header >/
-__all__ = ('Artifact', 'BasePackage', 'FilesPackage', 'FilesystemPackage', 'Package')
+__all__ = ('Artifact', 'BasePackage', 'FilesPackage', 'FilesystemPackage', 'Package', 'TPackage')
 
 class Artifact(typing.NamedTuple):
     hash: bytes
@@ -236,6 +237,9 @@ class Package:
         When initialized with a `Blueprint`, offers methods from `FilesPackage`
         When initialized with a `Path`, or after `.install()`, offers methods from `FilesystemPackage`
         Additionally offers a `.install()` method and `.installed` property
+
+        This shouldn't be used for type checking if you want to also accept `FilesystemPackage` or `FilesPackage`,
+            use `TPackage()` instead
     '''
     __slots__ = ('_package', '_installed')
 
@@ -272,3 +276,30 @@ class Package:
         (to/'blueprint.json').write_text(self._package.blueprint.serialize())
         self._package = FilesystemPackage(to)
         self._installed = True
+
+class TPackage(type):
+    '''
+        Allows type checking/hinting for packages (probably only checkable during runtime, unless you have a very advanced static checker)
+        If `installed` is true, then `FilesystemPackage` matches `isinstance` and `issubclass`,
+            and `Package` instances where `.installed` is true match `isinstance`
+        If `not_installed` is true, then `FilesPackage` matches `isinstance` and `issubclass`,
+            and `Package` instances where `.installed` is false match `isinstance`
+        `Package`s never match `issubclass`
+    '''
+    @cache
+    def __new__(cls, *args, **kwargs) -> type:
+        return super().__new__(cls, 'TPackage', (), {'__init__': NotImplemented})
+    def __init__(self, installed: bool = True, not_installed: bool = False):
+        self.installed = installed
+        self.not_installed = not_installed
+
+    def __hash__(self) -> int: return 0 # allows @cache
+
+    def __subclasscheck__(cls, other: type) -> bool:
+        return ((cls.installed and issubclass(other, FilesystemPackage))
+                or (cls.not_installed and issubclass(other, FilesPackage)))
+    def __instancecheck__(cls, other: object) -> bool:
+        return (isinstance(other, Package) and ((cls.installed and other.installed)
+                                                or (cls.not_installed and not other.installed))
+                or (cls.installed and isinstance(other, FilesystemPackage))
+                or (cls.not_installed and isinstance(other, FilesPackage)))
