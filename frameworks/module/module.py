@@ -39,6 +39,7 @@ class Module:
 
     def __post_init__(self):
         self.id = self.package.blueprint.id
+        self.type = self.type.lower()
         if self.type not in {'library', 'override', 'implementation'}:
             raise TypeError(f"Expected type to be one of 'library', 'override', or 'implementation', not {self.type!r}")
         self.logger = logger.getChild(f'{self.type[0].upper()}#{self.id.replace(".", ":")}')
