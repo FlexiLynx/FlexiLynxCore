@@ -173,19 +173,17 @@ class FilesystemPackage(FilesPackage):
     def __init__(self, at: Path):
         self.at = at
         super().__init__(Blueprint.deserialize((self.at/'blueprint.json').read_text()))
-        if (self.at/'drafts.pakd').exists():
-            self.drafts = set(pack.unpack((self.at/'drafts.pakd').read_bytes()))
-        else: self.drafts = set()
-        if (self.at/'files.pakd').exists():
-            self.files = set(pack.unpack((self.at/'files.pakd').read_bytes()))
-        else: self.files = set()
+        if (self.at/'package_db.pakd').exists():
+            self.drafts, self.files = map(set, pack.unpack((self.at/'package_db.pakd').read_bytes()))
+        else:
+            self.drafts = set()
+            self.files = set()
         self.save()
     def save(self, to: Path | None = None):
         '''Saves all metadata to `to` (if given), or `.at`'''
         if to is None: to = self.at
         (to/'blueprint.json').write_text(self.blueprint.serialize())
-        (to/'drafts.pakd').write_bytes(pack.pack(*self.drafts))
-        (to/'files.pakd').write_bytes(pack.pack(*self.files))
+        (to/'package_db.pakd').write_bytes(pack.pack(self.drafts, self.files))
 
     @defaults(FilesPackage.synchronize)
     def upgrade(self, *, use_safe_sync: bool = True, max_threads: int = DEFAULT,
