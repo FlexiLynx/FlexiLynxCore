@@ -24,7 +24,7 @@ class Module:
     id: str = field(init=False)
 
     type: typing.Literal['library', 'override', 'implementation']
-    main: str | None = None
+    metadata: dict # populated by `module.json` for additional per-module configuration / data storage
 
     package: blueprint.Package
 
