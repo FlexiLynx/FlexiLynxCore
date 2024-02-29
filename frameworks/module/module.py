@@ -23,14 +23,20 @@ __all__ = ('Module',)
 class Module:
     '''
         A FlexiLynx module. Not to be confused with Python modules
-        There are 3 `type`s of module:
-          - "library": provides utility functions or classes to other modules and plugins
-          - "override": overrides functions or values in either the built-in FlexiLynx code, or in other modules
-          - "implementation": implement actual features; basically the "generic" module type
+        There are 3.5 `type`s of module:
+          - "library": not meant to override anything, nor provide any functionality
+                "functionality" also includes registering things
+                In short, a "library" module does not interact with the program in any meaningful way by itself,
+                    nor does it provide anything to an end-user
+          - "override": meant to exclusively override functions or values that would normally also exist
+          - "hybrid": the "3.5th" type of module; both provides new functions, and overrides
+          - "implementation": meant to implement actual features
+            The `type`s of modules are purely for documentation's sake in everything *except* loading order,
+                which is biased in this order: "library", "hybrid", "override", "implementation"
     '''
     id: str = field(init=False)
 
-    type: typing.Literal['library', 'override', 'implementation']
+    type: typing.Literal['library', 'override', 'hybrid', 'implementation']
     metadata: dict # populated by `module.json` for additional per-module configuration / data storage
     package: blueprint.Package
 
@@ -40,7 +46,7 @@ class Module:
     def __post_init__(self):
         self.id = self.package.blueprint.id
         self.type = self.type.lower()
-        if self.type not in {'library', 'override', 'implementation'}:
+        if self.type not in {'library', 'override', 'hybrid', 'implementation'}:
             raise TypeError(f"Expected type to be one of 'library', 'override', or 'implementation', not {self.type!r}")
         self.logger = logger.getChild(f'{self.type[0].upper()}#{self.id.replace(".", ":")}')
     def load(self):
