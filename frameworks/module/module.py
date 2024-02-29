@@ -49,6 +49,8 @@ class Module:
             raise TypeError('Cannot load this module when the underlying package is not installed')
         self.entrypoint = loader.import_module(self)
         if (ifn := getattr(self.entrypoint, Consts.INIT_FUNC, None)) is not None: ifn()
-    def exec(self):
-        if not self.package.installed:
-            raise TypeError('Cannot execute this module when the underlying package is not installed')
+    def setup(self):
+        '''Runs `.entrypoint`'s "setup" function (`Consts.SETUP_FUNC`, `__setup__` by default) if present'''
+        if self.entrypoint is None:
+            raise TypeError('Cannot execute this module when the underlying entrypoint is not loaded')
+        if (sfn := getattr(self.entrypoint, Consts.SETUP_FUNC, None)) is not None: sfn()

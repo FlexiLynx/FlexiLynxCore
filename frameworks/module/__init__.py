@@ -14,6 +14,7 @@ Consts = SimpleNamespace(
     ENTRYPOINT_FILE='__entrypoint__.py',
     THIS_NAME='this',
     INIT_FUNC='__load__',
+    SETUP_FUNC='__setup__',
 )
 
 from . import loader # loading after `module` causes circular import
