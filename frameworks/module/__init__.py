@@ -10,7 +10,7 @@ from FlexiLynx.core import logger
 #</Imports
 
 #> Package >/
-__all__ = ('Consts', 'logger', 'Module', 'loader')
+__all__ = ('Consts', 'logger', 'Module', 'Manager', 'loader')
 
 Consts = SimpleNamespace(
     ENTRYPOINT_FILE='__entrypoint__.py',
@@ -19,5 +19,6 @@ Consts = SimpleNamespace(
 )
 logger = logger.getChild('M')
 
-from . import loader # loading after `module` causes circular import
+from . import loader # loading after `module` causes a circular import
 from .module import Module
+from .manager import Manager
