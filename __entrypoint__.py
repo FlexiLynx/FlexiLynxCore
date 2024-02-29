@@ -16,7 +16,7 @@ def _resolve_import(modname: str, *, fn: typing.Callable = importlib.import_modu
     if not __package__:
         return fn(modname)
     return fn(f'.{modname}', package=__package__)
-def __init__():
+def __load__():
     '''Load core Python modules'''
     # Check for minimum version
     assert sys.version_info[:3] >= MIN_PYTHON_VERSION, f'Minimum Python version not met! Need {".".join(map(str, MIN_PYTHON_VERSION))}, got {".".join(map(str, sys.version_info[:3]))}'

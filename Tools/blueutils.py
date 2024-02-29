@@ -22,7 +22,7 @@ __entrypoint__ = iutil.spec_from_file_location('__entrypoint__', p.as_posix()) \
                      .loader.load_module()
 
 #> Header
-__entrypoint__.__init__()
+__entrypoint__.__load__()
 __entrypoint__.__setup__()
 from FlexiLynx.core.frameworks.blueprint import *
 
