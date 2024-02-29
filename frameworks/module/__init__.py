@@ -13,7 +13,8 @@ __all__ = ('Consts', 'Module', 'loader')
 Consts = SimpleNamespace(
     ENTRYPOINT_FILE='__entrypoint__.py',
     THIS_NAME='this',
+    INIT_FUNC='__load__',
 )
 
+from . import loader # loading after `module` causes circular import
 from .module import Module
-from . import loader
