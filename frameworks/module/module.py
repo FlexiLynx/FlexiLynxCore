@@ -41,7 +41,7 @@ class Module:
         self.id = self.package.blueprint.id
         if self.type not in {'library', 'override', 'implementation'}:
             raise TypeError(f"Expected type to be one of 'library', 'override', or 'implementation', not {self.type!r}")
-        self.logger = logger.getChild(f'{self.type}<{self.id}>')
+        self.logger = logger.getChild(f'{self.type[0].upper()}#{self.id.replace(".", ":")}')
     def load(self):
         '''
             Loads the underlying *Python* module from the package into `.entrypoint`
