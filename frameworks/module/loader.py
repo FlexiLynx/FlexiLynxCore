@@ -33,7 +33,8 @@ def import_module(mod: Module, extra_inject: dict[str, typing.Any] = {}) -> Modu
     '''
         Given a `Module` (FlexiLynx module), import and return its **Python** module
         Note that this also injects `mod` as `Consts.THIS_NAME` ("this" by default)
+            and `mod.logger` as `Consts.LOGGER_NAME` ("logger" by default)
             into the module's namespace before importing it, as well as any names in `extra_inject`
     '''
     return inject_import(mod.package.at/Consts.ENTRYPOINT_FILE, mod.id,
-                         **({Consts.THIS_NAME: mod} | extra_inject))
+                         **({Consts.THIS_NAME: mod, Consts.LOGGER_NAME: mod.logger} | extra_inject))

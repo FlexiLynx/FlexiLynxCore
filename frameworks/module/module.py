@@ -5,10 +5,12 @@
 #> Imports
 import types
 import typing
+import logging
 from dataclasses import dataclass, field
 
 from . import loader
 
+from . import logger
 from . import Consts
 
 from FlexiLynx.core.frameworks import blueprint
@@ -30,27 +32,30 @@ class Module:
 
     type: typing.Literal['library', 'override', 'implementation']
     metadata: dict # populated by `module.json` for additional per-module configuration / data storage
+    package: blueprint.Package
 
     entrypoint: types.ModuleType | None = field(init=False, default=None)
-
-    package: blueprint.Package
+    logger: logging.Logger = field(init=False, default=None)
 
     def __post_init__(self):
         self.id = self.package.blueprint.id
         if self.type not in {'library', 'override', 'implementation'}:
             raise TypeError(f"Expected type to be one of 'library', 'override', or 'implementation', not {self.type!r}")
+        self.logger = logger.getChild(f'{self.type}<{self.id}>')
     def load(self):
         '''
             Loads the underlying *Python* module from the package into `.entrypoint`
             Additionally calls the initializer of the module, if present
                 (`Consts.INIT_FUNC`, `__load__` by default)
         '''
+        self.logger.info('load()')
         if not self.package.installed:
             raise TypeError('Cannot load this module when the underlying package is not installed')
         self.entrypoint = loader.import_module(self)
         if (ifn := getattr(self.entrypoint, Consts.INIT_FUNC, None)) is not None: ifn()
     def setup(self):
         '''Runs `.entrypoint`'s "setup" function (`Consts.SETUP_FUNC`, `__setup__` by default) if present'''
+        self.logger.info('setup()')
         if self.entrypoint is None:
             raise TypeError('Cannot execute this module when the underlying entrypoint is not loaded')
         if (sfn := getattr(self.entrypoint, Consts.SETUP_FUNC, None)) is not None: sfn()
