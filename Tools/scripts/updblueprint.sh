@@ -1,8 +1,4 @@
 #!/bin/bash
 
-python3.12 ./Tools/blueutils.py add files - --root . \
-    __entrypoint__.py \
-    util/*.py util/singleton/*.py util/tools/*.py \
-    frameworks/blueprint/*.py \
-    frameworks/module/*.py
+python3.12 ./Tools/blueutils.py add files - --root . `git ls-tree -r main --name-only $(find . -name '*.py' -not -path './Tools/**' -not -name 'test.py')`
 echo # add trailing newline
