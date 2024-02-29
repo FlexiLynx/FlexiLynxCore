@@ -4,7 +4,7 @@
 
 #> Imports
 import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from FlexiLynx.core.frameworks import blueprint
 #</Imports
