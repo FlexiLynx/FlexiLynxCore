@@ -32,13 +32,16 @@ class Module:
           - "hybrid": the "3.5th" type of module; both provides new functions, and overrides
           - "implementation": meant to implement actual features
             The `type`s of modules are purely for documentation's sake in everything *except* loading order,
-                which is biased in this order: "library", "hybrid", "override", "implementation"
+                which is biased in this order: "library", "hybrid", "override", "implementation",
+                and is only overriden by `before` and `after`
     '''
     id: str = field(init=False)
 
     type: typing.Literal['library', 'override', 'hybrid', 'implementation']
     metadata: dict # populated by `module.json` for additional per-module configuration / data storage
     package: blueprint.Package
+    before: frozenset[str]
+    after: frozenset[str]
 
     entrypoint: types.ModuleType | None = field(init=False, default=None)
     logger: logging.Logger = field(init=False, default=None)

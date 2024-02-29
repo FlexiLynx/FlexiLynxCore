@@ -28,7 +28,8 @@ def create_module(path: Path):
 def module_from_package(pack: package.TPackage(installed=True, not_installed=False)):
     '''Creates a `Module` from a package'''
     meta = load_metadata(pack.at)
-    return Module(type=meta['type'], metadata=meta, package=pack)
+    return Module(metadata=meta, package=pack, type=meta['type'],
+                  before=frozenset(meta.get('before', frozenset())), after=frozenset(meta.get('after', frozenset())))
 def import_module(mod: Module, extra_inject: dict[str, typing.Any] = {}) -> ModuleType:
     '''
         Given a `Module` (FlexiLynx module), import and return its **Python** module
