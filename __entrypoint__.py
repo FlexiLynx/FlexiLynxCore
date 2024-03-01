@@ -37,6 +37,7 @@ def __setup__():
     FlexiLynx.core@'frameworks'
     FlexiLynx.core.frameworks.blueprint = _resolve_import('frameworks.blueprint')
     FlexiLynx.core.frameworks.module = _resolve_import('frameworks.module')
+    FlexiLynx.core.frameworks.plugins = _resolve_import('frameworks.plugin')
 #</Header
 
 #> Main >/
