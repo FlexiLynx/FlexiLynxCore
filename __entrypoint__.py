@@ -38,7 +38,7 @@ def __setup__(log_cfg: Path = Path('logging.toml')):
     FlexiLynx.core@'frameworks'
     FlexiLynx.core.frameworks.blueprint = _import('frameworks.blueprint')
     FlexiLynx.core.frameworks.module = _import('frameworks.module')
-    FlexiLynx.core.frameworks.plugins = _import('frameworks.plugin')
+    FlexiLynx.core.frameworks.plugin = _import('frameworks.plugin')
 
 if __name__ == '__main__':
     raise NotImplementedError('The __entrypoint__ should not be executed directly')
