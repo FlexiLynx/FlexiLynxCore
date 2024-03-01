@@ -6,6 +6,8 @@
 import types
 import typing
 import logging
+import operator
+from enum import Enum
 from dataclasses import dataclass, field
 
 from . import loader
@@ -43,8 +45,13 @@ class Module:
     before: frozenset[str]
     after: frozenset[str]
 
-    entrypoint: types.ModuleType | None = field(init=False, default=None)
     logger: logging.Logger = field(init=False, default=None)
+
+    entrypoint: types.ModuleType | None = field(init=False, default=None)
+
+    State = Enum('State', ('NONE', 'INIT', 'LOAD', 'SETUP'))
+    _state: State = field(init=False, default=State.NONE)
+    state = property(operator.attrgetter('_state'))
 
     def __post_init__(self):
         self.id = self.package.blueprint.id
@@ -52,6 +59,7 @@ class Module:
         if self.type not in {'library', 'override', 'hybrid', 'implementation'}:
             raise TypeError(f"Expected type to be one of 'library', 'override', or 'implementation', not {self.type!r}")
         self.logger = logger.getChild(f'{self.type[0].upper()}#{self.id.replace(".", ":")}')
+        self._state = self.State.INIT
     def load(self):
         '''
             Loads the underlying *Python* module from the package into `.entrypoint`
@@ -59,13 +67,19 @@ class Module:
                 (`Consts.INIT_FUNC`, `__load__` by default)
         '''
         self.logger.info('load()')
+        if self.state is not self.State.INIT:
+            raise TypeError(f'Cannot setup a module when not in State.INIT (currently in {self.state})')
         if not self.package.installed:
             raise TypeError('Cannot load this module when the underlying package is not installed')
         self.entrypoint = loader.import_module(self)
         if (ifn := getattr(self.entrypoint, Consts.INIT_FUNC, None)) is not None: ifn()
+        self._state = self.State.LOAD
     def setup(self):
         '''Runs `.entrypoint`'s "setup" function (`Consts.SETUP_FUNC`, `__setup__` by default) if present'''
         self.logger.info('setup()')
+        if self.state is not self.State.LOAD:
+            raise TypeError(f'Cannot setup a module when not in State.LOAD (currently in {self.state})')
         if self.entrypoint is None:
             raise TypeError('Cannot execute this module when the underlying entrypoint is not loaded')
         if (sfn := getattr(self.entrypoint, Consts.SETUP_FUNC, None)) is not None: sfn()
+        self._state = self.State.SETUP
