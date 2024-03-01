@@ -40,9 +40,7 @@ class Finder(typeguard.TypeguardFinder):
         return True
 print('<TypeGuard Hook> Installing import hook')
 typeguard.install_import_hook(cls=Finder)
-#print('<TypeGuard Hook> Chainloading __entrypoint__.__init__()')
-#__entrypoint__.__init__()
-#print('<TypeGuard Hook> Chainloading __entrypoint__.__setup__()')
-#__entrypoint__.__setup__()
-print('<TypeGuard Hook> Chainloading __entrypoint__._test()')
-__entrypoint__._test()
+print('<TypeGuard Hook> Chainloading __entrypoint__.__load__()')
+__entrypoint__.__load__()
+print('<TypeGuard Hook> Chainloading __entrypoint__.__setup__()')
+__entrypoint__.__setup__()
