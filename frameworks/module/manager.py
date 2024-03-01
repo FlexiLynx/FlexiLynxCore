@@ -106,3 +106,26 @@ class Manager:
                 if fail_on_unstable:
                     raise RuntimeError(f'Failed to find stable load-order after {max_after_passes} pass(es)')
         return tuple(load_order)
+
+    def _module_foreach_at_state(self, func: str, target_state: Module.State, load_order: typing.Iterable[str] | None = None):
+        if load_order is None: load_order = self.load_order()
+        logger.info(f'Executing .{func}() on (up to) {len(load_order)} module(s)')
+        logger.verbose(f'Target state: {target_state}')
+        for m in load_order:
+            if self.modules[m].state is not target_state:
+                logger.verbose(f'Skipping {m} in state {self.modules[m].state}')
+                continue
+            logger.verbose(f'.{func}() on {m}')
+            getattr(self.modules[m], func)()
+    def load_modules(self, *, load_order: typing.Iterable[str] | None = None):
+        '''
+            Load modules (that are in `Module.State.INIT`) in `load_order`
+            If `load_order` is `None`, it is generated using `.load_order()`
+        '''
+        self._module_foreach_at_state('load', Module.State.INIT, load_order)
+    def setup_modules(self, *, load_order: typing.Iterable[str] | None = None):
+        '''
+            Setup modules (that are in `Module.State.LOAD`) in `load_order`
+            If `load_order` is `None`, it is generated using `.load_order()`
+        '''
+        self._module_foreach_at_state('setup', Module.State.LOAD, load_order)
