@@ -3,6 +3,9 @@
 '''Provides the `Manager` class'''
 
 #> Imports
+import typing
+import operator
+from pathlib import Path
 from threading import RLock
 
 from .module import Module
@@ -23,6 +26,14 @@ class Manager:
         self.modules = {}
         self._lock = RLock()
 
+    @staticmethod
+    def discover(path: Path) -> typing.Iterator[Path]:
+        '''
+            Discovers modules in `path`
+            Modules are defined as folders containing a `module.json`,
+                so this won't find not-installed modules that only contain a `blueprint.json`
+        '''
+        return map(operator.itemgetter(0), filter(lambda rdf: 'module.json' in rdf[2], path.walk()))
     @mlock
     def add_module(self, m: Module, *, override: bool = False):
         '''
