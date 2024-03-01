@@ -15,7 +15,12 @@ root_logger = logging.getLogger('FL')
 core_logger = root_logger.getChild('$core')
 
 # Configuration
-config = {}
+config = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'names': {},
+    'styling': {'do_style': False},
+}
 def reconfigure(conf: dict):
     '''(Re)configure the built-in logger and FlexiLynx's custom logging facilities'''
     # Update config dict
