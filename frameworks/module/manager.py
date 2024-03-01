@@ -8,6 +8,7 @@ import operator
 from pathlib import Path
 from threading import RLock
 
+from . import loader
 from .module import Module
 
 from . import logger
@@ -34,6 +35,7 @@ class Manager:
                 so this won't find not-installed modules that only contain a `blueprint.json`
         '''
         return map(operator.itemgetter(0), filter(lambda rdf: 'module.json' in rdf[2], path.walk()))
+
     @mlock
     def add_module(self, m: Module, *, override: bool = False):
         '''
@@ -50,6 +52,14 @@ class Manager:
                 raise exc
             logger.warning(f'{msg[0]}\n{msg[1]}')
         self.modules[m.id] = m
+    @mlock
+    def add_modules(self, path: Path):
+        '''Creates and adds all modules from `path`, using `.discover()`'''
+        #map(loader.create_module, self.discover(path))
+        for p in self.discover(path):
+            logger.verbose(f'Discovered module in {p}, attempting to load')
+            self.add_module(loader.create_module(p))
+
     LOAD_BIAS = ('library', 'hybrid', 'override', 'implementation')
     def load_order(self, max_after_passes: int = 8, fail_on_unstable: bool = False) -> tuple[str, ...]:
         '''
