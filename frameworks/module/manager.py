@@ -43,7 +43,7 @@ class Manager:
             Raises a `RuntimeError` if `m`'s ID is already registered by a different module,
                 unless `override`
         '''
-        prev = getattr(self.modules, m.id, None)
+        prev = self.modules.get(m.id, None)
         if not ((prev is None) or (prev is m)):
             msg = (f'Conflicting module IDs: {m.id}', f'Previous: {prev.package.at.as_posix()}\nNew: {m.package.at.as_posix()}')
             if not override:
