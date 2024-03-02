@@ -68,7 +68,7 @@ class Module:
         '''
         self.logger.info('load()')
         if self.state is not self.State.INIT:
-            raise TypeError(f'Cannot setup a module when not in State.INIT (currently in {self.state})')
+            raise TypeError(f'Cannot load a module when not in State.INIT (currently in {self.state})')
         if not self.package.installed:
             raise TypeError('Cannot load this module when the underlying package is not installed')
         self.entrypoint = loader.import_module(self)
@@ -78,8 +78,8 @@ class Module:
         '''Runs `.entrypoint`'s "setup" function (`Consts.SETUP_FUNC`, `__setup__` by default) if present'''
         self.logger.info('setup()')
         if self.state is not self.State.LOAD:
-            raise TypeError(f'Cannot setup a module when not in State.LOAD (currently in {self.state})')
+            raise TypeError(f'Cannot setup this module when not in State.LOAD (currently in {self.state})')
         if self.entrypoint is None:
-            raise TypeError('Cannot execute this module when the underlying entrypoint is not loaded')
+            raise TypeError('Cannot setup this module when the underlying entrypoint is not loaded')
         if (sfn := getattr(self.entrypoint, Consts.SETUP_FUNC, None)) is not None: sfn()
         self._state = self.State.SETUP
