@@ -17,8 +17,10 @@ from FlexiLynx.core.frameworks.blueprint import Package
 #> Header >/
 __all__ = ('Plugin',)
 
+class _LetThereBeDict: __slots__ = ('__dict__',)
+
 @dataclass(slots=True, kw_only=True)
-class Plugin:
+class Plugin(_LetThereBeDict):
     '''
         A FlexiLynx plugin
         Could be bound to a module, depending on the value of `.bound`:
