@@ -26,6 +26,7 @@ class Plugin:
           - A `str` means that it in unbound, but bindable
           - A `None` means that it is unbindable
     '''
+
     id: str = field(init=False)
 
     metadata: dict # populated by `plugin.json` for additional per-plugin configuration / data storage
@@ -38,6 +39,7 @@ class Plugin:
     loader: 'loader.BasePluginLoader'
 
     def __post_init__(self):
+        self.id = self.package.blueprint.id
         self._bind_logger(self.bound.logger if isinstance(self.bound, Module)
                           else unbound_logger)
 
