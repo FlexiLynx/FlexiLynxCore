@@ -29,7 +29,7 @@ class BasePluginLoader(ABC):
 
     def create(self, package: package.Package, plugin: dict) -> Plugin:
         '''Creates a new plugin from a `package` and a `plugin` metadata dictionary'''
-        return Plugin(metadata=plugin, package=pack, bound=plugin.get('bound', None), loader=self)
+        return Plugin(metadata=plugin, package=package, bound=plugin.get('bound', None), loader=self)
     @abstractmethod
     def load(self, plugin: Plugin):
         '''Executed by `plugin.load()`'''
