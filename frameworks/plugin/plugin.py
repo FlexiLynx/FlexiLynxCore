@@ -4,6 +4,8 @@
 
 #> Imports
 import logging
+import operator
+from enum import Enum
 from dataclasses import dataclass, field
 
 from . import loader
@@ -40,10 +42,15 @@ class Plugin(_LetThereBeDict):
 
     loader: 'loader.BasePluginLoader'
 
+    State = Enum('State', ('NONE', 'INIT', 'LOAD', 'SETUP'))
+    _state: State = field(init=False, default=State.NONE)
+    state = property(operator.attrgetter('_state'))
+
     def __post_init__(self):
         self.id = self.package.blueprint.id
         self._bind_logger(self.bound.logger if isinstance(self.bound, Module)
                           else unbound_logger)
+        self._state = self.State.INIT
 
     def _bind_logger(self, logger: logging.Logger):
         self.logger = logger.getChild(f'@{self.id}')
@@ -60,7 +67,13 @@ class Plugin(_LetThereBeDict):
 
     def load(self):
         '''Loads the plugin, delegating to `.loader.load()`'''
+        if self.state is not self.State.INIT:
+            raise TypeError(f'Cannot load this plugin when not in State.INIT (currently in {self.state})')
         self.loader.load(self)
+        self._state = self.State.LOAD
     def setup(self):
         '''Sets up the plugin, delegating to `.loader.setup()`'''
+        if self.state is not self.State.LOAD:
+            raise TypeError(f'Cannot load this plugin when not in State.LOAD (currently in {self.state})')
         self.loader.setup(self)
+        self._state = self.State.SETUP
