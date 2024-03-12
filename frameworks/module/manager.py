@@ -85,7 +85,7 @@ class Manager:
             if m.before:
                 after.setdefault(i, set()).update(filter(self.modules.__contains__, m.before))
         if not after:
-            logger.verbose('Stable load-order found (no after-map; passes needed)')
+            logger.verbose('Stable load-order found (no after-map; passes unneeded)')
             return tuple(load_order)
         for p in range(max_after_passes):
             logger.debug(f'pass {p+1}/{max_after_passes}: {len(after)} item(s) to reorder')
