@@ -190,50 +190,52 @@ class FilesystemPackage(FilesPackage):
             (to/'package_db.pakd').write_bytes(pack.pack(self.drafts, self.files))
 
     @defaults(FilesPackage.synchronize)
-    def upgrade(self, *, use_safe_sync: bool = True, max_threads: int = DEFAULT,
-                reject_mismatch: bool = DEFAULT, fetchfn: typing.Callable[[str, ...], tuple[bytes, ...]] = DEFAULT,
-                clean_pycache: bool = True, clean_empty: bool = True, save_after: bool = True):
+    def sync(self, *, use_safe_sync: bool = True, max_threads: int = DEFAULT,
+             reject_mismatch: bool = DEFAULT, fetchfn: typing.Callable[[str, ...], tuple[bytes, ...]] = DEFAULT,
+             clean_pycache: bool = True, clean_empty: bool = True, save_after: bool = True):
         '''
-            Upgrades this package and the file database, automatically using `.scan()` and `.[safe_]synchronize()`
+            Upgrades and synchronizes this this package and the file database, automatically using `.scan()` and `.[safe_]synchronize()`
                 Additionally removes tracked files that are no longer needed
             Uses `.synchronize()` instead of `.safe_synchronize()` if `use_safe_sync` is false
             `max_threads` is passed to both `.scan()` and `.[safe_]synchronize()`
-            `clean_pycache` runs `FlexiLynx.core.util.fstools.clean_pycache()` on `.at` pre-upgrade
-            `clean_empty` runs `FlexiLynx.core.util.fstools.clean_empty()` on `.at` post-upgrade
-            `save_after` runs `.save()` after an upgrade
+            `clean_pycache` runs `FlexiLynx.core.util.fstools.clean_pycache()` on `.at` pre-sync
+            `clean_empty` runs `FlexiLynx.core.util.fstools.clean_empty()` on `.at` post-sync
+            `save_after` runs `.save()` after syncing
+            Differs from `.[safe_]synchronize()` as this operates on *the* package installed on the filesystem that this `FilesystemPackage` points to,
+                rather than to any location as `FilesPackage.[safe_]synchronize()` does
         '''
-        logger.info('Upgrade issued')
+        logger.info('Sync issued')
         if clean_pycache:
-            logger.verbose('upgrade: cleaning pycache files')
+            logger.verbose('sync: cleaning pycache files')
             fstools.clean_pycache(self.at)
-        logger.verbose('upgrade: executing scan()')
+        logger.verbose('sync: executing scan()')
         sres = self.scan(self.at, *self.drafts, max_threads=max_threads)
         chfiles = frozenset(sres.nomatch.keys() | sres.missing.keys())
         rmfiles = self.files - sres.matches.keys() - chfiles
         if not (chfiles or rmfiles):
-            logger.terse('upgrade: nothing to do')
+            logger.terse('sync: nothing to do')
             return
         if chfiles:
-            logger.info(f'upgrade: executing {"safe_synchronize" if use_safe_sync else "synchronize"}()')
+            logger.info(f'sync: executing {"safe_synchronize" if use_safe_sync else "synchronize"}()')
             (self.safe_synchronize if use_safe_sync else self.synchronize)(
                 self.at, sres, reject_mismatch=reject_mismatch, max_threads=max_threads, fetchfn=fetchfn)
-            logger.info('upgrade: synchronization complete')
+            logger.info('sync: synchronization complete')
         if rmfiles:
-            logger.warning(f'upgrade: removing {len(rmfiles)} file(s)')
+            logger.warning(f'sync: removing {len(rmfiles)} file(s)')
             for f in rmfiles:
-                logger.verbose(f'upgrade: removing {f}')
+                logger.verbose(f'sync: removing {f}')
                 (self.at/f).unlink()
-            logger.verbose('upgrade: removal complete')
-        logger.info('upgrade: updating file database')
+            logger.verbose('sync: removal complete')
+        logger.info('sync: updating file database')
         self.files.clear()
         self.files.update(chfiles, sres.matches.keys())
         if clean_empty:
-            logger.verbose('upgrade: cleaning empty directories')
+            logger.verbose('sync: cleaning empty directories')
             fstools.clean_empty(self.at)
         if save_after:
-            logger.verbose('upgrade: automatically saving databases')
+            logger.verbose('sync: automatically saving databases')
             self.save(save_blueprint=False)
-    @defaults(upgrade)
+    @defaults(sync)
     def remove(self, *, clean_pycache: bool = DEFAULT, clean_empty: bool = DEFAULT,
                save_after: bool = DEFAULT, deselect_drafts: bool = True, keep_blueprint: bool = True):
         '''
@@ -303,7 +305,7 @@ class Package:
             Converts this `Package` from "non-installed" mode to "installed" mode
             Note that this only creates a `blueprint.json` file in the target directory,
                 and converts the underlying package to a `FilesystemPackage`
-                `.upgrade()` should be used after this method to populate everything else
+                `.sync()` should be used after this method to populate everything else
             This will fail if this `Package` is already in "installed" mode
         '''
         if self._installed:
