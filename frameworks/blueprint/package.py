@@ -269,13 +269,58 @@ class FilesystemPackage(FilesPackage):
                 logger.info('remove: purging drafts database')
                 self.drafts.clear()
             if not keep_blueprint:
-                logger.verbose(f'remove: unlinking blueprint at {to/"blueprint.json"}')
+                logger.verbose(f'remove: unlinking blueprint at {self.at/"blueprint.json"}')
                 (self.at / 'blueprint.json').unlink(missing_ok=True)
             if clean_empty:
                 logger.verbose('remove: cleaning empty directories')
                 fstools.clean_empty(self.at)
             if save_after:
                 self.save(save_blueprint=keep_blueprint)
+    @defaults(remove)
+    def purge(self, *, clean_pycache: bool = DEFAULT, clean_empty: bool = DEFAULT,
+              save_after: bool = False, deselect_drafts: bool = True, remove_base_dir: bool = True,
+              keep_blueprint: bool = False, keep_database: bool = False):
+        '''
+            Uninstalls the package from the system, aggressively removing
+                any file mentioned in its blueprint and drafts
+            If `remove_base_dir` is true, then the base directory will be removed (if possible and empty)
+            If `keep_database` is true, then `package_db.pakd` is not deleted
+                Note that `save_after` will *not* recreate the database if `keep_database` is false
+        '''
+        logger.warning(f'Purge issued: {self.blueprint.id}')
+        logger.verbose(f'acquiring {self.flock.path}')
+        with self.flock:
+            if clean_pycache:
+                logger.verbose('purge: cleaning pycache files')
+                fstools.clean_pycache(self.at)
+            files = set(map(self.at.__truediv__, self.blueprint.main.files.keys()))
+            if self.blueprint.drafts:
+                files.update(*(map(self.at.__truediv__, d.files.keys())
+                               for d in self.manifest.blueprint.drafts.values()))
+            for f in files:
+                if not f.exists():
+                    logger.verbose(f'purge: {f} is not installed')
+                    continue
+                logger.info(f'purge: removing {f}')
+                f.unlink()
+            self.files.clear()
+            if deselect_drafts:
+                logger.info('purge: purging drafts database')
+                self.drafts.clear()
+            if not keep_blueprint:
+                logger.verbose(f'purge: unlinking blueprint at {self.at/"blueprint.json"}')
+                (self.at / 'blueprint.json').unlink(missing_ok=True)
+            if not keep_database:
+                logger.verbose(f'purge: unlinking database at {self.at/"package_db.pakd"}')
+                (self.at / 'package_db.pakd').unlink(missing_ok=True)
+            if clean_empty:
+                logger.verbose('purge: cleaning empty directories')
+                fstools.clean_empty(self.at)
+            if save_after:
+                self.save(save_blueprint=keep_blueprint, save_db=keep_database)
+        if not remove_base_dir: return
+        try: self.at.rmdir()
+        except OSError: pass
 
 class Package:
     '''
