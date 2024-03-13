@@ -202,10 +202,11 @@ class FilesystemPackage(FilesPackage):
             `clean_empty` runs `FlexiLynx.core.util.fstools.clean_empty()` on `.at` post-upgrade
             `save_after` runs `.save()` after an upgrade
         '''
+        logger.info('Upgrade issued')
         if clean_pycache:
-            logger.info('upgrade: cleaning pycache files')
+            logger.verbose('upgrade: cleaning pycache files')
             fstools.clean_pycache(self.at)
-        logger.info('upgrade: executing scan()')
+        logger.verbose('upgrade: executing scan()')
         sres = self.scan(self.at, *self.drafts, max_threads=max_threads)
         chfiles = frozenset(sres.nomatch.keys() | sres.missing.keys())
         rmfiles = self.files - sres.matches.keys() - chfiles
@@ -222,15 +223,15 @@ class FilesystemPackage(FilesPackage):
             for f in rmfiles:
                 logger.verbose(f'upgrade: removing {f}')
                 (self.at/f).unlink()
-            logger.info('upgrade: removal complete')
+            logger.verbose('upgrade: removal complete')
         logger.info('upgrade: updating file database')
         self.files.clear()
         self.files.update(chfiles, sres.matches.keys())
         if clean_empty:
-            logger.info('upgrade: cleaning empty directories')
+            logger.verbose('upgrade: cleaning empty directories')
             fstools.clean_empty(self.at)
         if save_after:
-            logger.info('upgrade: automatically saving databases')
+            logger.verbose('upgrade: automatically saving databases')
             self.save()
     @defaults(upgrade)
     def remove(self, *, clean_pycache: bool = DEFAULT, clean_empty: bool = DEFAULT,
@@ -244,7 +245,7 @@ class FilesystemPackage(FilesPackage):
         '''
         logger.terse(f'Remove issued: {self.blueprint.id}')
         if clean_pycache:
-            logger.info('remove: cleaning pycache files')
+            logger.verbose('remove: cleaning pycache files')
             fstools.clean_pycache(self.at)
         for f in map(self.at.__truediv__, self.files):
             if not f.exists():
@@ -260,7 +261,7 @@ class FilesystemPackage(FilesPackage):
             logger.verbose(f'remove: unlinking blueprint at {to/"blueprint.json"}')
             (self.at / 'blueprint.json').unlink(missing_ok=True)
         if clean_empty:
-            logger.info('remove: cleaning empty directories')
+            logger.verbose('remove: cleaning empty directories')
             fstools.clean_empty(self.at)
         if save_after:
             self.save(save_blueprint=keep_blueprint)
