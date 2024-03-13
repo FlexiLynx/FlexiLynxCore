@@ -232,7 +232,7 @@ class FilesystemPackage(FilesPackage):
             fstools.clean_empty(self.at)
         if save_after:
             logger.verbose('upgrade: automatically saving databases')
-            self.save()
+            self.save(save_blueprint=False)
     @defaults(upgrade)
     def remove(self, *, clean_pycache: bool = DEFAULT, clean_empty: bool = DEFAULT,
                save_after: bool = DEFAULT, deselect_drafts: bool = True, keep_blueprint: bool = True):
