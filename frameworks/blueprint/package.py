@@ -10,6 +10,7 @@ import operator
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from functools import cache
+from threading import RLock
 
 from .blueprint import Blueprint
 from .generate import hash_files
@@ -19,6 +20,7 @@ from . import logger
 from FlexiLynx.core.util import pack
 from FlexiLynx.core.util import fstools
 from FlexiLynx.core.util.net import fetchx
+from FlexiLynx.core.util.parallel import mlock, FLock
 from FlexiLynx.core.util.hashtools import hash_many
 from FlexiLynx.core.util.functools import defaults, DEFAULT
 #</Imports
@@ -168,7 +170,7 @@ class FilesystemPackage(FilesPackage):
         Represent an actual package on the filesystem
         The path specified by `at` must, at the very least, exist and contain `blueprint.json`
     '''
-    __slots__ = ('at', 'drafts', 'files')
+    __slots__ = ('at', 'drafts', 'files', '_lock', 'flock')
 
     def __init__(self, at: Path):
         self.at = at
@@ -178,7 +180,10 @@ class FilesystemPackage(FilesPackage):
         else:
             self.drafts = set()
             self.files = set()
+        self._lock = RLock()
+        self.flock = FLock(self.at/'package.lock', self._lock)
         self.save()
+    @mlock
     def save(self, to: Path | None = None, *, save_blueprint: bool = True, save_db: bool = True):
         '''Saves all metadata to `to` (if given), or `.at`'''
         if to is None: to = self.at
@@ -205,36 +210,38 @@ class FilesystemPackage(FilesPackage):
                 rather than to any location as `FilesPackage.[safe_]synchronize()` does
         '''
         logger.info('Sync issued')
-        if clean_pycache:
-            logger.verbose('sync: cleaning pycache files')
-            fstools.clean_pycache(self.at)
-        logger.verbose('sync: executing scan()')
-        sres = self.scan(self.at, *self.drafts, max_threads=max_threads)
-        chfiles = frozenset(sres.nomatch.keys() | sres.missing.keys())
-        rmfiles = self.files - sres.matches.keys() - chfiles
-        if not (chfiles or rmfiles):
-            logger.terse('sync: nothing to do')
-            return
-        if chfiles:
-            logger.info(f'sync: executing {"safe_synchronize" if use_safe_sync else "synchronize"}()')
-            (self.safe_synchronize if use_safe_sync else self.synchronize)(
-                self.at, sres, reject_mismatch=reject_mismatch, max_threads=max_threads, fetchfn=fetchfn)
-            logger.info('sync: synchronization complete')
-        if rmfiles:
-            logger.warning(f'sync: removing {len(rmfiles)} file(s)')
-            for f in rmfiles:
-                logger.verbose(f'sync: removing {f}')
-                (self.at/f).unlink()
-            logger.verbose('sync: removal complete')
-        logger.info('sync: updating file database')
-        self.files.clear()
-        self.files.update(chfiles, sres.matches.keys())
-        if clean_empty:
-            logger.verbose('sync: cleaning empty directories')
-            fstools.clean_empty(self.at)
-        if save_after:
-            logger.verbose('sync: automatically saving databases')
-            self.save(save_blueprint=False)
+        logger.verbose(f'acquiring {self.flock.path}')
+        with self.flock:
+            if clean_pycache:
+                logger.verbose('sync: cleaning pycache files')
+                fstools.clean_pycache(self.at)
+            logger.verbose('sync: executing scan()')
+            sres = self.scan(self.at, *self.drafts, max_threads=max_threads)
+            chfiles = frozenset(sres.nomatch.keys() | sres.missing.keys())
+            rmfiles = self.files - sres.matches.keys() - chfiles
+            if not (chfiles or rmfiles):
+                logger.terse('sync: nothing to do')
+                return
+            if chfiles:
+                logger.info(f'sync: executing {"safe_synchronize" if use_safe_sync else "synchronize"}()')
+                (self.safe_synchronize if use_safe_sync else self.synchronize)(
+                    self.at, sres, reject_mismatch=reject_mismatch, max_threads=max_threads, fetchfn=fetchfn)
+                logger.info('sync: synchronization complete')
+            if rmfiles:
+                logger.warning(f'sync: removing {len(rmfiles)} file(s)')
+                for f in rmfiles:
+                    logger.verbose(f'sync: removing {f}')
+                    (self.at/f).unlink()
+                logger.verbose('sync: removal complete')
+            logger.info('sync: updating file database')
+            self.files.clear()
+            self.files.update(chfiles, sres.matches.keys())
+            if clean_empty:
+                logger.verbose('sync: cleaning empty directories')
+                fstools.clean_empty(self.at)
+            if save_after:
+                logger.verbose('sync: automatically saving databases')
+                self.save(save_blueprint=False)
     @defaults(sync)
     def remove(self, *, clean_pycache: bool = DEFAULT, clean_empty: bool = DEFAULT,
                save_after: bool = DEFAULT, deselect_drafts: bool = True, keep_blueprint: bool = True):
@@ -246,27 +253,29 @@ class FilesystemPackage(FilesPackage):
                 additionally, if `save_after` is true, the blueprint is also overwritten
         '''
         logger.terse(f'Remove issued: {self.blueprint.id}')
-        if clean_pycache:
-            logger.verbose('remove: cleaning pycache files')
-            fstools.clean_pycache(self.at)
-        for f in map(self.at.__truediv__, self.files):
-            if not f.exists():
-                logger.warning(f'remove: {f} is tracked but not installed? (skipping)')
-                continue
-            logger.info(f'remove: removing {f}')
-            f.unlink()
-        self.files.clear()
-        if deselect_drafts:
-            logger.info('remove: purging drafts database')
-            self.drafts.clear()
-        if not keep_blueprint:
-            logger.verbose(f'remove: unlinking blueprint at {to/"blueprint.json"}')
-            (self.at / 'blueprint.json').unlink(missing_ok=True)
-        if clean_empty:
-            logger.verbose('remove: cleaning empty directories')
-            fstools.clean_empty(self.at)
-        if save_after:
-            self.save(save_blueprint=keep_blueprint)
+        logger.verbose(f'acquiring {self.flock.path}')
+        with self.flock:
+            if clean_pycache:
+                logger.verbose('remove: cleaning pycache files')
+                fstools.clean_pycache(self.at)
+            for f in map(self.at.__truediv__, self.files):
+                if not f.exists():
+                    logger.warning(f'remove: {f} is tracked but not installed? (skipping)')
+                    continue
+                logger.info(f'remove: removing {f}')
+                f.unlink()
+            self.files.clear()
+            if deselect_drafts:
+                logger.info('remove: purging drafts database')
+                self.drafts.clear()
+            if not keep_blueprint:
+                logger.verbose(f'remove: unlinking blueprint at {to/"blueprint.json"}')
+                (self.at / 'blueprint.json').unlink(missing_ok=True)
+            if clean_empty:
+                logger.verbose('remove: cleaning empty directories')
+                fstools.clean_empty(self.at)
+            if save_after:
+                self.save(save_blueprint=keep_blueprint)
 
 class Package:
     '''
