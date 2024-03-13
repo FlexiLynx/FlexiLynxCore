@@ -170,5 +170,23 @@ test_logger()
 #cfspkg.upgrade()
 #pkg = blueprint.package.Package(corebp)
 
-from FlexiLynx.core.frameworks import module
-m = module.loader.create_module(Path('./moduletest'))
+from FlexiLynx.core.frameworks import module, plugin
+#import random
+#m = module.loader.create_module(Path('./moduletest'))
+mman = module.Manager()
+#man.add_module(m)
+#mods = []
+#for i in range(100):
+#    mods.append(object.__new__(module.Module))
+#    mods[-1].id = str(i)
+#    mods[-1].type = random.choice(module.Manager.LOAD_BIAS)
+#    mods[-1].before = frozenset(map(str, random.sample(range(len(mods)-1), random.randint(0, len(mods)-1))))
+#    mods[-1].after = frozenset()
+#    man.add_module(mods[-1])
+mman.add_modules(Path('../'))
+mman.load_modules()
+mman.setup_modules()
+pman = plugin.Manager(mman)
+pman.add_plugins(Path('../'))
+pman.load_plugins()
+pman.setup_plugins()
