@@ -31,6 +31,13 @@ def __load__():
     # Add utils
     (FlexiLynx@'core').util = util
 def __setup__(log_cfg: Path = Path('logging.toml')):
+    '''
+        Setup and load logging and frameworks features:
+        - Setup logger
+        - Load `blueprint`, `module`, and `plugin` frameworks
+        - Initialize `module` manager
+        - Initialize `plugin` manager and bind it to `module` manager
+    '''
     # Setup logger
     FlexiLynx.core.util.logger.init(tomllib.loads(log_cfg.read_text())
                                     if log_cfg.exists() else {})
