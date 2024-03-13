@@ -179,11 +179,15 @@ class FilesystemPackage(FilesPackage):
             self.drafts = set()
             self.files = set()
         self.save()
-    def save(self, to: Path | None = None):
+    def save(self, to: Path | None = None, *, save_blueprint: bool = True, save_db: bool = True):
         '''Saves all metadata to `to` (if given), or `.at`'''
         if to is None: to = self.at
-        (to/'blueprint.json').write_text(self.blueprint.serialize())
-        (to/'package_db.pakd').write_bytes(pack.pack(self.drafts, self.files))
+        if save_blueprint:
+            logger.verbose(f'Saving package blueprint to {to/"blueprint.json"}')
+            (to/'blueprint.json').write_text(self.blueprint.serialize())
+        if save_db:
+            logger.verbose(f'Saving package database to {to/"package_db.pakd"}')
+            (to/'package_db.pakd').write_bytes(pack.pack(self.drafts, self.files))
 
     @defaults(FilesPackage.synchronize)
     def upgrade(self, *, use_safe_sync: bool = True, max_threads: int = DEFAULT,
@@ -228,6 +232,38 @@ class FilesystemPackage(FilesPackage):
         if save_after:
             logger.info('upgrade: automatically saving databases')
             self.save()
+    @defaults(upgrade)
+    def remove(self, *, clean_pycache: bool = DEFAULT, clean_empty: bool = DEFAULT,
+               save_after: bool = DEFAULT, deselect_drafts: bool = True, keep_blueprint: bool = True):
+        '''
+            Uninstalls the package from the system, only removing tracked files
+            If `save_after` is true, the package database is updated
+            If `deselect_drafts` is true, the list of selected drafts is cleared
+            If `keep_blueprint` is true, the `blueprint.json` file is not deleted
+                additionally, if `save_after` is true, the blueprint is also overwritten
+        '''
+        logger.terse(f'Remove issued: {self.blueprint.id}')
+        if clean_pycache:
+            logger.info('remove: cleaning pycache files')
+            fstools.clean_pycache(self.at)
+        for f in map(self.at.__truediv__, self.files):
+            if not f.exists():
+                logger.warning(f'remove: {f} is tracked but not installed? (skipping)')
+                continue
+            logger.info(f'remove: removing {f}')
+            f.unlink()
+        self.files.clear()
+        if deselect_drafts:
+            logger.info('remove: purging drafts database')
+            self.drafts.clear()
+        if not keep_blueprint:
+            logger.verbose(f'remove: unlinking blueprint at {to/"blueprint.json"}')
+            (self.at / 'blueprint.json').unlink(missing_ok=True)
+        if clean_empty:
+            logger.info('remove: cleaning empty directories')
+            fstools.clean_empty(self.at)
+        if save_after:
+            self.save(save_blueprint=keep_blueprint)
 
 class Package:
     '''
