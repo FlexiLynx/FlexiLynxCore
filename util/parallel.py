@@ -3,15 +3,20 @@
 '''Utilities for parallellism and concurrency'''
 
 #> Imports
+import os
+import time
 import types
 import typing
 import functools
 import threading
+from pathlib import Path
+from contextlib import AbstractContextManager
 #</Imports
 
 #> Header >/
-__all__ = ('lock', 'mlock')
+__all__ = ('lock', 'mlock', 'FLock')
 
+# Locking decorators
 def lock(f: typing.Callable, lock: typing.ContextManager) -> typing.Callable[[typing.Callable], typing.Callable]:
     '''Creates a decorator that wraps its function in a `with` statement for `lock`'''
     def locker(f: typing.Callable):
@@ -27,3 +32,56 @@ def mlock(f: typing.Callable) -> typing.Callable:
     def mlocked(self, *args, **kwargs) -> typing.Any:
         with self._lock: return f(self, *args, **kwargs)
     return mlocked
+
+# File-lock
+class FLock(AbstractContextManager):
+    '''Provides a simple lock-file implementation'''
+    __slots__ = ('path', 'file', '_lock')
+
+    def __init__(self, path: Path, lock: typing.ContextManager):
+        self._lock = lock
+        self.file = None
+        self.path = path
+
+    def _acquire_once(self) -> bool:
+        try:
+            self.file = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL) # open for writing only, create the file, fail if it exists
+        except FileExistsError: return False
+        else: return True
+
+    @property
+    @mlock
+    def held(self) -> bool: return self.file is not None
+
+    @mlock
+    def acquire(self, *, blocking: bool = True, timeout: float | None = None, poll_interval: float = 0.5) -> bool | None:
+        '''
+            Attempts to acquire the lock
+                If the lock is held, instantly returns
+            If `blocking` is false, then instantly returns, with a boolean success
+                This boolean success will always return when `blocking` is true, and is not guaranteed otherwise
+            If `timeout` is `None`, then it will stall forever until the lock is acquired
+        '''
+        if self.held: return True
+        assert poll_interval > 0, 'Polling interval must be positive and more than zero'
+        if not blocking: return self._acquire_once()
+        assert (timeout is None) or (timeout >= 0), 'Timeout can not be negative'
+        hto = timeout is not None
+        if hto: r = 0
+        while True:
+            if hto:
+                if r > timeout:
+                    raise TimeoutError(f'Reached timeout of ~{timeout} second(s) whilst waiting to acquire FLock')
+                r += poll_interval
+            if self._acquire_once(): return # success
+            time.sleep(poll_interval)
+    def __enter__(self): self.acquire()
+
+    @mlock
+    def release(self):
+        '''Releases the lock'''
+        if not self.held: raise TypeError('Cannot release a lock that is not held')
+        os.close(self.file)
+        self.file = None
+        self.path.unlink()
+    def __exit__(self, exc_type: type[Exception] | None, exc_value: typing.Any, traceback: types.TracebackType): self.release()
