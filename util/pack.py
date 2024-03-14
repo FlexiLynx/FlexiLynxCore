@@ -221,7 +221,7 @@ class Packer:
             case TypeKey.TRUE | TypeKey.FALSE:
                 raise ValueError(f'TypeKey {t!r} does not support arguments: `e`')
             case TypeKey.INT:
-                int.from_bytes(e, signed=True)
+                return int.from_bytes(e, signed=True)
             case TypeKey.FLOAT:
                 if len(e) == self.S_FLOAT.size: # must be packed
                     return self.S_FLOAT.unpack(e)
