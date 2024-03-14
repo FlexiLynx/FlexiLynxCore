@@ -111,7 +111,8 @@ class FLock(AbstractContextManager):
     def release(self):
         '''Releases the lock'''
         if not self.held: raise TypeError('Cannot release a lock that is not held')
-        os.close(self.file)
+        try: os.close(self.file)
+        except OSError: pass
         self.file = None
         self.path.unlink()
         atexit.unregister(self._quiet_release)
