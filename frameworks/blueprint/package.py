@@ -183,16 +183,18 @@ class FilesystemPackage(FilesPackage):
         self._lock = RLock()
         self.flock = FLock(self.at/'package.lock', self._lock)
         self.save()
-    @mlock
     def save(self, to: Path | None = None, *, save_blueprint: bool = True, save_db: bool = True):
         '''Saves all metadata to `to` (if given), or `.at`'''
+        if not (save_blueprint or save_db): return
         if to is None: to = self.at
-        if save_blueprint:
-            logger.verbose(f'Saving package blueprint to {to/"blueprint.json"}')
-            (to/'blueprint.json').write_text(self.blueprint.serialize())
-        if save_db:
-            logger.verbose(f'Saving package database to {to/"package_db.pakd"}')
-            (to/'package_db.pakd').write_bytes(pack.pack(self.drafts, self.files))
+        logger.verbose(f'acquiring {self.flock.path} to save db/bp')
+        with self.flock:
+            if save_blueprint:
+                logger.verbose(f'Saving package blueprint to {to/"blueprint.json"}')
+                (to/'blueprint.json').write_text(self.blueprint.serialize())
+            if save_db:
+                logger.verbose(f'Saving package database to {to/"package_db.pakd"}')
+                (to/'package_db.pakd').write_bytes(pack.pack(self.drafts, self.files))
 
     @defaults(FilesPackage.synchronize)
     def sync(self, *, use_safe_sync: bool = True, max_threads: int = DEFAULT,
