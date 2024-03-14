@@ -117,7 +117,7 @@ class Packer:
             case str(): return (TypeKey.STR, o.encode(self.str_encoding))
             ## Recursive
             case abc.Sequence():
-                if hasattr(o, '_asdict') and (self.reduce.namedtuple != ReduceNamedtuple.AS_TUPLE):
+                if hasattr(o, '_asdict') and (self.reduce_namedtuple != ReduceNamedtuple.AS_TUPLE):
                     # if it's a namedtuple and we don't treat namedtuples as tuples
                     if self.reduce_namedtuple is ReduceNamedtuple.FAIL:
                         raise TypeError('Refusing to reduce a namedtuple when reduce_namedtuple is FAIL')
