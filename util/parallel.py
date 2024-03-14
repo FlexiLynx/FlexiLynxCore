@@ -5,12 +5,12 @@
 #> Imports
 import os
 import time
-import errno
+#import errno
 import types
-import signal
+import atexit
+#import signal
 import typing
 import functools
-import threading
 from pathlib import Path
 from contextlib import AbstractContextManager
 #</Imports
@@ -41,28 +41,31 @@ class FLock(AbstractContextManager):
     __slots__ = ('path', 'file', '_lock')
 
     def __init__(self, path: Path, lock: typing.ContextManager):
-        self._lock = lock
-        self.file = None
         self.path = path
+        self.file = None
+        self._lock = lock
 
-    def _acquire_once(self, pid: str) -> bool:
+    def _acquire_once(self, pid: str, release_on_exit: bool) -> bool:
         try:
             self.file = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL) # open for writing only, create the file, fail if it exists
         except FileExistsError: return False
         with os.fdopen(self.file, 'w') as f: f.write(pid)
+        if release_on_exit: atexit.register(self._quiet_release)
         return True
 
-    def _unix_can_try_strong_acquire_once(self) -> bool:
-        try: pid = int(self.path.read_text()) # try to get pid
-        except FileNotFoundError: return True # missing lock
-        except TypeError: return False # possibly corrupted lock; not safe to try to acquire
-        try: os.kill(pid, 0) # try to "kill" process (signal 0 does nothing on posix but raises errors accordingly)
-        except ProcessLookupError: return True # no process, try to steal lock
-        except PermissionError: return False # process probably exists
-    def _unix_strong_acquire_once(self, pid: str) -> bool:
-        if not self._unix_can_try_strong_acquire_once(): return False
-        self.path.write_text(pid)
-        return self.path.read_text() == pid
+    #def _unix_can_try_strong_acquire_once(self) -> bool:
+    #    try: pid = int(self.path.read_text()) # try to get pid
+    #    except FileNotFoundError: return True # missing lock
+    #    except TypeError: return False # possibly corrupted lock; not safe to try to acquire
+    #    try: os.kill(pid, 0) # try to "kill" process (signal 0 does nothing on posix but raises errors accordingly)
+    #    except ProcessLookupError: return True # no process, try to steal lock
+    #    except PermissionError: return False # process probably exists
+    #def _unix_strong_acquire_once(self, pid: str) -> bool:
+    #    if not self._unix_can_try_strong_acquire_once(): return False
+    #    self.path.write_text(pid)
+    #    if self.path.read_text() == pid:
+    #        self.file = -1
+    #        return True
 
     @property
     @mlock
@@ -70,22 +73,26 @@ class FLock(AbstractContextManager):
 
     @mlock
     def acquire(self, *, blocking: bool = True, timeout: float | None = None, poll_interval: float = 0.5,
-                check_process_unix: bool = True) -> bool | None:
+                release_on_exit: bool = True) -> bool | None:
         '''
             Attempts to acquire the lock
                 If the lock is held, instantly returns
             If `blocking` is false, then instantly returns, with a boolean success
                 This boolean success will always return when `blocking` is false, and is not guaranteed otherwise
             If `timeout` is `None`, then it will stall forever until the lock is acquired
-            If `check_process_unix` is true, and the running platform is Posix, then a check
-                is performed using the stored PID in the lockfile. If that process
-                is (**detected as**) dead, then the lockfile is forcibly cleared
-                This can help in some cases where the lock is acquired, but not released when a process closes
+            If `release_on_exit` is true, then a release method is registered via `atexit`
+                and should be called upon normal program termination
         '''
-        if self.held: return True
+        ## Outdated: code to use PIDs to "steal" locks from dead processes on Posix; kept for possible future use
+        ## Reason for removal: atexit usage should be faster and safer, and will only fail unexpectedly upon irregular process termination
+        #    If `check_process_unix` is true, and the running platform is Posix, then a check
+        #        is performed using the stored PID in the lockfile. If that process
+        #        is (**detected as**) dead, then the lockfile is forcibly cleared
+        #        This can help in some cases where the lock is acquired, but not released when a process closes
+        if self.held: return True # no need to register via atexit, this should not be the case unless acquire() has succeeded in the past
         pid = str(os.getpid())
-        check_process_unix = check_process_unix and (os.name == 'posix')
-        if not blocking: return self._acquire_once(pid) or (check_process_unix and self._unix_strong_acquire_once(pid))
+        #check_process_unix = check_process_unix and (os.name == 'posix')
+        if not blocking: return self._acquire_once(pid, release_on_exit) # or (check_process_unix and self._unix_strong_acquire_once(pid))
         assert poll_interval > 0, 'Polling interval must be positive and more than zero'
         assert (timeout is None) or (timeout >= 0), 'Timeout can not be negative'
         hto = timeout is not None
@@ -95,7 +102,8 @@ class FLock(AbstractContextManager):
                 if r > timeout:
                     raise TimeoutError(f'Reached timeout of ~{timeout} second(s) whilst waiting to acquire FLock')
                 r += poll_interval
-            if self._acquire_once(pid) or (check_process_unix and self._unix_strong_acquire_once(pid)): return # success
+            if self._acquire_once(pid, release_on_exit): return # success
+            ## or (check_process_unix and self._unix_strong_acquire_once(pid)): return
             time.sleep(poll_interval)
     def __enter__(self): self.acquire()
 
@@ -106,4 +114,14 @@ class FLock(AbstractContextManager):
         os.close(self.file)
         self.file = None
         self.path.unlink()
+        atexit.unregister(self._quiet_release)
     def __exit__(self, exc_type: type[Exception] | None, exc_value: typing.Any, traceback: types.TracebackType | None): self.release()
+
+    @mlock
+    def _quiet_release(self):
+        # Registered via `atexit` (when enabled) to somewhat quietly attempt to release the lock
+        print('_quiet_release()')
+        if not self.held: return
+        try: os.close(self.file)
+        except Exception: pass
+        self.path.unlink(missing_ok=True)
