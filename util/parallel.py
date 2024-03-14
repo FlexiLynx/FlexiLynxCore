@@ -84,4 +84,4 @@ class FLock(AbstractContextManager):
         os.close(self.file)
         self.file = None
         self.path.unlink()
-    def __exit__(self, exc_type: type[Exception] | None, exc_value: typing.Any, traceback: types.TracebackType): self.release()
+    def __exit__(self, exc_type: type[Exception] | None, exc_value: typing.Any, traceback: types.TracebackType | None): self.release()
