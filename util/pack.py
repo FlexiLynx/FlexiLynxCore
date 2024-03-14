@@ -240,7 +240,7 @@ class Packer:
             ## Recursive
             case TypeKey.TUPLE: return self.unpack(e)
             case TypeKey.SET: return frozenset(self.unpack(e))
-            case TypeKey.DICT: return dict(zip(e[::2], e[1::2]))
+            case TypeKey.DICT: return dict(itertools.batched(self.unpack(e), 2))
             case TypeKey.NAMEDTUPLE:
                 clsname,modname,*items = self.unpack(e)
                 return namedtuple(clsname, items[::2], module=modname)(items[1::2])
