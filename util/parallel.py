@@ -121,8 +121,7 @@ class FLock(AbstractContextManager):
     @mlock
     def _quiet_release(self):
         # Registered via `atexit` (when enabled) to somewhat quietly attempt to release the lock
-        print('_quiet_release()')
         if not self.held: return
         try: os.close(self.file)
-        except Exception: pass
+        except OSError: pass
         self.path.unlink(missing_ok=True)
