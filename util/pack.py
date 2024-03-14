@@ -223,8 +223,8 @@ class Packer:
             case TypeKey.INT:
                 return int.from_bytes(e, signed=True)
             case TypeKey.FLOAT:
-                if len(e) == self.S_FLOAT.size: # must be packed
-                    return self.S_FLOAT.unpack(e)
+                if len(e) == self.S_DOUBLE.size: # must be packed
+                    return self.S_DOUBLE.unpack(e)
                 return float(self.decode(TypeKey.FRACTION, e))
             case TypeKey.COMPLEX:
                 if len(e) == self.S_COMPLEX.size: # must be packed
