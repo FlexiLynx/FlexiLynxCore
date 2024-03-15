@@ -7,4 +7,8 @@
 
 #> Package >/
 from . import __entrypoint__
-globals().update(__entrypoint__.__dict__)
+
+__all__ = __entrypoint__.__all__
+
+__dir__ = __entrypoint__.__dir__
+__getattr__ = __entrypoint__.__getattribute__
