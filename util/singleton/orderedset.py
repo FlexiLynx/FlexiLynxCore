@@ -1,11 +1,9 @@
 #!/bin/python3
 
 #> Imports
-import operator
 import itertools
 import collections
 from collections import abc as cabc
-from functools import partial, partialmethod
 #</Imports
 
 #> Header >/
