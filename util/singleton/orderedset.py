@@ -30,33 +30,6 @@ class orderedset(cabc.MutableSet):
     def discard(self, item: cabc.Hashable):
         self.__underlying.pop(item, None)
     # Indexing
-    def index_dropwhile(self, item: cabc.Hashable) -> int:
-        try:
-            return next(
-                itertools.dropwhile( # go through enumerate(self) until
-                    lambda ii: (ii[1] != item), # the fetched item is equal to the target
-                    enumerate(self)))[0] # return the index
-        except StopIteration: # the item was never in the orderedset
-            raise ValueError(f'{item!r} is not in this orderedset') from None
-    def index_takewhile_for(self, item: cabc.Hashable) -> int:
-        l = len(self)
-        if not l: raise ValueError(f'{item!r} is not in this orderedset')
-        i = -1
-        for i,v in enumerate(itertools.takewhile(partial(operator.ne, item), self)): pass
-        i += 1
-        if i == l:
-            raise ValueError(f'{item!r} is not in this orderedset')
-        return i
-    def index_takewhile_deque(self, item: cabc.Hashable) -> int:
-        l = len(self)
-        if not l: raise ValueError(f'{item!r} is not in this orderedset')
-        d = collections.deque(maxlen=1)
-        d.extend(enumerate(itertools.takewhile(partial(operator.ne, item), self)))
-        if not d: return 0
-        i = d[0][0] + 1
-        if i == l:
-            raise ValueError(f'{item!r} is not in this orderedset')
-        return i
     def index_for(self, item: cabc.Hashable):
         for i,e in enumerate(self):
             if e == item: return i
@@ -66,25 +39,18 @@ class orderedset(cabc.MutableSet):
         except ValueError: # the item was never in the orderedset
             raise ValueError(f'{item!r} is not in this orderedset') from None
     @staticmethod
-    def _test_best_index(nruns=100000, sizes=(0, 10, 100, 1000, 10000),
-                         methods=('index_dropwhile', 'index_takewhile_for', 'index_takewhile_deque', 'index_for', 'index_tuple')):
+    def _test_best_index(nruns=100000, sizes=(0, 10, 100, 1000, 10000)):
         import timeit
-        print(f'Testing with all: {nruns=!r} {sizes=!r} {methods=!r}\nTimes are displayed in seconds')
-        mlen = len(max(methods, key=len)) - 6 + 3
+        timeit = partial(timeit.timeit, number=nruns)
+        print(f'Testing {nruns} runs each\n[time per for]x[time per tuple] ([time total for]x[time total tuple])')
         for s in sizes:
-            os = orderedset(range(s+1))
-            print(f'{"-"*10}\nSize {s}:')
-            print(f'{"Method:":^{mlen}} | {"Best case:":^19} | {"Avg. case:":^19} | {"Worst case:":^19} | {"Miss. case:":^19}')
-            for m in methods:
-                print(f'{f"""{m.removeprefix("index_")}():""":^{mlen}}', end='')
-                for n in (0, s//2, s):
-                    t = timeit.timeit(partial(getattr(os, m), n), number=nruns)
-                    print(f' | {t/nruns:.3E}/{t:.3E}', end='')
-                def _():
-                    try: getattr(os, m)(n)
-                    except ValueError: pass
-                t = timeit.timeit(_, number=nruns)
-                print(f' | {t/nruns:.3E}/{t:.3E}')
+            print(f'Size: {s}'.center(20, '-'))
+            for cn,cv in {'Best': 0, 'Avg.': s//2, 'Wrst': s}.items():
+                os = orderedset(range(s+1))
+                print(f'{cn}-case: ', end='')
+                tfort = timeit(partial(os.index_for, cv)); tfora = tfort/nruns
+                ttupt = timeit(partial(os.index_tuple, cv)); ttupa = ttupt/nruns
+                print(f'{tfora}{"<" if tfora < ttupa else ">" if tfora > ttupa else "-"}{ttupa} ({tfort}{"<" if tfort < ttupt else ">" if tfort > ttupt else "-"}{ttupt})')
 orderedset._test_best_index()
 
 class frozenorderedset(cabc.Set):
