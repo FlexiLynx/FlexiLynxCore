@@ -1,7 +1,7 @@
 #!/bin/python3
 
 '''
-    Utilities that are necessary for `FlexiLynxCore`
+    Utilities that are necessary for `FlexiLynxCore` and related,
         and are exposed for convenience
 '''
 
@@ -13,7 +13,7 @@ __all__ = (
     ## tools
     'flattools', 'fstools', 'functools', 'hashtools', 'maptools', 'moduletools', 'retools', 'seqtools',
     ## singleton
-    'Config', 'FlexiSpace',
+    'Config', 'FlexiSpace', 'orderedset', 'frozenorderedset',
 )
 
 # Top-level modules
@@ -25,3 +25,4 @@ from .tools import flattools, fstools, functools, hashtools, maptools, moduletoo
 # Singleton modules
 from .singleton.config import Config
 from .singleton.flexispace import FlexiSpace
+from .singleton.orderedset import orderedset, frozenorderedset
