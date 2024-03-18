@@ -1,5 +1,7 @@
 #!/bin/python3
 
+VERSION = ''
+
 #> Imports
 import sys
 import tomllib
@@ -8,7 +10,7 @@ from importlib import import_module
 #</Imports
 
 #> Header
-__all__ = ('FlexiLynx', 'MIN_PYTHON_VERSION', '__load__', '__setup__')
+__all__ = ('VERSION', 'FlexiLynx', 'MIN_PYTHON_VERSION', '__load__', '__setup__')
 
 FlexiLynx = NotImplemented
 
